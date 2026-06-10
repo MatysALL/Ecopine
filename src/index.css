@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-ac-cream: #F4F1EA;
+  --color-ac-cream-dark: #E6E1D3;
+  --color-ac-green: #78B159;
+  --color-ac-green-dark: #5C8E41;
+  --color-ac-green-light: #EAF3E6;
+  --color-ac-brown: #4A3E3D;
+  --color-ac-brown-light: #7D6C6A;
+  --color-ac-gold: #F1B24A;
+  --color-ac-gold-dark: #D49733;
+  --color-ac-gold-light: #FDF5E6;
+  --color-ac-orange: #E67E22;
+  --color-ac-sky: #6CBAD8;
+  --color-ac-sky-light: #ECF5F9;
+  --color-ac-red: #D9534F;
+  --color-ac-red-light: #FADBD8;
+  
+  --font-sans: 'Nunito', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  
+  --shadow-ac-sm: 0 4px 0 0 rgba(74, 62, 61, 0.1);
+  --shadow-ac: 0 6px 0 0 rgba(74, 62, 61, 0.15);
+  --shadow-ac-lg: 0 10px 0 0 rgba(74, 62, 61, 0.15);
+  
+  --animate-wiggle: wiggle 0.3s ease-in-out infinite;
+  --animate-bounce-in: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.9); opacity: 0; }
+  70% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+html, body {
+  background-color: #F4F1EA;
+  color: #4A3E3D;
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+/* Custom scrollbars that look rounded and cute */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F1EA;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #E6E1D3;
+  border: 2px solid #F4F1EA;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #78B159;
+}
+
+/* Cute leaf patterns or dotted backgrounds */
+.ac-dotted-bg {
+  background-image: radial-gradient(#E6E1D3 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+
+.ac-leaf-pattern {
+  background-color: #78B159;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.15) 15%, transparent 16%);
+  background-size: 16px 16px;
+}
+
+/* Custom card effect */
+.ac-card {
+  background-color: #FFFFFF;
+  border: 3px solid #4A3E3D;
+  border-radius: 1.5rem;
+  box-shadow: 0 8px 0 0 rgba(74, 62, 61, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ac-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 0 0 rgba(74, 62, 61, 0.15);
+}
+
+.ac-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border: 3px solid #4A3E3D;
+  border-radius: 9999px;
+  box-shadow: 0 4px 0 0 #4A3E3D;
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.ac-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 0px 0 0 #4A3E3D;
+}
