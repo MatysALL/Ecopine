@@ -10,6 +10,20 @@ db.version(2).stores({
   user_meta: '++id, key, value'
 });
 
+// Explicitly open the database and handle schema collisions
+db.open().catch(async (err) => {
+  console.error("Erreur lors de l'ouverture d'IndexedDB:", err);
+  if (err.name === 'VersionError' || err.name === 'UpgradeError' || err.message?.includes('schema')) {
+    console.warn("Version mismatch or schema issue detected. Re-creating EcopineDB...");
+    try {
+      await Dexie.delete('EcopineDB');
+      window.location.reload();
+    } catch (deleteErr) {
+      console.error("Failed to delete database:", deleteErr);
+    }
+  }
+});
+
 
 // Recalculates actual balance for an account by summing all past and present transactions
 export async function getAccountBalance(accountId) {

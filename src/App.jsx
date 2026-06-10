@@ -8,23 +8,47 @@ import EconomicCalendar from './components/EconomicCalendar';
 import Settings from './components/Settings';
 import OnboardingModal from './components/OnboardingModal';
 
+import Dexie from 'dexie';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [dbError, setDbError] = useState(null);
 
-  // Query database for user profile name
-  const userMeta = useLiveQuery(() => 
-    db.user_meta.where('key').equals('username').first()
+  // Query database for user profile name safely
+  const userMeta = useLiveQuery(
+    async () => {
+      try {
+        return await db.user_meta.where('key').equals('username').first();
+      } catch (err) {
+        console.error("Dexie query error inside App:", err);
+        setDbError(err);
+        return null;
+      }
+    },
+    [],
+    undefined
   );
 
   const username = userMeta?.value || '';
-  const isLoading = userMeta === undefined;
-  const needsOnboarding = !isLoading && !userMeta;
+  const isLoading = userMeta === undefined && !dbError;
+  const needsOnboarding = !isLoading && !dbError && !userMeta;
 
   // Navigate to accounts tab and focus on specific account details
   const handleViewAccountDetails = (accountId) => {
     setSelectedAccountId(accountId);
     setActiveTab('accounts');
+  };
+
+  const handleWipeDatabase = async () => {
+    if (window.confirm("Cela effacera définitivement toutes tes données locales d'Ecopine pour réparer IndexedDB. Continuer ?")) {
+      try {
+        await Dexie.delete('EcopineDB');
+        window.location.reload();
+      } catch (err) {
+        alert("Impossible de réinitialiser la base de données : " + err.message);
+      }
+    }
   };
 
   const renderContent = () => {
@@ -46,6 +70,30 @@ export default function App() {
         return <Dashboard onViewAccountDetails={handleViewAccountDetails} username={username} />;
     }
   };
+
+  if (dbError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-ac-cream p-4 text-ac-brown select-none">
+        <div className="bg-white border-4 border-ac-brown rounded-3xl p-8 max-w-md w-full shadow-ac-lg text-center space-y-4">
+          <div className="text-5xl animate-bounce">🚧</div>
+          <h2 className="text-xl font-black">Oups, Méli-Mélo a fait une erreur !</h2>
+          <p className="text-xs font-semibold text-ac-brown-light leading-relaxed">
+            Ecopine n'a pas pu ouvrir ou lire la base de données locale dans ton navigateur. 
+            Cela peut être dû à un conflit de version d'IndexedDB.
+          </p>
+          <div className="bg-ac-red-light/30 border border-ac-red/20 rounded-xl p-3 text-[10px] text-ac-red font-mono break-all text-left">
+            {dbError.name}: {dbError.message}
+          </div>
+          <button
+            onClick={handleWipeDatabase}
+            className="w-full bg-ac-red text-white font-extrabold text-xs py-3 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+          >
+            Réinitialiser IndexedDB et rafraîchir
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
