@@ -14,34 +14,52 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [dbError, setDbError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [username, setUsername] = useState('');
   const [loadTimeout, setLoadTimeout] = useState(false);
 
-  // Trigger timeout warning if loading takes more than 4s
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setLoadTimeout(true);
     }, 4000);
-    return () => clearTimeout(timer);
+
+    let active = true;
+
+    const initializeDb = async () => {
+      try {
+        await Promise.race([
+          db.open(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("La connexion à IndexedDB a expiré (2.5s). Un autre onglet Ecopine bloque peut-être la base.")), 2500)
+          )
+        ]);
+
+        const meta = await db.user_meta.where('key').equals('username').first();
+        
+        if (active) {
+          setUsername(meta?.value || '');
+          setIsLoading(false);
+          clearTimeout(timer);
+        }
+      } catch (err) {
+        console.error("Erreur lors de l'initialisation de la base de données:", err);
+        if (active) {
+          setDbError(err);
+          setIsLoading(false);
+          clearTimeout(timer);
+        }
+      }
+    };
+
+    initializeDb();
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, []);
 
-  // Query database for user profile name safely
-  const userMeta = useLiveQuery(
-    async () => {
-      try {
-        return await db.user_meta.where('key').equals('username').first();
-      } catch (err) {
-        console.error("Dexie query error inside App:", err);
-        setDbError(err);
-        return null;
-      }
-    },
-    [],
-    undefined
-  );
-
-  const username = userMeta?.value || '';
-  const isLoading = userMeta === undefined && !dbError;
-  const needsOnboarding = !isLoading && !dbError && !userMeta;
+  const needsOnboarding = !isLoading && !dbError && !username;
 
   // Navigate to accounts tab and focus on specific account details
   const handleViewAccountDetails = (accountId) => {
@@ -144,7 +162,7 @@ export default function App() {
     <div className="flex bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30">
       {/* Onboarding block */}
       {needsOnboarding && (
-        <OnboardingModal onComplete={() => {}} />
+        <OnboardingModal onComplete={(name) => setUsername(name)} />
       )}
 
       {/* Sidebar Navigation */}
