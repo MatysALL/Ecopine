@@ -2,122 +2,14 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('EcopineDB');
 
-db.version(1).stores({
+db.version(2).stores({
   accounts: '++id, name, type, initialBalance, rate',
   transactions: '++id, accountId, date, amount, description, category, isRecurring, recurrencePeriod, recurrenceEnd',
   envelopes: '++id, accountId, name, monthlyLimit, carryOver, blockBalance',
-  budgets: '++id, month, limit'
+  budgets: '++id, month, limit',
+  user_meta: '++id, key, value'
 });
 
-// Seed data function
-export async function seedDatabase() {
-  const accountCount = await db.accounts.count();
-  if (accountCount > 0) return;
-
-  // Insert mock accounts
-  const mainAccountId = await db.accounts.add({
-    name: 'Poche (Courant)',
-    type: 'Courant',
-    initialBalance: 1200.00,
-    rate: 0
-  });
-
-  const savingsId = await db.accounts.add({
-    name: 'Livret Clochettes',
-    type: 'Livret A',
-    initialBalance: 8500.00,
-    rate: 3.0
-  });
-
-  await db.accounts.add({
-    name: 'LDDS Méli-Mélo',
-    type: 'LDDS',
-    initialBalance: 3000.00,
-    rate: 3.0
-  });
-
-  // Insert mock envelopes for main account
-  const envCoursesId = await db.envelopes.add({
-    accountId: mainAccountId,
-    name: 'Courses Navets',
-    monthlyLimit: 250,
-    carryOver: true,
-    blockBalance: false
-  });
-
-  const envNookId = await db.envelopes.add({
-    accountId: mainAccountId,
-    name: 'Mobilier Nook',
-    monthlyLimit: 120,
-    carryOver: false,
-    blockBalance: true // Subtracts from main dashboard balance
-  });
-
-  // Today's date components
-  const today = new Date();
-  const year = today.getFullYear();
-  const monthStr = String(today.getMonth() + 1).padStart(2, '0');
-  
-  // Seed past transactions
-  await db.transactions.bulkAdd([
-    {
-      accountId: mainAccountId,
-      date: `${year}-${monthStr}-01`,
-      amount: 1500.00,
-      description: 'Vente de Poissons & Insectes',
-      category: 'Revenus',
-      isRecurring: false,
-      recurrencePeriod: 'none',
-      recurrenceEnd: ''
-    },
-    {
-      accountId: mainAccountId,
-      date: `${year}-${monthStr}-02`,
-      amount: -85.50,
-      description: 'Courses Navets de la semaine',
-      category: 'Courses Navets', // Matches envelope name
-      isRecurring: false,
-      recurrencePeriod: 'none',
-      recurrenceEnd: ''
-    },
-    {
-      accountId: mainAccountId,
-      date: `${year}-${monthStr}-03`,
-      amount: -45.00,
-      description: 'Abonnement Méli-Mélo Premium',
-      category: 'Abonnements',
-      isRecurring: true,
-      recurrencePeriod: 'monthly',
-      recurrenceEnd: ''
-    },
-    {
-      accountId: mainAccountId,
-      date: `${year}-${monthStr}-05`,
-      amount: -12.50,
-      description: 'Café chez Robusto',
-      category: 'Loisirs',
-      isRecurring: false,
-      recurrencePeriod: 'none',
-      recurrenceEnd: ''
-    },
-    {
-      accountId: mainAccountId,
-      date: `${year}-${monthStr}-07`,
-      amount: -90.00,
-      description: 'Table en bois de fer',
-      category: 'Mobilier Nook', // Matches envelope name
-      isRecurring: false,
-      recurrencePeriod: 'none',
-      recurrenceEnd: ''
-    }
-  ]);
-
-  // Seed default budget for the current month
-  await db.budgets.add({
-    month: `${year}-${monthStr}`,
-    limit: 600
-  });
-}
 
 // Recalculates actual balance for an account by summing all past and present transactions
 export async function getAccountBalance(accountId) {

@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getAccountBalance } from '../db';
 import { Coins, ArrowRight, TrendingUp, Sparkles, Shield, ChevronRight, HelpCircle } from 'lucide-react';
 
-export default function Dashboard({ onViewAccountDetails }) {
+export default function Dashboard({ onViewAccountDetails, username }) {
   const [budgetInputOpen, setBudgetInputOpen] = useState(false);
   const [newBudgetLimit, setNewBudgetLimit] = useState('');
 
@@ -70,9 +70,10 @@ export default function Dashboard({ onViewAccountDetails }) {
     : 0;
 
   // Get budget limit
-  const budgetLimit = currentBudget ? currentBudget.limit : 500; // Default limit 500
+  const isBudgetConfigured = !!currentBudget;
+  const budgetLimit = currentBudget ? currentBudget.limit : 0; 
   const remainingBudget = Math.max(0, budgetLimit - monthlyExpenses);
-  const budgetPercentage = Math.min(100, (monthlyExpenses / budgetLimit) * 100);
+  const budgetPercentage = budgetLimit > 0 ? Math.min(100, (monthlyExpenses / budgetLimit) * 100) : 0;
 
   const handleSaveBudget = async (e) => {
     e.preventDefault();
@@ -97,7 +98,7 @@ export default function Dashboard({ onViewAccountDetails }) {
       <div className="flex justify-between items-center bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden">
         <div className="space-y-1 relative z-10">
           <h2 className="text-3xl font-black text-ac-brown flex items-center gap-2">
-            Bonjour, Îlien ! <Sparkles className="w-6 h-6 text-ac-gold fill-ac-gold animate-pulse" />
+            Bonjour, {username || 'Îlien'} ! <Sparkles className="w-6 h-6 text-ac-gold fill-ac-gold animate-pulse" />
           </h2>
           <p className="text-sm font-semibold text-ac-brown-light">
             Voici l'état de ton île financière pour le mois de <strong className="text-ac-green capitalize">{today.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</strong>.
@@ -198,7 +199,7 @@ export default function Dashboard({ onViewAccountDetails }) {
                 </h3>
                 <button 
                   onClick={() => {
-                    setNewBudgetLimit(budgetLimit.toString());
+                    setNewBudgetLimit(budgetLimit > 0 ? budgetLimit.toString() : '500');
                     setBudgetInputOpen(!budgetInputOpen);
                   }}
                   className="text-xs font-black text-ac-green hover:underline"
@@ -223,31 +224,47 @@ export default function Dashboard({ onViewAccountDetails }) {
                 </form>
               ) : null}
 
-              <div className="bg-ac-cream/50 rounded-2xl p-4 border border-ac-brown/10 mb-6">
-                <div className="text-center py-2">
-                  <span className="text-xs font-bold text-ac-brown-light block mb-1">Reste à dépenser</span>
-                  <span className="text-4xl font-black text-ac-green">
-                    {remainingBudget.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} 🔔
-                  </span>
-                  <span className="text-xs font-bold text-ac-brown-light block mt-1">sur un budget de {budgetLimit} 🔔</span>
+              {!isBudgetConfigured ? (
+                <div className="bg-ac-cream/50 rounded-2xl p-4 border border-ac-brown/10 mb-6 text-center py-6">
+                  <span className="text-xs font-bold text-ac-brown-light block mb-2">Budget non défini ce mois-ci</span>
+                  <p className="text-[10px] text-ac-brown-light mb-4">Configure un budget mensuel pour suivre ton reste à dépenser en direct !</p>
+                  <button 
+                    onClick={() => {
+                      setNewBudgetLimit('500');
+                      setBudgetInputOpen(true);
+                    }}
+                    className="ac-btn bg-ac-green text-white font-extrabold text-xs px-4 py-2 border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px]"
+                  >
+                    Définir mon budget
+                  </button>
                 </div>
+              ) : (
+                <div className="bg-ac-cream/50 rounded-2xl p-4 border border-ac-brown/10 mb-6">
+                  <div className="text-center py-2">
+                    <span className="text-xs font-bold text-ac-brown-light block mb-1">Reste à dépenser</span>
+                    <span className="text-4xl font-black text-ac-green">
+                      {remainingBudget.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} 🔔
+                    </span>
+                    <span className="text-xs font-bold text-ac-brown-light block mt-1">sur un budget de {budgetLimit} 🔔</span>
+                  </div>
 
-                {/* Progress Bar */}
-                <div className="mt-4">
-                  <div className="w-full bg-ac-cream-dark border-2 border-ac-brown h-5 rounded-full overflow-hidden p-0.5">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        budgetPercentage > 90 ? 'bg-ac-red' : budgetPercentage > 70 ? 'bg-ac-gold' : 'bg-ac-green'
-                      }`}
-                      style={{ width: `${budgetPercentage}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between text-[10px] font-bold text-ac-brown-light mt-1 px-1">
-                    <span>Dépensé: {monthlyExpenses.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} 🔔</span>
-                    <span>{Math.round(budgetPercentage)}%</span>
+                  {/* Progress Bar */}
+                  <div className="mt-4">
+                    <div className="w-full bg-ac-cream-dark border-2 border-ac-brown h-5 rounded-full overflow-hidden p-0.5">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          budgetPercentage > 90 ? 'bg-ac-red' : budgetPercentage > 70 ? 'bg-ac-gold' : 'bg-ac-green'
+                        }`}
+                        style={{ width: `${budgetPercentage}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-bold text-ac-brown-light mt-1 px-1">
+                      <span>Dépensé: {monthlyExpenses.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} 🔔</span>
+                      <span>{Math.round(budgetPercentage)}%</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="text-xs font-semibold text-ac-brown-light bg-ac-cream-dark/30 p-3 rounded-xl border border-dashed border-ac-brown/25">
@@ -277,7 +294,7 @@ export default function Dashboard({ onViewAccountDetails }) {
           <div className="text-center py-6 text-ac-brown-light">Chargement...</div>
         ) : latestTransactions.length === 0 ? (
           <div className="text-center py-8 bg-ac-cream rounded-3xl border border-dashed border-ac-brown/20 text-ac-brown-light text-sm font-semibold">
-            Aucune transaction enregistrée. Ajoute un compte pour commencer !
+            Aucune clochette dépensée ou gagnée ici pour le moment ! C'est le début d'une belle aventure financière. 🍃
           </div>
         ) : (
           <div className="divide-y-2 divide-ac-cream-dark">

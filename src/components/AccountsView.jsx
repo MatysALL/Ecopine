@@ -424,7 +424,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               <div className="text-center py-6 text-ac-brown-light">Recalcul des transactions...</div>
             ) : transactions.length === 0 ? (
               <div className="text-center py-8 bg-ac-cream rounded-3xl border border-dashed border-ac-brown/20 text-ac-brown-light text-sm font-semibold">
-                Aucune transaction sur ce compte. Ajoute une transaction manuellement ou via CSV !
+                Aucune clochette dépensée ou gagnée ici pour le moment ! Utilise le bouton ci-dessus pour ajouter ta première transaction. 🍃
               </div>
             ) : (
               <div className="overflow-x-auto">

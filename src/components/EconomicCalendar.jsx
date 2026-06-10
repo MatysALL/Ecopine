@@ -307,7 +307,7 @@ export default function EconomicCalendar() {
           </h4>
 
           {hoveredData.length === 0 ? (
-            <p className="text-[11px] font-bold text-ac-brown-light italic py-1 text-center bg-ac-cream rounded-lg">Aucune transaction ce jour.</p>
+            <p className="text-[11px] font-bold text-ac-brown-light italic py-2 text-center bg-ac-cream rounded-lg">Aucune clochette dépensée ou gagnée ce jour. 🍃</p>
           ) : (
             <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
               {hoveredData.map((tx, index) => {

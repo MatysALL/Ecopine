@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { db, seedDatabase } from '../db';
+import { db } from '../db';
 import { Download, Upload, Trash2, ShieldAlert, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function Settings() {
@@ -96,16 +96,15 @@ export default function Settings() {
     );
     if (!confirmWipe) return;
 
-    await db.transaction('rw', db.accounts, db.transactions, db.envelopes, db.budgets, async () => {
+    await db.transaction('rw', db.accounts, db.transactions, db.envelopes, db.budgets, db.user_meta, async () => {
       await db.accounts.clear();
       await db.transactions.clear();
       await db.envelopes.clear();
       await db.budgets.clear();
+      await db.user_meta.clear();
     });
 
-    // Re-seed demo data so the app is not empty
-    await seedDatabase();
-    alert("Application réinitialisée avec les données de démonstration !");
+    alert("Application réinitialisée avec succès !");
     window.location.reload();
   };
 
