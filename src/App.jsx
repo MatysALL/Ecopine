@@ -14,6 +14,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [dbError, setDbError] = useState(null);
+  const [loadTimeout, setLoadTimeout] = useState(false);
+
+  // Trigger timeout warning if loading takes more than 4s
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadTimeout(true);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Query database for user profile name safely
   const userMeta = useLiveQuery(
@@ -97,9 +106,36 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-ac-cream text-ac-brown">
-        <div className="animate-spin w-10 h-10 border-4 border-ac-green border-t-transparent rounded-full mb-3"></div>
-        <p className="font-bold text-sm">Chargement de ton île budgétaire...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-ac-cream p-4 text-ac-brown select-none animate-fade-in">
+        <div className="flex flex-col items-center justify-center text-center max-w-sm space-y-4">
+          <div className="animate-spin w-10 h-10 border-4 border-ac-green border-t-transparent rounded-full"></div>
+          <p className="font-bold text-sm">Chargement de ton île budgétaire...</p>
+          
+          {loadTimeout && (
+            <div className="bg-white border-3 border-ac-brown rounded-2xl p-5 shadow-ac-sm space-y-3 mt-4 animate-bounce-in">
+              <span className="text-xl">🦝</span>
+              <h4 className="font-black text-xs">Le chargement prend plus de temps que prévu...</h4>
+              <p className="text-[10px] text-ac-brown-light font-semibold leading-relaxed">
+                Cela peut arriver si un autre onglet d'Ecopine est ouvert dans ton navigateur (ce qui bloque la base de données). 
+                Ferme les autres onglets ou tente une action ci-dessous :
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="flex-1 bg-ac-green text-white font-extrabold text-[10px] py-2.5 rounded-xl border-2 border-ac-brown shadow-ac-sm active:translate-y-0.5 active:shadow-none cursor-pointer"
+                >
+                  Rafraîchir
+                </button>
+                <button
+                  onClick={handleWipeDatabase}
+                  className="flex-1 bg-ac-red-light text-ac-red font-extrabold text-[10px] py-2.5 rounded-xl border-2 border-ac-brown shadow-ac-sm active:translate-y-0.5 active:shadow-none cursor-pointer"
+                >
+                  Réinitialiser
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

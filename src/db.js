@@ -10,6 +10,17 @@ db.version(2).stores({
   user_meta: '++id, key, value'
 });
 
+// Handle version change and blocked events to avoid tab locking
+db.on('versionchange', () => {
+  console.warn("Changement de version de la base de données détecté. Fermeture de la connexion...");
+  db.close();
+  window.location.reload();
+});
+
+db.on('blocked', () => {
+  console.warn("La mise à niveau de la base de données est bloquée par un autre onglet ouvert.");
+});
+
 // Explicitly open the database and handle schema collisions
 db.open().catch(async (err) => {
   console.error("Erreur lors de l'ouverture d'IndexedDB:", err);
