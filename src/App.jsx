@@ -34,7 +34,7 @@ export default function App() {
           )
         ]);
 
-        const meta = await db.user_meta.where('key').equals('username').first();
+        const meta = await db.user_meta.get('username');
         
         if (active) {
           setUsername(meta?.value || '');

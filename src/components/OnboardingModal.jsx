@@ -24,14 +24,18 @@ export default function OnboardingModal({ onComplete }) {
     }
 
     try {
-      // 1. Add user metadata
-      await db.user_meta.add({ key: 'username', value: username.trim() });
+      // 1. Put user metadata
+      await db.user_meta.put({ key: 'username', value: username.trim() });
       
       // 2. Add first current account
       await db.accounts.add({
         name: accountName.trim(),
         type: 'Courant',
+        bankName: '',
+        description: 'Compte initial de mon île',
+        rib: '',
         initialBalance: balance,
+        currentBalance: balance,
         rate: 0
       });
 
@@ -44,13 +48,13 @@ export default function OnboardingModal({ onComplete }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-ac-brown/65 backdrop-blur-md flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-ac-brown/65 backdrop-blur-md flex items-center justify-center p-4 z-50 text-ac-brown select-none">
       <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl max-w-lg w-full p-8 shadow-ac-lg relative overflow-hidden flex flex-col md:flex-row gap-6 items-center">
-        {/* Decorative corner patterns */}
+        {/* Decorative patterns */}
         <div className="absolute top-0 right-0 w-12 h-12 bg-ac-green/10 rounded-bl-3xl border-l-2 border-b-2 border-ac-brown/10 pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-12 h-12 bg-ac-gold/10 rounded-tr-3xl border-r-2 border-t-2 border-ac-brown/10 pointer-events-none"></div>
 
-        {/* Nook Icon Column */}
+        {/* Tom Nook Avatar Column */}
         <div className="flex flex-col items-center shrink-0">
           <div className="w-20 h-20 bg-ac-gold rounded-full flex items-center justify-center border-4 border-ac-brown shadow-ac-sm animate-pulse mb-3">
             <span className="text-4xl">🦝</span>
@@ -60,9 +64,8 @@ export default function OnboardingModal({ onComplete }) {
           </span>
         </div>
 
-        {/* Dialog & Form Content */}
+        {/* Dialogue Bubble & Form */}
         <div className="flex-1 space-y-4 w-full">
-          {/* Dialog Bubble */}
           <div className="bg-ac-gold-light border-3 border-ac-brown rounded-2xl p-4 shadow-ac-sm relative mb-4">
             <h3 className="font-black text-sm text-ac-brown mb-1 flex items-center gap-1.5">
               Bonjour, nouvel habitant ! <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold" />
@@ -70,12 +73,10 @@ export default function OnboardingModal({ onComplete }) {
             <p className="text-xs font-bold leading-relaxed text-ac-brown-light">
               "Oui, oui ! Bienvenue sur ton île budgétaire. Commençons par configurer ton carnet de clochettes pour que tu puisses suivre tes économies."
             </p>
-            {/* Dialogue Bubble Left Arrow */}
             <div className="w-3.5 h-3.5 bg-ac-gold-light border-l-3 border-t-3 border-ac-brown absolute left-[-8.5px] top-10 transform -translate-y-1/2 -rotate-45 hidden md:block"></div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Prénom (username) */}
             <div>
               <label className="block text-xs font-black uppercase text-ac-brown-light mb-1 flex items-center gap-1">
                 <User className="w-3.5 h-3.5 text-ac-green" /> Comment t'appelles-tu ?
@@ -90,7 +91,6 @@ export default function OnboardingModal({ onComplete }) {
               />
             </div>
 
-            {/* First Account Details */}
             <div className="bg-ac-cream-dark/20 border-2 border-ac-brown/60 rounded-2xl p-4 space-y-3">
               <span className="text-[10px] font-black uppercase text-ac-brown-light block border-b border-ac-brown/10 pb-1.5">
                 Configuration de ton 1er Compte Courant
@@ -99,7 +99,7 @@ export default function OnboardingModal({ onComplete }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1 flex items-center gap-1">
-                    <Home className="w-3 h-3 text-ac-gold" /> Nom du compte
+                    <Home className="w-3.5 h-3.5 text-ac-gold" /> Nom du compte
                   </label>
                   <input
                     type="text"
@@ -113,7 +113,7 @@ export default function OnboardingModal({ onComplete }) {
 
                 <div>
                   <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1 flex items-center gap-1">
-                    <Coins className="w-3 h-3 text-ac-gold" /> Solde Initial
+                    <Coins className="w-3.5 h-3.5 text-ac-gold" /> Solde Initial
                   </label>
                   <div className="relative">
                     <input
@@ -131,7 +131,6 @@ export default function OnboardingModal({ onComplete }) {
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               className="w-full bg-ac-green text-white font-extrabold text-sm py-3.5 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer transition-transform"

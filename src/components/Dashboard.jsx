@@ -1,165 +1,268 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getAccountBalance } from '../db';
-import { Coins, ArrowRight, TrendingUp, Sparkles, Shield, ChevronRight, HelpCircle } from 'lucide-react';
+import { db, getAccountBalance, getAccountVisibleBalance } from '../db';
+import { 
+  Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
+  ChevronRight, HelpCircle, MessageSquare, StickyNote, Activity
+} from 'lucide-react';
 
 export default function Dashboard({ onViewAccountDetails, username }) {
-  const [budgetInputOpen, setBudgetInputOpen] = useState(false);
-  const [newBudgetLimit, setNewBudgetLimit] = useState('');
+  const [noteText, setNoteText] = useState('');
 
-  // Fetch current month string 'YYYY-MM'
+  // Fetch current month details
   const today = new Date();
   const currentYear = today.getFullYear();
   const currentMonthNum = today.getMonth() + 1;
   const currentMonthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`;
 
-  // 1. Fetch accounts
+  // 1. Fetch user metadata (note & favorite account id)
+  const userMeta = useLiveQuery(() => db.user_meta.toArray());
+
+  // 2. Fetch all accounts with live balances
   const accountsData = useLiveQuery(async () => {
-    const allAccounts = await db.accounts.toArray();
-    const accountsWithBalance = await Promise.all(
-      allAccounts.map(async (acc) => {
+    const list = await db.accounts.toArray();
+    return Promise.all(
+      list.map(async (acc) => {
         const bal = await getAccountBalance(acc.id);
-        return { ...acc, balance: bal };
+        const visBal = await getAccountVisibleBalance(acc.id);
+        return { ...acc, balance: bal, visibleBalance: visBal };
       })
     );
-    return accountsWithBalance;
   });
 
-  // 2. Fetch envelopes on main account to calculate blocked balances
-  const envelopes = useLiveQuery(() => db.envelopes.toArray());
+  // Calculate 30-day balance variation and retrieve 5 latest transactions for favorite account
+  const favoriteAccountDetails = useLiveQuery(async () => {
+    if (!accountsData || accountsData.length === 0 || !userMeta) return null;
 
-  // 3. Fetch current month budget
-  const currentBudget = useLiveQuery(() => 
-    db.budgets.where('month').equals(currentMonthStr).first()
-  );
+    const favMeta = userMeta.find(m => m.key === 'favorite_account_id');
+    let favId = favMeta ? Number(favMeta.value) : null;
+    
+    // Fallback if no favorite account is configured
+    if (!favId) {
+      const courant = accountsData.find(a => a.type === 'Courant');
+      favId = courant ? courant.id : accountsData[0].id;
+    }
 
-  // 4. Fetch last 5 transactions across all accounts
-  const latestTransactions = useLiveQuery(() => 
-    db.transactions.orderBy('date').reverse().limit(5).toArray()
-  );
+    const favAccount = accountsData.find(a => a.id === favId);
+    if (!favAccount) return null;
+
+    // Date strings
+    const todayStr = today.toISOString().split('T')[0];
+    const prevDate = new Date();
+    prevDate.setDate(prevDate.getDate() - 30);
+    const prevDateStr = prevDate.toISOString().split('T')[0];
+
+    // Compute balance variation
+    const balToday = await getAccountVisibleBalance(favId, todayStr);
+    const balPrev = await getAccountVisibleBalance(favId, prevDateStr);
+
+    let variationPct = 0;
+    if (balPrev !== 0) {
+      variationPct = ((balToday - balPrev) / Math.abs(balPrev)) * 100;
+    } else if (balToday !== 0) {
+      variationPct = balToday > 0 ? 100 : -100;
+    }
+
+    // Get 5 latest transactions for this account
+    const txs = await db.transactions
+      .where('accountId')
+      .equals(favId)
+      .reverse()
+      .sortBy('date');
+    const latestTxs = txs.slice(0, 5);
+
+    return {
+      account: favAccount,
+      variationPct,
+      latestTxs
+    };
+  }, [accountsData, userMeta]);
+
+  // 3. Fetch last 5 transactions across ALL accounts
+  const globalLatestTransactions = useLiveQuery(async () => {
+    return db.transactions
+      .reverse()
+      .sortBy('date')
+      .then(txs => txs.slice(0, 5));
+  });
+
+  // Initial load of the note text
+  useEffect(() => {
+    if (userMeta) {
+      const noteMeta = userMeta.find(m => m.key === 'dashboard_note');
+      setNoteText(noteMeta?.value || '');
+    }
+  }, [userMeta]);
+
+  // Handle note writing and auto-saving
+  const handleNoteChange = async (e) => {
+    const text = e.target.value.slice(0, 500);
+    setNoteText(text);
+    await db.user_meta.put({ key: 'dashboard_note', value: text });
+  };
 
   if (!accountsData) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-ac-brown">
         <div className="animate-spin w-12 h-12 border-4 border-ac-green border-t-transparent rounded-full mb-4"></div>
-        <p className="font-bold">Chargement de tes clochettes...</p>
+        <p className="font-bold">Chargement de ton île...</p>
       </div>
     );
   }
 
-  // Find the primary current account (default to first current account, or the first account found)
-  const mainAccount = accountsData.find(a => a.type === 'Courant') || accountsData[0];
-  const otherAccounts = accountsData.filter(a => a.id !== mainAccount?.id);
+  // Split favorite vs others
+  const favMeta = userMeta?.find(m => m.key === 'favorite_account_id');
+  let favoriteId = favMeta ? Number(favMeta.value) : null;
+  if (!favoriteId && accountsData.length > 0) {
+    const courant = accountsData.find(a => a.type === 'Courant');
+    favoriteId = courant ? courant.id : accountsData[0].id;
+  }
 
-  // Calculate sum of blocked envelopes for the main account
-  const blockedEnvelopesSum = envelopes
-    ? envelopes
-        .filter(e => e.accountId === mainAccount?.id && e.blockBalance)
-        .reduce((sum, e) => sum + Number(e.monthlyLimit), 0)
-    : 0;
+  const otherAccounts = accountsData.filter(a => a.id !== favoriteId);
 
-  // Real balance vs visible balance (visible is real balance minus blocked envelope funds)
-  const realBalance = mainAccount ? mainAccount.balance : 0;
-  const visibleBalance = realBalance - blockedEnvelopesSum;
-
-  // Calculate total monthly expenses on primary account (only expenses, i.e., amount < 0)
-  const monthlyExpenses = latestTransactions
-    ? latestTransactions
-        .filter(t => t.accountId === mainAccount?.id && t.amount < 0 && t.date.startsWith(currentMonthStr))
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0)
-    : 0;
-
-  // Get budget limit
-  const isBudgetConfigured = !!currentBudget;
-  const budgetLimit = currentBudget ? currentBudget.limit : 0; 
-  const remainingBudget = Math.max(0, budgetLimit - monthlyExpenses);
-  const budgetPercentage = budgetLimit > 0 ? Math.min(100, (monthlyExpenses / budgetLimit) * 100) : 0;
-
-  const handleSaveBudget = async (e) => {
-    e.preventDefault();
-    const limit = parseFloat(newBudgetLimit);
-    if (isNaN(limit) || limit < 0) return;
-
-    if (currentBudget) {
-      await db.budgets.update(currentBudget.id, { limit });
-    } else {
-      await db.budgets.add({
-        month: currentMonthStr,
-        limit
-      });
-    }
-    setBudgetInputOpen(false);
-    setNewBudgetLimit('');
-  };
+  // Compute total balance across all accounts
+  const totalBalance = accountsData.reduce((sum, a) => sum + a.balance, 0);
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Header */}
-      <div className="flex justify-between items-center bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden">
-        <div className="space-y-1 relative z-10">
-          <h2 className="text-3xl font-black text-ac-brown flex items-center gap-2">
-            Bonjour, {username || 'Îlien'} ! <Sparkles className="w-6 h-6 text-ac-gold fill-ac-gold animate-pulse" />
-          </h2>
-          <p className="text-sm font-semibold text-ac-brown-light">
-            Voici l'état de ton île financière pour le mois de <strong className="text-ac-green capitalize">{today.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</strong>.
-          </p>
+    <div className="space-y-8 select-none">
+      {/* 1. Bulle de bienvenue Tom Nook */}
+      <div className="flex flex-col md:flex-row gap-6 bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden items-center md:items-start shadow-ac-sm">
+        <div className="flex flex-col items-center shrink-0">
+          <div className="w-16 h-16 bg-ac-gold rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-2 transform hover:rotate-12 transition-transform cursor-pointer">
+            <span className="text-3xl">🦝</span>
+          </div>
+          <span className="text-[10px] font-black text-white bg-ac-brown px-3 py-0.5 rounded-full border border-ac-brown shadow-ac-xs">
+            Tom Nook
+          </span>
         </div>
-        <div className="hidden md:flex absolute right-[-20px] bottom-[-20px] text-ac-green/10 transform rotate-12">
-          <LeafIconLarge />
+
+        <div className="flex-1 space-y-4 w-full">
+          <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative">
+            <h3 className="font-black text-sm text-ac-brown flex items-center gap-1">
+              Bonjour, {username || 'Îlien'} ! <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold animate-pulse" />
+            </h3>
+            <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
+              "Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de <strong>{totalBalance.toLocaleString('fr-FR')} 🔔</strong>. Prends soin de tes économies !"
+            </p>
+            {/* Dialogue bubble arrow */}
+            <div className="w-3 h-3 bg-white border-l-2 border-t-2 border-ac-brown/60 absolute left-[-7px] top-6 transform rotate-[-45deg] hidden md:block"></div>
+          </div>
+
+          {/* Island Note textarea */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-black uppercase text-ac-brown-light flex items-center gap-1.5">
+              <StickyNote className="w-3.5 h-3.5" /> Note de l'île (Sauvegarde en direct)
+            </label>
+            <textarea
+              value={noteText}
+              onChange={handleNoteChange}
+              placeholder="Écris tes remarques, projets de construction, ou objectifs de clochettes ici..."
+              className="w-full bg-white border-2 border-ac-brown rounded-2xl p-3 text-xs font-bold text-ac-brown placeholder:text-ac-brown-light/40 focus:outline-none focus:ring-2 focus:ring-ac-green/30 resize-none h-20"
+              maxLength={500}
+            />
+            <div className="text-right text-[9px] font-bold text-ac-brown-light/60">
+              {noteText.length}/500 caractères
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Side: Cards */}
+        {/* Left column: Favorite Account Card & Other accounts */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Main Account Balance Card */}
-          <div 
-            onClick={() => mainAccount && onViewAccountDetails(mainAccount.id)}
-            className="ac-card bg-ac-gold-light p-8 cursor-pointer relative overflow-hidden group select-none border-ac-brown"
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="text-xs font-black uppercase tracking-wider text-ac-gold-dark bg-white border border-ac-gold px-3 py-1 rounded-full shadow-ac-sm">
-                  Compte Principal - {mainAccount?.name || 'Poche'}
+          {/* 2. Section Compte Favori */}
+          {favoriteAccountDetails ? (
+            <div 
+              onClick={() => onViewAccountDetails(favoriteAccountDetails.account.id)}
+              className="ac-card bg-ac-gold-light p-8 cursor-pointer relative overflow-hidden group select-none border-ac-brown hover:scale-[1.01] transition-all"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-ac-gold-dark bg-white border border-ac-gold px-3 py-1 rounded-full shadow-ac-sm">
+                    ⭐ Compte Favori - {favoriteAccountDetails.account.name}
+                  </span>
+                  <h3 className="text-base font-black text-ac-brown mt-4">
+                    Solde Disponible
+                  </h3>
+                </div>
+                <div className="w-12 h-12 bg-ac-gold rounded-full flex items-center justify-center border-2 border-ac-brown shadow-ac-sm group-hover:scale-110 transition-transform duration-200">
+                  <Coins className="w-6 h-6 text-white fill-white" />
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-baseline gap-2">
+                <span className="text-4xl font-black tracking-tight text-ac-brown">
+                  {favoriteAccountDetails.account.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                 </span>
-                <h3 className="text-lg font-black text-ac-brown mt-4 mb-2">
-                  Clochettes Disponibles
-                </h3>
-              </div>
-              <div className="w-14 h-14 bg-ac-gold rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm group-hover:scale-110 transition-transform duration-200">
-                <Coins className="w-8 h-8 text-white fill-white" />
-              </div>
-            </div>
+                <span className="text-lg font-black text-ac-brown-light">🔔</span>
 
-            <div className="mt-4 flex items-baseline gap-2">
-              <span className="text-5xl font-black tracking-tight text-ac-brown">
-                {visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-              <span className="text-xl font-black text-ac-brown-light">🔔</span>
-            </div>
-
-            {/* Blocked funds indicator */}
-            {blockedEnvelopesSum > 0 && (
-              <div className="mt-4 flex items-center gap-2 bg-white/75 border-2 border-ac-brown/50 rounded-xl px-3 py-2 text-xs font-bold text-ac-brown-light">
-                <Shield className="w-4 h-4 text-ac-red shrink-0" />
-                <span>
-                  Solde réel : <strong>{realBalance.toLocaleString('fr-FR')} 🔔</strong> (dont <strong>{blockedEnvelopesSum.toLocaleString('fr-FR')} 🔔</strong> virtuellement bloqués dans vos enveloppes-coffres).
+                {/* 30 day variation badge */}
+                <span className={`ml-4 text-xs font-black px-2 py-1 rounded-lg border flex items-center gap-0.5 ${
+                  favoriteAccountDetails.variationPct >= 0 
+                    ? 'bg-ac-green-light border-ac-green/20 text-ac-green' 
+                    : 'bg-ac-red-light border-ac-red/20 text-ac-red'
+                }`}>
+                  {favoriteAccountDetails.variationPct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                  {favoriteAccountDetails.variationPct >= 0 ? '+' : ''}{favoriteAccountDetails.variationPct.toFixed(1)}% (30j)
                 </span>
               </div>
-            )}
 
-            <div className="mt-6 flex items-center text-xs font-black text-ac-brown-light group-hover:text-ac-brown transition-colors">
-              Voir le détail des transactions <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+              {/* Internal objective blocked warning */}
+              {favoriteAccountDetails.account.balance !== favoriteAccountDetails.account.visibleBalance && (
+                <div className="mt-4 flex items-center gap-2 bg-white/85 border border-ac-gold rounded-xl px-3 py-2 text-[10px] font-bold text-ac-gold-dark">
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>
+                    Solde réel : <strong>{favoriteAccountDetails.account.balance.toLocaleString('fr-FR')} 🔔</strong> (dont <strong>{(favoriteAccountDetails.account.balance - favoriteAccountDetails.account.visibleBalance).toLocaleString('fr-FR')} 🔔</strong> bloqués dans des objectifs).
+                  </span>
+                </div>
+              )}
+
+              {/* 5 Latest transactions for this account */}
+              <div className="mt-6 space-y-3 bg-white/70 border-2 border-ac-brown/30 rounded-2xl p-4">
+                <h4 className="text-xs font-black text-ac-brown border-b border-ac-brown/15 pb-1 flex items-center gap-1">
+                  <Activity className="w-3.5 h-3.5 text-ac-gold" /> Dernières écritures de ce compte
+                </h4>
+                {favoriteAccountDetails.latestTxs.length === 0 ? (
+                  <p className="text-[10px] text-ac-brown-light italic py-2 text-center">Aucune transaction récente.</p>
+                ) : (
+                  <div className="divide-y divide-ac-cream-dark">
+                    {favoriteAccountDetails.latestTxs.map((tx) => {
+                      const isIncome = tx.type === 'credit';
+                      return (
+                        <div key={tx.id} className="py-2 flex justify-between items-center text-xs">
+                          <div>
+                            <p className="font-extrabold text-ac-brown truncate max-w-[150px]">{tx.name}</p>
+                            <span className="text-[8px] font-bold text-ac-brown-light block">{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                          <span className={`font-black ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
+                            {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR')} 🔔
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 flex items-center text-[10px] font-black text-ac-brown-light group-hover:text-ac-brown transition-colors">
+                Voir le détail des transactions <ChevronRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-1 transition-transform" />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="ac-card bg-white p-6 border-ac-brown text-center py-12">
+              <span className="text-xl">⭐</span>
+              <p className="font-extrabold text-ac-brown mt-2">Aucun compte configuré.</p>
+              <p className="text-xs text-ac-brown-light mt-1">Crée un compte dans l'onglet dédié.</p>
+            </div>
+          )}
 
-          {/* Other Accounts List */}
+          {/* 3. Section Autres Comptes */}
           <div className="ac-card p-6 bg-white border-ac-brown">
             <h3 className="text-lg font-black text-ac-brown mb-4 flex items-center gap-2">
               Autres Comptes & Épargnes
             </h3>
             {otherAccounts.length === 0 ? (
-              <p className="text-sm font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
+              <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
                 Aucun autre compte enregistré.
               </p>
             ) : (
@@ -171,14 +274,14 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                     className="p-4 bg-ac-cream-dark/40 hover:bg-ac-cream-dark/80 transition-colors border-2 border-ac-brown rounded-2xl cursor-pointer flex justify-between items-center group"
                   >
                     <div>
-                      <h4 className="font-extrabold text-sm text-ac-brown">{acc.name}</h4>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-ac-brown/20 text-ac-brown-light">
+                      <h4 className="font-extrabold text-xs text-ac-brown">{acc.name}</h4>
+                      <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-white border border-ac-brown/20 text-ac-brown-light mt-1 inline-block">
                         {acc.type} {acc.rate > 0 ? `(${acc.rate}%)` : ''}
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="font-black text-base text-ac-brown">
-                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
+                      <span className="font-black text-sm text-ac-brown block">
+                        {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
                       </span>
                     </div>
                   </div>
@@ -188,171 +291,81 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           </div>
         </div>
 
-        {/* Right Side: Budget Widget */}
+        {/* Right column: Global flow of transactions */}
         <div className="space-y-8">
-          {/* Monthly Budget Card */}
-          <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between h-full">
+          <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-full justify-between">
             <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-black text-ac-brown">
-                  Budget ce mois-ci
-                </h3>
-                <button 
-                  onClick={() => {
-                    setNewBudgetLimit(budgetLimit > 0 ? budgetLimit.toString() : '500');
-                    setBudgetInputOpen(!budgetInputOpen);
-                  }}
-                  className="text-xs font-black text-ac-green hover:underline"
-                >
-                  Configurer
-                </button>
-              </div>
+              <h3 className="text-base font-black text-ac-brown mb-6 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
+                Flux Global des Transactions
+              </h3>
 
-              {budgetInputOpen ? (
-                <form onSubmit={handleSaveBudget} className="bg-ac-cream rounded-2xl border-2 border-ac-brown p-3 mb-4 flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={newBudgetLimit}
-                    onChange={(e) => setNewBudgetLimit(e.target.value)}
-                    placeholder="Ex: 500"
-                    className="w-full bg-white border-2 border-ac-brown rounded-xl px-2 py-1 text-sm font-bold focus:outline-none"
-                    autoFocus
-                  />
-                  <button type="submit" className="bg-ac-green text-white font-bold text-xs px-3 py-1.5 rounded-xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px]">
-                    Valider
-                  </button>
-                </form>
-              ) : null}
-
-              {!isBudgetConfigured ? (
-                <div className="bg-ac-cream/50 rounded-2xl p-4 border border-ac-brown/10 mb-6 text-center py-6">
-                  <span className="text-xs font-bold text-ac-brown-light block mb-2">Budget non défini ce mois-ci</span>
-                  <p className="text-[10px] text-ac-brown-light mb-4">Configure un budget mensuel pour suivre ton reste à dépenser en direct !</p>
-                  <button 
-                    onClick={() => {
-                      setNewBudgetLimit('500');
-                      setBudgetInputOpen(true);
-                    }}
-                    className="ac-btn bg-ac-green text-white font-extrabold text-xs px-4 py-2 border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px]"
-                  >
-                    Définir mon budget
-                  </button>
+              {globalLatestTransactions === undefined ? (
+                <div className="text-center py-6 text-ac-brown-light text-xs font-bold">Chargement...</div>
+              ) : globalLatestTransactions.length === 0 ? (
+                <div className="text-center py-8 bg-ac-cream rounded-3xl border border-dashed border-ac-brown/20 text-ac-brown-light text-xs font-semibold">
+                  Aucune clochette dépensée ou gagnée ici pour le moment ! C'est le début d'une belle aventure financière. 🍃
                 </div>
               ) : (
-                <div className="bg-ac-cream/50 rounded-2xl p-4 border border-ac-brown/10 mb-6">
-                  <div className="text-center py-2">
-                    <span className="text-xs font-bold text-ac-brown-light block mb-1">Reste à dépenser</span>
-                    <span className="text-4xl font-black text-ac-green">
-                      {remainingBudget.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} 🔔
-                    </span>
-                    <span className="text-xs font-bold text-ac-brown-light block mt-1">sur un budget de {budgetLimit} 🔔</span>
-                  </div>
+                <div className="space-y-4">
+                  {globalLatestTransactions.map((tx) => {
+                    const matchingAccount = accountsData.find(a => a.id === tx.accountId);
+                    const isIncome = tx.type === 'credit';
+                    return (
+                      <div key={tx.id} className="flex gap-3 items-start border-b border-ac-cream pb-3 last:border-b-0">
+                        <span className={`w-7 h-7 rounded-full border-2 border-ac-brown flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
+                          isIncome ? 'bg-ac-green-light text-ac-green' : 'bg-ac-red-light text-ac-red'
+                        }`}>
+                          {isIncome ? '+' : '-'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-extrabold text-xs text-ac-brown truncate">{tx.name}</h4>
+                          
+                          <div className="flex flex-wrap gap-1 items-center mt-1 text-[8px] font-black text-ac-brown-light">
+                            <span>{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
+                            <span>•</span>
+                            <span className="bg-ac-cream border border-ac-brown/10 px-1 rounded truncate max-w-[80px]">
+                              {matchingAccount?.name || 'Inconnu'}
+                            </span>
+                            {tx.category && (
+                              <>
+                                <span>•</span>
+                                <span className="text-ac-green bg-ac-green-light px-1 rounded">
+                                  {tx.category}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* Badges for Execution Types */}
+                          <div className="mt-1 flex gap-1">
+                            {tx.executionType && tx.executionType !== 'spontaneous' && (
+                              <span className={`text-[7px] font-black uppercase px-1 rounded border ${
+                                tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' : 'bg-ac-cream-dark/50 border-ac-brown/15 text-ac-brown-light'
+                              }`}>
+                                {tx.executionType === 'planned' ? 'Planifiée' : 'Passée'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                  {/* Progress Bar */}
-                  <div className="mt-4">
-                    <div className="w-full bg-ac-cream-dark border-2 border-ac-brown h-5 rounded-full overflow-hidden p-0.5">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          budgetPercentage > 90 ? 'bg-ac-red' : budgetPercentage > 70 ? 'bg-ac-gold' : 'bg-ac-green'
-                        }`}
-                        style={{ width: `${budgetPercentage}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between text-[10px] font-bold text-ac-brown-light mt-1 px-1">
-                      <span>Dépensé: {monthlyExpenses.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} 🔔</span>
-                      <span>{Math.round(budgetPercentage)}%</span>
-                    </div>
-                  </div>
+                        <div className="text-right whitespace-nowrap shrink-0">
+                          <span className={`font-black text-xs ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
+                            {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR')} 🔔
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            <div className="text-xs font-semibold text-ac-brown-light bg-ac-cream-dark/30 p-3 rounded-xl border border-dashed border-ac-brown/25">
-              💡 Le reste à dépenser est recalculé en soustrayant les dépenses faites sur le compte principal ce mois-ci ({monthlyExpenses.toLocaleString('fr-FR')} 🔔).
+            <div className="text-[10px] font-bold text-ac-brown-light bg-ac-cream-dark/30 p-3 rounded-xl border border-dashed border-ac-brown/25 mt-6">
+              💡 Le flux global regroupe les écritures de tous les comptes, incluant les transactions planifiées passées et spontanées.
             </div>
           </div>
         </div>
       </div>
-
-      {/* Latest Transactions Section */}
-      <div className="ac-card p-6 bg-white border-ac-brown">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-black text-ac-brown flex items-center gap-2">
-            Aperçu des 5 Dernières Transactions
-          </h3>
-          {mainAccount && (
-            <button
-              onClick={() => onViewAccountDetails(mainAccount.id)}
-              className="text-xs font-black text-ac-green hover:underline flex items-center gap-1 group"
-            >
-              Gérer les comptes <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </button>
-          )}
-        </div>
-
-        {latestTransactions === undefined ? (
-          <div className="text-center py-6 text-ac-brown-light">Chargement...</div>
-        ) : latestTransactions.length === 0 ? (
-          <div className="text-center py-8 bg-ac-cream rounded-3xl border border-dashed border-ac-brown/20 text-ac-brown-light text-sm font-semibold">
-            Aucune clochette dépensée ou gagnée ici pour le moment ! C'est le début d'une belle aventure financière. 🍃
-          </div>
-        ) : (
-          <div className="divide-y-2 divide-ac-cream-dark">
-            {latestTransactions.map((tx) => {
-              const matchingAccount = accountsData.find(a => a.id === tx.accountId);
-              const isIncome = tx.amount > 0;
-              return (
-                <div key={tx.id} className="py-3 flex justify-between items-center hover:bg-ac-cream-light/35 px-2 rounded-xl transition-colors">
-                  <div className="flex items-center gap-3">
-                    <span className={`w-8 h-8 rounded-full border-2 border-ac-brown flex items-center justify-center font-bold text-xs ${
-                      isIncome ? 'bg-ac-green-light text-ac-green' : 'bg-ac-red-light text-ac-red'
-                    }`}>
-                      {isIncome ? '+' : '-'}
-                    </span>
-                    <div>
-                      <h4 className="font-extrabold text-sm text-ac-brown">{tx.description}</h4>
-                      <div className="flex gap-2 items-center text-[10px] font-bold text-ac-brown-light mt-0.5">
-                        <span>{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
-                        <span>•</span>
-                        <span className="px-1.5 py-0.2 bg-ac-cream-dark/50 border border-ac-brown/10 rounded">
-                          {matchingAccount?.name || 'Inconnu'}
-                        </span>
-                        {tx.category && (
-                          <>
-                            <span>•</span>
-                            <span className="text-ac-green bg-ac-green-light px-1.5 py-0.2 rounded">
-                              {tx.category}
-                            </span>
-                          </>
-                        )}
-                        {tx.isRecurring && (
-                          <span className="text-ac-gold font-extrabold bg-ac-gold-light border border-ac-gold/30 rounded px-1">
-                            ♻️ {tx.recurrencePeriod === 'weekly' ? 'Hebdo' : 'Mensuel'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className={`font-black text-sm ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                      {isIncome ? '+' : ''}{tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
     </div>
-  );
-}
-
-// Decorative leaf logo
-function LeafIconLarge() {
-  return (
-    <svg width="220" height="220" viewBox="0 0 24 24" fill="currentColor" className="text-ac-green">
-      <path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.58,20.08C14,20 18,15.5 21,8C22,5.5 22,2.5 22,2C22,2 19,2 16.5,3C9,6 8,10.5 8,18L7.08,20L9,20C15,18 19.5,13.5 17,8Z" />
-    </svg>
   );
 }

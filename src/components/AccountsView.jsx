@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getAccountBalance } from '../db';
+import { db, getAccountBalance, getAccountVisibleBalance, calculateLivretInterests } from '../db';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
-  Coins, PiggyBank, Briefcase, HelpCircle, Save, Info, AlertTriangle 
+  Coins, PiggyBank, Briefcase, HelpCircle, Save, Info, AlertTriangle, 
+  Landmark, CreditCard, Sparkles, FileSpreadsheet
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
-import EnvelopeManager from './EnvelopeManager';
+import BudgetManager from './BudgetManager';
 
 export default function AccountsView({ selectedAccountId, setSelectedAccountId }) {
   // Account Form states
@@ -14,6 +15,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [editingAccount, setEditingAccount] = useState(null);
   const [accName, setAccName] = useState('');
   const [accType, setAccType] = useState('Courant');
+  const [accBankName, setAccBankName] = useState('');
+  const [accDescription, setAccDescription] = useState('');
+  const [accRib, setAccRib] = useState('');
   const [accInitial, setAccInitial] = useState('');
   const [accRate, setAccRate] = useState('');
 
@@ -26,13 +30,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
 
-  // Fetch accounts with their live balance
+  // Fetch accounts with both real and visible balances
   const accounts = useLiveQuery(async () => {
     const list = await db.accounts.toArray();
     return Promise.all(
       list.map(async (acc) => {
         const bal = await getAccountBalance(acc.id);
-        return { ...acc, balance: bal };
+        const visBal = await getAccountVisibleBalance(acc.id);
+        return { ...acc, balance: bal, visibleBalance: visBal };
       })
     );
   });
@@ -48,6 +53,21 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       .sortBy('date');
   }, [selectedAccountId]);
 
+  // Fetch live interest simulation for booklet accounts
+  const activeAccountInterests = useLiveQuery(async () => {
+    if (!activeAccount) return null;
+    const isLivret = activeAccount.type && activeAccount.type.toLowerCase() !== 'courant';
+    if (!isLivret || Number(activeAccount.rate) <= 0) return null;
+
+    const txs = await db.transactions
+      .where('accountId')
+      .equals(activeAccount.id)
+      .toArray();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    return calculateLivretInterests(activeAccount, txs, todayStr);
+  }, [activeAccount]);
+
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
     e.preventDefault();
@@ -57,8 +77,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     const rate = accRate ? parseFloat(accRate) : 0;
 
     const data = {
-      name: accName,
+      name: accName.trim(),
       type: accType,
+      bankName: accBankName.trim(),
+      description: accDescription.trim(),
+      rib: accRib.trim(),
       initialBalance: isNaN(initial) ? 0 : initial,
       rate: isNaN(rate) ? 0 : rate
     };
@@ -67,7 +90,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       await db.accounts.update(editingAccount.id, data);
       setEditingAccount(null);
     } else {
-      const newId = await db.accounts.add(data);
+      const newId = await db.accounts.add({
+        ...data,
+        currentBalance: data.initialBalance
+      });
       setSelectedAccountId(newId);
     }
 
@@ -78,6 +104,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const resetAccountForm = () => {
     setAccName('');
     setAccType('Courant');
+    setAccBankName('');
+    setAccDescription('');
+    setAccRib('');
     setAccInitial('');
     setAccRate('');
   };
@@ -85,7 +114,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const handleEditAccount = (acc) => {
     setEditingAccount(acc);
     setAccName(acc.name);
-    setAccType(acc.type);
+    setAccType(acc.type || 'Courant');
+    setAccBankName(acc.bankName || '');
+    setAccDescription(acc.description || '');
+    setAccRib(acc.rib || '');
     setAccInitial(acc.initialBalance.toString());
     setAccRate(acc.rate ? acc.rate.toString() : '');
     setAccountFormOpen(true);
@@ -93,13 +125,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   const handleDeleteAccount = async (accId) => {
     const confirmDelete = window.confirm(
-      "Es-tu sûr de vouloir supprimer ce compte ? Cela supprimera également toutes ses transactions et enveloppes liées."
+      "Es-tu sûr de vouloir supprimer ce compte ? Cela supprimera également toutes ses transactions et budgets liés."
     );
     if (!confirmDelete) return;
 
     await db.accounts.delete(accId);
     await db.transactions.where('accountId').equals(accId).delete();
-    await db.envelopes.where('accountId').equals(accId).delete();
+    await db.budgets.where('accountId').equals(accId).delete();
     setSelectedAccountId(null);
   };
 
@@ -166,7 +198,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   const parseCSVAmount = (amountStr) => {
     if (!amountStr) return 0;
-    // Replace French space separator, convert comma decimal to dot, remove Euro sign
     let clean = amountStr.replace(/\s/g, '').replace(',', '.').replace('€', '').trim();
     const parsed = parseFloat(clean);
     return isNaN(parsed) ? 0 : parsed;
@@ -184,22 +215,19 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         return;
       }
 
-      // Delimiter detection
       let delimiter = ',';
       if (lines[0].includes(';')) delimiter = ';';
       else if (lines[0].includes('\t')) delimiter = '\t';
 
       const rows = lines.map(line => line.split(delimiter).map(cell => cell.trim().replace(/^["']|["']$/g, '')));
       
-      // Heuristic mapping
       const headers = rows[0].map(h => h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
       
       let dateCol = headers.findIndex(h => h.includes('date') || h.includes('valeur'));
-      let descCol = headers.findIndex(h => h.includes('description') || h.includes('libelle') || h.includes('communication') || h.includes('motif') || h.includes('details'));
+      let descCol = headers.findIndex(h => h.includes('description') || h.includes('libelle') || h.includes('communication') || h.includes('motif') || h.includes('details') || h.includes('nom'));
       let amountCol = headers.findIndex(h => h.includes('montant') || h.includes('somme') || h.includes('valeur') || h.includes('amount'));
 
-      // If headers not found, fall back to checking first data row types
-      if (dateCol === -1 || descCol === -1 || amountCol === -1) {
+      if (dateCol === -1 || amountCol === -1) {
         const testRow = rows[1];
         if (testRow) {
           testRow.forEach((cell, idx) => {
@@ -219,9 +247,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         return;
       }
 
-      // Parse data rows
       const parsedTransactions = [];
-      // Skip header row
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (row.length <= Math.max(dateCol, amountCol, descCol)) continue;
@@ -234,13 +260,20 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         const amount = parseCSVAmount(rawAmount);
 
         if (date && amount !== 0) {
+          const isIncome = amount > 0;
           parsedTransactions.push({
             date,
+            name: rawDesc || 'Transaction sans nom',
             description: rawDesc || 'Transaction sans nom',
-            amount,
+            amount: Math.abs(amount),
+            type: isIncome ? 'credit' : 'debit',
             category: 'Import CSV',
+            categoryId: null,
+            budgetId: null,
+            executionType: 'spontaneous',
             isRecurring: false,
-            recurrencePeriod: 'none'
+            recurrencePeriod: 'none',
+            recurrenceEnd: ''
           });
         }
       }
@@ -268,12 +301,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 select-none">
       {/* 1. Detail View of Account */}
       {selectedAccountId && activeAccount ? (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-in">
           {/* Header & Account info banner */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm">
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setSelectedAccountId(null)}
@@ -282,8 +315,15 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 <ArrowLeft className="w-5 h-5 text-ac-brown" />
               </button>
               <div>
-                <h2 className="text-2xl font-black text-ac-brown">{activeAccount.name}</h2>
-                <div className="flex gap-2 items-center text-xs font-bold text-ac-brown-light mt-1">
+                <h2 className="text-2xl font-black text-ac-brown flex items-center gap-2">
+                  {activeAccount.name}
+                  {activeAccount.bankName && (
+                    <span className="text-xs font-black text-ac-brown-light bg-ac-cream px-2 py-0.5 rounded-md border border-ac-brown/15">
+                      {activeAccount.bankName}
+                    </span>
+                  )}
+                </h2>
+                <div className="flex flex-wrap gap-2 items-center text-xs font-bold text-ac-brown-light mt-1">
                   <span className="bg-ac-gold-light border border-ac-gold/30 text-ac-gold-dark px-2.5 py-0.5 rounded-full">
                     {activeAccount.type}
                   </span>
@@ -292,38 +332,89 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       Taux: {activeAccount.rate}%
                     </span>
                   )}
+                  {activeAccount.rib && (
+                    <span className="bg-ac-cream-dark/40 px-2.5 py-0.5 rounded-full border border-ac-brown/10 font-mono text-[10px]">
+                      RIB: {activeAccount.rib}
+                    </span>
+                  )}
                 </div>
+                {activeAccount.description && (
+                  <p className="text-[11px] font-semibold text-ac-brown-light mt-2 italic">
+                    "{activeAccount.description}"
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="text-left md:text-right bg-ac-cream-dark/20 border-2 border-ac-brown rounded-2xl px-6 py-3 min-w-[200px]">
-              <span className="text-[10px] font-bold text-ac-brown-light uppercase block">Solde Actuel Réel</span>
-              <span className="text-3xl font-black text-ac-brown">
-                {activeAccount.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-              </span>
+            <div className="flex flex-col gap-2">
+              <div className="text-left md:text-right bg-ac-cream-dark/20 border-2 border-ac-brown rounded-2xl px-6 py-2.5 min-w-[200px]">
+                <span className="text-[9px] font-black text-ac-brown-light uppercase block">Solde Réel Principal</span>
+                <span className="text-2xl font-black text-ac-brown">
+                  {activeAccount.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                </span>
+              </div>
+              
+              {activeAccount.balance !== activeAccount.visibleBalance && (
+                <div className="text-left md:text-right bg-ac-gold-light/45 border-2 border-ac-gold rounded-2xl px-6 py-2.5 min-w-[200px] animate-bounce-in">
+                  <span className="text-[9px] font-black text-ac-gold-dark uppercase block flex items-center justify-end gap-1">
+                    Solde Disponible <Sparkles className="w-3 h-3 fill-ac-gold" />
+                  </span>
+                  <span className="text-2xl font-black text-ac-gold-dark">
+                    {activeAccount.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                  </span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Booklet interests calculation simulator */}
+          {activeAccountInterests && (
+            <div className="bg-ac-sky-light/40 border-3 border-ac-brown rounded-3xl p-5 shadow-ac-sm flex items-center justify-between gap-4 animate-bounce-in">
+              <div className="space-y-1">
+                <h4 className="font-black text-xs text-ac-brown flex items-center gap-1.5 uppercase">
+                  <Landmark className="w-4 h-4 text-ac-sky" /> Simulation des Intérêts (Calcul par Quinzaine)
+                </h4>
+                <p className="text-[10px] font-semibold text-ac-brown-light">
+                  Simulation selon les modalités annuelles standard françaises appliquées sur ce livret.
+                </p>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="bg-white border-2 border-ac-brown rounded-xl px-4 py-2 text-center shadow-ac-sm">
+                  <span className="text-[8px] font-black text-ac-brown-light uppercase block">Capitalisés (Années antérieures)</span>
+                  <span className="text-sm font-black text-ac-brown">
+                    +{activeAccountInterests.capitalized.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                  </span>
+                </div>
+
+                <div className="bg-white border-2 border-ac-brown rounded-xl px-4 py-2 text-center shadow-ac-sm">
+                  <span className="text-[8px] font-black text-ac-sky uppercase block">Courus (Année en cours)</span>
+                  <span className="text-sm font-black text-ac-sky">
+                    +{activeAccountInterests.accrued.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Account Edit/Delete Controls */}
           <div className="flex gap-3">
             <button
               onClick={() => handleEditAccount(activeAccount)}
-              className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px]"
+              className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
             >
               <Edit className="w-4 h-4" /> Modifier le Compte
             </button>
             <button
               onClick={() => handleDeleteAccount(activeAccount.id)}
-              className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px]"
+              className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
             >
               <Trash2 className="w-4 h-4" /> Supprimer le Compte
             </button>
           </div>
 
-          {/* Envelope Section Component */}
-          {activeAccount.type === 'Courant' && (
-            <EnvelopeManager accountId={activeAccount.id} />
-          )}
+          {/* Nested Budget Section */}
+          <BudgetManager accountId={activeAccount.id} />
 
           {/* Transactions CRUD Card */}
           <div className="ac-card p-6 bg-white border-ac-brown">
@@ -349,7 +440,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
             {/* CSV Synchro zone */}
             <div className="mb-6">
-              <h4 className="text-xs font-black uppercase text-ac-brown-light mb-2">Importation relevé bancaire (CSV)</h4>
+              <h4 className="text-xs font-black uppercase text-ac-brown-light mb-2 flex items-center gap-1">
+                <FileSpreadsheet className="w-3.5 h-3.5" /> Importation relevé bancaire (CSV)
+              </h4>
               <div 
                 onDragEnter={handleDrag}
                 onDragOver={handleDrag}
@@ -386,11 +479,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     {csvPreviewTxs.slice(0, 10).map((tx, idx) => (
                       <div key={idx} className="p-3 text-xs flex justify-between items-center">
                         <div>
-                          <p className="font-extrabold text-ac-brown">{tx.description}</p>
+                          <p className="font-extrabold text-ac-brown">{tx.name}</p>
                           <span className="text-[10px] font-bold text-ac-brown-light">{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
                         </div>
-                        <span className={`font-black ${tx.amount > 0 ? 'text-ac-green' : 'text-ac-brown'}`}>
-                          {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(2)} 🔔
+                        <span className={`font-black ${tx.type === 'credit' ? 'text-ac-green' : 'text-ac-brown'}`}>
+                          {tx.type === 'credit' ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
                         </span>
                       </div>
                     ))}
@@ -404,13 +497,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   <div className="flex gap-2 justify-end">
                     <button 
                       onClick={() => setCsvPreviewTxs(null)}
-                      className="bg-white hover:bg-ac-cream border border-ac-brown text-ac-brown font-extrabold text-xs px-3 py-1.5 rounded-xl"
+                      className="bg-white hover:bg-ac-cream border border-ac-brown text-ac-brown font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer"
                     >
                       Annuler
                     </button>
                     <button 
                       onClick={handleConfirmCSVImport}
-                      className="bg-ac-green text-white font-extrabold text-xs px-3 py-1.5 rounded-xl border border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px]"
+                      className="bg-ac-green text-white font-extrabold text-xs px-3 py-1.5 rounded-xl border border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
                     >
                       <CheckCircle className="w-4 h-4" /> Importer
                     </button>
@@ -428,27 +521,28 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[500px]">
+                <table className="w-full text-left border-collapse min-w-[600px]">
                   <thead>
                     <tr className="border-b-2 border-ac-brown text-ac-brown-light font-black text-xs uppercase">
                       <th className="pb-3 pt-2 pl-2">Date</th>
-                      <th className="pb-3 pt-2">Description</th>
+                      <th className="pb-3 pt-2">Nom</th>
                       <th className="pb-3 pt-2">Catégorie</th>
+                      <th className="pb-3 pt-2">Exécution</th>
                       <th className="pb-3 pt-2 text-right">Montant</th>
                       <th className="pb-3 pt-2 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-ac-cream-dark">
                     {transactions.map((tx) => {
-                      const isIncome = tx.amount > 0;
+                      const isIncome = tx.type === 'credit';
                       return (
                         <tr key={tx.id} className="hover:bg-ac-cream-light/35 transition-colors group">
                           <td className="py-3.5 pl-2 text-xs font-bold text-ac-brown-light">
                             {new Date(tx.date).toLocaleDateString('fr-FR')}
                           </td>
                           <td className="py-3.5 font-extrabold text-sm text-ac-brown">
-                            <div className="flex items-center gap-1.5">
-                              {tx.description}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {tx.name || tx.description}
                               {tx.isRecurring && (
                                 <span className="text-[9px] font-black bg-ac-gold-light border border-ac-gold/20 text-ac-gold-dark px-1.5 py-0.2 rounded" title="Transaction récurrente">
                                   ♻️ {tx.recurrencePeriod === 'weekly' ? 'Hebdo' : 'Mensuel'}
@@ -467,9 +561,19 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                               </span>
                             )}
                           </td>
+                          <td className="py-3.5">
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
+                              tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
+                              tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :
+                              'bg-ac-green-light border-ac-green/20 text-ac-green'
+                            }`}>
+                              {tx.executionType === 'planned' ? 'À prévoir' :
+                               tx.executionType === 'past' ? 'Passée' : 'Spontanée'}
+                            </span>
+                          </td>
                           <td className="py-3.5 text-right font-black text-sm">
                             <span className={isIncome ? 'text-ac-green' : 'text-ac-brown'}>
-                              {isIncome ? '+' : ''}{tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                              {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                             </span>
                           </td>
                           <td className="py-3.5 text-center">
@@ -479,14 +583,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                                   setEditingTransaction(tx);
                                   setTxModalOpen(true);
                                 }}
-                                className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/25"
+                                className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/25 cursor-pointer"
                                 title="Modifier"
                               >
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleDeleteTransaction(tx.id)}
-                                className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-brown/25"
+                                className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-brown/25 cursor-pointer"
                                 title="Supprimer"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -552,7 +656,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     value={accName}
                     onChange={(e) => setAccName(e.target.value)}
                     placeholder="Ex: Compte Courant Principal, Livret Clochettes"
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
                     required
                   />
                 </div>
@@ -562,13 +666,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   <select
                     value={accType}
                     onChange={(e) => setAccType(e.target.value)}
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:bg-white"
                   >
                     <option value="Courant">Courant</option>
                     <option value="Livret A">Livret A</option>
                     <option value="LDDS">LDDS</option>
                     <option value="PEA">PEA</option>
-                    <option value="Autre">Autre Épargne</option>
+                    <option value="Autre">Autre Épargne (Livret)</option>
                   </select>
                 </div>
 
@@ -581,7 +685,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       value={accInitial}
                       onChange={(e) => setAccInitial(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
                       required
                     />
                     <span className="absolute left-3 top-2.5 text-xs font-black">🔔</span>
@@ -589,18 +693,52 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Taux d'Intérêt % (Opt.)</label>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom de la Banque</label>
+                  <input
+                    type="text"
+                    value={accBankName}
+                    onChange={(e) => setAccBankName(e.target.value)}
+                    placeholder="Ex: Banque Nook"
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description</label>
+                  <input
+                    type="text"
+                    value={accDescription}
+                    onChange={(e) => setAccDescription(e.target.value)}
+                    placeholder="Ex: Compte pour les dépenses quotidiennes de l'île"
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Taux d'Intérêt % (Livrets)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={accRate}
                     onChange={(e) => setAccRate(e.target.value)}
                     placeholder="Ex: 3.0"
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                    disabled={accType === 'Courant'}
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white disabled:opacity-55"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Numéro RIB / Compte</label>
+                <input
+                  type="text"
+                  value={accRib}
+                  onChange={(e) => setAccRib(e.target.value)}
+                  placeholder="Ex: FR76 1234 5678 9012 3456 7890 123"
+                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white font-mono"
+                />
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
@@ -610,13 +748,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     setAccountFormOpen(false);
                     resetAccountForm();
                   }}
-                  className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-sm px-4 py-2 rounded-2xl border border-ac-brown shadow-ac-sm transition-transform active:translate-y-[1px]"
+                  className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-sm px-4 py-2 rounded-2xl border border-ac-brown shadow-ac-sm transition-transform active:translate-y-[1px] cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="bg-ac-green text-white font-extrabold text-sm px-4 py-2 rounded-2xl border-2 border-ac-brown shadow-ac-sm transition-transform active:translate-y-[1px]"
+                  className="bg-ac-green text-white font-extrabold text-sm px-4 py-2 rounded-2xl border-2 border-ac-brown shadow-ac-sm transition-transform active:translate-y-[1px] cursor-pointer"
                 >
                   Sauvegarder
                 </button>
@@ -630,7 +768,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
           ) : accounts.length === 0 ? (
             <div className="text-center py-10 bg-white rounded-3xl border-3 border-ac-brown text-ac-brown-light">
               <p className="font-extrabold mb-4">Tu n'as pas encore créé de compte ou de livret.</p>
-              <p className="text-xs">Commence par créer ton compte courant principal en cliquant sur "Nouveau Compte" ci-dessus !</p>
+              <p className="text-xs">Commence par créer ton compte courant principal en clicking sur "Nouveau Compte" ci-dessus !</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -658,11 +796,28 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       <h3 className="font-black text-base text-ac-brown">{acc.name}</h3>
                     </div>
 
-                    <div className="mt-6">
-                      <span className="text-[10px] font-bold text-ac-brown-light uppercase block">Solde Actuel</span>
-                      <span className="text-2xl font-black text-ac-brown">
+                    {acc.bankName && (
+                      <span className="text-[9px] font-extrabold text-ac-brown-light block mt-2">
+                        🏦 Banque : {acc.bankName}
+                      </span>
+                    )}
+
+                    <div className="mt-4 flex flex-col gap-1">
+                      <span className="text-[9px] font-bold text-ac-brown-light uppercase block">Solde Réel</span>
+                      <span className="text-xl font-black text-ac-brown">
                         {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                       </span>
+                      
+                      {acc.balance !== acc.visibleBalance && (
+                        <div className="mt-1 flex flex-col">
+                          <span className="text-[8px] font-bold text-ac-gold-dark uppercase block flex items-center gap-1">
+                            Solde Disponible <Sparkles className="w-2.5 h-2.5 fill-ac-gold text-ac-gold-dark" />
+                          </span>
+                          <span className="text-sm font-black text-ac-gold-dark">
+                            {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {acc.rate > 0 && (
@@ -671,7 +826,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       </div>
                     )}
 
-                    <div className="mt-4 pt-3 border-t border-ac-brown/10 flex justify-between items-center text-[10px] font-black text-ac-brown-light group-hover:text-ac-brown transition-colors">
+                    <div className="mt-4 pt-3 border-t border-t-ac-brown/10 flex justify-between items-center text-[10px] font-black text-ac-brown-light group-hover:text-ac-brown transition-colors">
                       <span>Détail et transactions</span>
                       <ArrowLeft className="w-3.5 h-3.5 transform rotate-180 group-hover:translate-x-1 transition-transform" />
                     </div>

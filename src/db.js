@@ -2,6 +2,7 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('EcopineDB');
 
+// Version 2 schema (legacy)
 db.version(2).stores({
   accounts: '++id, name, type, initialBalance, rate',
   transactions: '++id, accountId, date, amount, description, category, isRecurring, recurrencePeriod, recurrenceEnd',
@@ -10,7 +11,66 @@ db.version(2).stores({
   user_meta: '++id, key, value'
 });
 
-// Handle version change and blocked events to avoid tab locking
+// Version 3 schema (updated)
+db.version(3).stores({
+  user_meta: 'key',
+  accounts: '++id, name, type, bankName, initialBalance, currentBalance, rate, description, rib',
+  categories: '++id, name, isDefault',
+  budgets: '++id, accountId, parentBudgetId, name, type, limitAmount, currentAmount, carryOverAmount, frequency',
+  transactions: '++id, accountId, budgetId, name, amount, type, date, categoryId, executionType'
+}).upgrade(async (tx) => {
+  // 1. Migrate user_meta: convert ++id auto-increment to simple key/value store
+  const oldMeta = await tx.table('user_meta').toArray();
+  await tx.table('user_meta').clear();
+  for (const m of oldMeta) {
+    if (m.key) {
+      await tx.table('user_meta').put({ key: m.key, value: m.value });
+    }
+  }
+
+  // 2. Migrate envelopes to budgets
+  const oldEnvs = await tx.table('envelopes').toArray();
+  const envToBudgetId = {};
+  for (const env of oldEnvs) {
+    const newBudgetId = await tx.table('budgets').add({
+      accountId: Number(env.accountId),
+      parentBudgetId: null,
+      name: env.name,
+      type: env.carryOver ? 'leisure' : 'regular',
+      limitAmount: Number(env.monthlyLimit) || 0,
+      currentAmount: 0,
+      carryOverAmount: 0,
+      frequency: 'monthly'
+    });
+    envToBudgetId[env.name] = newBudgetId;
+  }
+
+  // 3. Migrate transactions
+  const oldTxs = await tx.table('transactions').toArray();
+  await tx.table('transactions').clear();
+  for (const txObj of oldTxs) {
+    const isIncome = txObj.amount > 0;
+    const absAmount = Math.abs(txObj.amount);
+    const budgetId = envToBudgetId[txObj.category] || null;
+
+    await tx.table('transactions').add({
+      accountId: Number(txObj.accountId),
+      budgetId: budgetId,
+      name: txObj.description || 'Transaction',
+      amount: absAmount,
+      type: isIncome ? 'credit' : 'debit',
+      date: txObj.date,
+      categoryId: null, // Will resolve dynamically or manually
+      executionType: 'spontaneous',
+      // Keep recurrence metadata to maintain calendar functionality
+      isRecurring: txObj.isRecurring || false,
+      recurrencePeriod: txObj.recurrencePeriod || 'none',
+      recurrenceEnd: txObj.recurrenceEnd || ''
+    });
+  }
+});
+
+// Handle version change and blocked events
 db.on('versionchange', () => {
   console.warn("Changement de version de la base de données détecté. Fermeture de la connexion...");
   db.close();
@@ -21,7 +81,7 @@ db.on('blocked', () => {
   console.warn("La mise à niveau de la base de données est bloquée par un autre onglet ouvert.");
 });
 
-// Explicitly open the database and handle schema collisions
+// Open database and handle collisions
 db.open().catch(async (err) => {
   console.error("Erreur lors de l'ouverture d'IndexedDB:", err);
   if (err.name === 'VersionError' || err.name === 'UpgradeError' || err.message?.includes('schema')) {
@@ -35,98 +95,188 @@ db.open().catch(async (err) => {
   }
 });
 
+// Populate default categories if empty
+db.open().then(async () => {
+  try {
+    const count = await db.categories.count();
+    if (count === 0) {
+      await db.categories.bulkAdd([
+        { name: 'Loisirs', isDefault: 1 },
+        { name: 'Nourriture', isDefault: 1 },
+        { name: 'Logement', isDefault: 1 },
+        { name: 'Transports', isDefault: 1 },
+        { name: 'Abonnements', isDefault: 1 },
+        { name: 'Cadeaux', isDefault: 1 },
+        { name: 'Santé', isDefault: 1 },
+        { name: 'Salaire', isDefault: 1 },
+        { name: 'Autre', isDefault: 1 }
+      ]);
+    }
+  } catch (err) {
+    console.error("Erreur lors de la population des catégories:", err);
+  }
+});
 
-// Recalculates actual balance for an account by summing all past and present transactions
-export async function getAccountBalance(accountId) {
+/**
+ * Simulates French quinzaines interest capitalization for a Livret account
+ * @param {object} account - The account object
+ * @param {Array} transactions - List of transactions for this account
+ * @param {string} targetDateStr - Date to compute interests up to
+ * @returns {object} { capitalized: number, accrued: number }
+ */
+export function calculateLivretInterests(account, transactions, targetDateStr) {
+  const rate = Number(account.rate) || 0;
+  if (rate <= 0) return { capitalized: 0, accrued: 0 };
+
+  const targetDate = new Date(targetDateStr);
+  const targetYear = targetDate.getFullYear();
+
+  // 1. Gather effective transactions up to targetDateStr
+  // Exclude 'past' transactions since they are historical only and don't impact balance
+  const todayStr = new Date().toISOString().split('T')[0];
+  const validTxs = transactions.filter(t => {
+    const exeType = t.executionType || 'spontaneous';
+    const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
+    return isEffective && t.date <= targetDateStr;
+  });
+
+  // Start year is the year of the earliest transaction or targetYear
+  let startYear = targetYear;
+  if (validTxs.length > 0) {
+    const years = validTxs.map(t => new Date(t.date).getFullYear());
+    startYear = Math.min(...years);
+  }
+
+  let capitalizedInterests = 0;
+  let accruedInterests = 0;
+
+  for (let y = startYear; y <= targetYear; y++) {
+    // Start balance of this year = initialBalance + capitalized interests from past years + transactions before this year
+    const txsBeforeYear = validTxs.filter(t => new Date(t.date).getFullYear() < y);
+    const sumTxsBeforeYear = txsBeforeYear.reduce((sum, t) => {
+      const amt = Number(t.amount) || 0;
+      return sum + (t.type === 'credit' ? amt : -amt);
+    }, 0);
+    const yearStartBalance = Number(account.initialBalance) + sumTxsBeforeYear + capitalizedInterests;
+
+    // Get transactions of this year
+    const txsOfYear = validTxs.filter(t => new Date(t.date).getFullYear() === y);
+
+    let yearlyInterest = 0;
+
+    for (let month = 0; month < 12; month++) {
+      for (let qPart = 1; qPart <= 2; qPart++) {
+        const lastDayOfMonth = new Date(y, month + 1, 0).getDate();
+        const qEndDay = qPart === 1 ? 15 : lastDayOfMonth;
+        const qEndDateStr = `${y}-${String(month + 1).padStart(2, '0')}-${String(qEndDay).padStart(2, '0')}`;
+
+        // Stop if this quinzaine ends in the future relative to targetDateStr
+        if (qEndDateStr > targetDateStr) {
+          break;
+        }
+
+        // Calculate interest-bearing balance for this quinzaine
+        // Deposits (credit) count from start of next quinzaine (so transaction date <= end of prev quinzaine)
+        let prevQEndDateStr;
+        if (qPart === 2) {
+          prevQEndDateStr = `${y}-${String(month + 1).padStart(2, '0')}-15`;
+        } else {
+          const prevMonthLastDay = new Date(y, month, 0).getDate();
+          const prevMonth = month === 0 ? 12 : month;
+          const prevYear = month === 0 ? y - 1 : y;
+          prevQEndDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevMonthLastDay).padStart(2, '0')}`;
+        }
+
+        const deposits = txsOfYear.filter(t => t.type === 'credit' && t.date <= prevQEndDateStr);
+        // Withdrawals (debit) count immediately (so transaction date <= end of current quinzaine)
+        const withdrawals = txsOfYear.filter(t => t.type === 'debit' && t.date <= qEndDateStr);
+
+        const sumDeposits = deposits.reduce((sum, t) => sum + Number(t.amount), 0);
+        const sumWithdrawals = withdrawals.reduce((sum, t) => sum + Number(t.amount), 0);
+
+        const interestBalance = yearStartBalance + sumDeposits - sumWithdrawals;
+        const qInterest = Math.max(0, interestBalance) * (rate / 100) * (1 / 24);
+
+        if (y < targetYear) {
+          yearlyInterest += qInterest;
+        } else {
+          accruedInterests += qInterest;
+        }
+      }
+    }
+
+    if (y < targetYear) {
+      capitalizedInterests += yearlyInterest;
+    }
+  }
+
+  return {
+    capitalized: capitalizedInterests,
+    accrued: accruedInterests
+  };
+}
+
+/**
+ * Calculates the REAL balance of an account at a specific date
+ */
+export async function getAccountBalance(accountId, targetDateStr = null) {
   const account = await db.accounts.get(accountId);
   if (!account) return 0;
-  
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const target = targetDateStr || todayStr;
+
   const transactions = await db.transactions
     .where('accountId')
     .equals(accountId)
     .toArray();
-    
-  const todayStr = new Date().toISOString().split('T')[0];
-  
-  // Only sum transactions that are today or in the past
-  const pastTransactionsSum = transactions
-    .filter(t => t.date <= todayStr)
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-    
-  return Number(account.initialBalance) + pastTransactionsSum;
+
+  // Filter effective transactions
+  const validTxs = transactions.filter(t => {
+    const exeType = t.executionType || 'spontaneous';
+    const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
+    return isEffective && t.date <= target;
+  });
+
+  const sumTxs = validTxs.reduce((sum, t) => {
+    const amt = Number(t.amount) || 0;
+    return sum + (t.type === 'credit' ? amt : -amt);
+  }, 0);
+
+  let balance = Number(account.initialBalance) + sumTxs;
+
+  // Add capitalized interests for booklet (livret) type accounts
+  const isLivret = account.type && account.type.toLowerCase() !== 'courant';
+  if (isLivret && Number(account.rate) > 0) {
+    const interests = calculateLivretInterests(account, transactions, target);
+    balance += interests.capitalized;
+  }
+
+  return balance;
 }
 
-// Calculate the carry-over surplus/deficit for envelopes.
-// An envelope has a monthly limit. We need to check past months to see what was spent versus limit.
-// Let's implement dynamic carryOver calculation.
-export async function getEnvelopeStatus(envelope, targetYear, targetMonth) {
-  const accountId = envelope.accountId;
-  const targetMonthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
-  
-  // Find transactions for this account belonging to the envelope category
-  const txs = await db.transactions
+/**
+ * Calculates the VISIBLE balance (Real Balance - Blocked Objective funds)
+ */
+export async function getAccountVisibleBalance(accountId, targetDateStr = null) {
+  const realBalance = await getAccountBalance(accountId, targetDateStr);
+
+  // Find all Objective budgets for this account and sum their currentAmount
+  const budgets = await db.budgets
     .where('accountId')
     .equals(accountId)
     .toArray();
-  
-  // Filter transactions by envelope name (matching category)
-  const envTxs = txs.filter(t => t.category === envelope.name);
-  
-  let currentMonthSpent = envTxs
-    .filter(t => t.date.startsWith(targetMonthStr))
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
-  let carryOverAmount = 0;
+  const blockedSum = budgets
+    .filter(b => b.type === 'objective')
+    .reduce((sum, b) => sum + (Number(b.currentAmount) || 0), 0);
 
-  if (envelope.carryOver) {
-    // We need to calculate carry-over from all previous months up to targetMonth.
-    // Let's find the earliest transaction date or start from when accounts/envelopes were created.
-    // For simplicity, we can scan the last 12 months.
-    const startDate = new Date(targetYear, targetMonth - 1, 1);
-    
-    // We look back month by month.
-    // Let's accumulate limits and subtract spendings for preceding months.
-    // E.g., for the past 6 months:
-    for (let i = 1; i <= 12; i++) {
-      const prevMonthDate = new Date(targetYear, targetMonth - 1 - i, 1);
-      const prevYear = prevMonthDate.getFullYear();
-      const prevMonth = prevMonthDate.getMonth() + 1;
-      const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
-      
-      // Stop scanning if we are before a reasonable epoch (e.g., year 2025)
-      if (prevYear < 2025) break;
-
-      // Check if there was any activity or if it's within the account history.
-      const prevMonthTxs = envTxs.filter(t => t.date.startsWith(prevMonthStr));
-      const prevSpent = prevMonthTxs.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      
-      // If there was no transactions at all in the database before the first transaction, 
-      // we shouldn't infinitely accumulate limits.
-      const hasAnyTxsBefore = envTxs.some(t => t.date < `${prevMonthStr}-01`);
-      const hasTxsInPrevMonth = prevMonthTxs.length > 0;
-      
-      if (!hasAnyTxsBefore && !hasTxsInPrevMonth) {
-        // Skip if before the envelope was active
-        continue;
-      }
-      
-      const prevSaved = envelope.monthlyLimit - prevSpent;
-      carryOverAmount += prevSaved;
-    }
-  }
-
-  const limitForMonth = envelope.monthlyLimit + carryOverAmount;
-  const remaining = limitForMonth - currentMonthSpent;
-
-  return {
-    spent: currentMonthSpent,
-    carryOver: carryOverAmount,
-    limit: limitForMonth,
-    remaining: remaining
-  };
+  return realBalance - blockedSum;
 }
 
-// Expands recurring transactions into discrete occurrences within a date range (inclusive)
+/**
+ * Expands recurring transactions within a date range (inclusive)
+ */
 export function expandRecurringTransactions(txs, startDateStr, endDateStr) {
   const start = new Date(startDateStr);
   const end = new Date(endDateStr);
@@ -140,20 +290,15 @@ export function expandRecurringTransactions(txs, startDateStr, endDateStr) {
       continue;
     }
 
-    // Parse the start date of the recurrence
     const txDate = new Date(tx.date);
     const recEnd = tx.recurrenceEnd ? new Date(tx.recurrenceEnd) : null;
-
-    // We start from the transaction's date and increment according to the recurrence period
     let current = new Date(txDate);
 
-    // If it's a future transaction, we don't start occurrence generation before its date
     while (current <= end) {
       if (recEnd && current > recEnd) break;
 
       const currentStr = current.toISOString().split('T')[0];
       if (currentStr >= startDateStr && currentStr <= endDateStr) {
-        // Create an occurrence
         occurrences.push({
           ...tx,
           id: `${tx.id}-${currentStr}`,
@@ -163,13 +308,11 @@ export function expandRecurringTransactions(txs, startDateStr, endDateStr) {
         });
       }
 
-      // Move to the next period
       if (tx.recurrencePeriod === 'weekly') {
         current.setDate(current.getDate() + 7);
       } else if (tx.recurrencePeriod === 'monthly') {
         current.setMonth(current.getMonth() + 1);
       } else {
-        // Safety exit for invalid periods
         break;
       }
     }
@@ -178,35 +321,48 @@ export function expandRecurringTransactions(txs, startDateStr, endDateStr) {
   return occurrences.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// Projects the balance of selected accounts up to a specific target date
+/**
+ * Projects combined balance of accounts up to a future date or displays historical past balance
+ */
 export async function getProjectedBalance(selectedAccountIds, targetDateStr) {
   const todayStr = new Date().toISOString().split('T')[0];
-  
-  // 1. Calculate current balance for selected accounts
-  let currentBalanceSum = 0;
-  for (const accountId of selectedAccountIds) {
-    const bal = await getAccountBalance(accountId);
-    currentBalanceSum += bal;
-  }
 
   if (targetDateStr <= todayStr) {
-    return currentBalanceSum;
+    // Historical past balance: sum of balances at targetDateStr
+    let sum = 0;
+    for (const accId of selectedAccountIds) {
+      sum += await getAccountBalance(accId, targetDateStr);
+    }
+    return sum;
   }
 
-  // 2. Fetch all transactions for these accounts
+  // Future projection: sum of current balances + planned transactions in the future range
+  let sum = 0;
+  for (const accId of selectedAccountIds) {
+    sum += await getAccountBalance(accId, todayStr);
+  }
+
   const txs = await db.transactions
     .filter(t => selectedAccountIds.includes(Number(t.accountId)))
     .toArray();
 
-  // 3. Find future transactions and active recurring transactions between tomorrow and targetDate
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-  const expanded = expandRecurringTransactions(txs, tomorrowStr, targetDateStr);
+  // Only take planned transactions between tomorrow and targetDateStr
+  const tomorrowToTargetTxs = txs.filter(t => {
+    const exeType = t.executionType || 'spontaneous';
+    return exeType === 'planned' && t.date >= tomorrowStr && t.date <= targetDateStr;
+  });
 
-  // 4. Sum up future transactions
-  const futureSum = expanded.reduce((sum, t) => sum + Number(t.amount), 0);
+  // Also expand recurring planned transactions
+  const expanded = expandRecurringTransactions(tomorrowToTargetTxs, tomorrowStr, targetDateStr);
 
-  return currentBalanceSum + futureSum;
+  const futureSum = expanded.reduce((s, t) => {
+    const amt = Number(t.amount) || 0;
+    return s + (t.type === 'credit' ? amt : -amt);
+  }, 0);
+
+  return sum + futureSum;
 }

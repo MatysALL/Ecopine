@@ -1,40 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, DollarSign, Tag, RefreshCw } from 'lucide-react';
+import { X, Calendar, Tag, RefreshCw, Layers, Sparkles } from 'lucide-react';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
 export default function TransactionModal({ isOpen, onClose, onSave, transaction, accountId }) {
-  const [description, setDescription] = useState('');
-  const [type, setType] = useState('expense'); // 'expense' or 'income'
+  const [name, setName] = useState('');
+  const [type, setType] = useState('debit'); // 'debit' or 'credit'
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
-  const [category, setCategory] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [executionType, setExecutionType] = useState('spontaneous'); // 'spontaneous', 'past', 'planned'
+  const [budgetId, setBudgetId] = useState('');
+  
+  // Recurrence
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePeriod, setRecurrencePeriod] = useState('monthly');
   const [recurrenceEnd, setRecurrenceEnd] = useState('');
 
-  // Fetch envelopes for this account to suggest as categories
-  const envelopes = useLiveQuery(() => 
-    accountId ? db.envelopes.where('accountId').equals(accountId).toArray() : []
+  // 1. Fetch categories
+  const categoriesList = useLiveQuery(() => db.categories.toArray());
+
+  // 2. Fetch budgets for this account
+  const budgetsList = useLiveQuery(() => 
+    accountId ? db.budgets.where('accountId').equals(Number(accountId)).toArray() : []
   , [accountId]);
 
   useEffect(() => {
     if (transaction) {
-      setDescription(transaction.description || '');
-      setType(transaction.amount < 0 ? 'expense' : 'income');
+      setName(transaction.name || transaction.description || '');
+      setType(transaction.type || (transaction.amount < 0 ? 'debit' : 'credit'));
       setAmount(Math.abs(transaction.amount).toString() || '');
       setDate(transaction.date || '');
-      setCategory(transaction.category || '');
+      setCategoryId(transaction.categoryId ? transaction.categoryId.toString() : '');
+      setExecutionType(transaction.executionType || 'spontaneous');
+      setBudgetId(transaction.budgetId ? transaction.budgetId.toString() : '');
+      
       setIsRecurring(transaction.isRecurring || false);
       setRecurrencePeriod(transaction.recurrencePeriod || 'monthly');
       setRecurrenceEnd(transaction.recurrenceEnd || '');
     } else {
-      // Set defaults for new transaction
-      setDescription('');
-      setType('expense');
+      setName('');
+      setType('debit');
       setAmount('');
       setDate(new Date().toISOString().split('T')[0]);
-      setCategory('');
+      setCategoryId('');
+      setExecutionType('spontaneous');
+      setBudgetId('');
+      
       setIsRecurring(false);
       setRecurrencePeriod('monthly');
       setRecurrenceEnd('');
@@ -43,10 +55,44 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
 
   if (!isOpen) return null;
 
+  // Build the indented budget select options list
+  const getBudgetOptions = () => {
+    if (!budgetsList || budgetsList.length === 0) return [];
+    
+    const map = {};
+    budgetsList.forEach(b => {
+      map[b.id] = { ...b, children: [] };
+    });
+    
+    const roots = [];
+    budgetsList.forEach(b => {
+      if (b.parentBudgetId && map[b.parentBudgetId]) {
+        map[b.parentBudgetId].children.push(map[b.id]);
+      } else {
+        roots.push(map[b.id]);
+      }
+    });
+
+    const options = [];
+    const traverse = (node, depth) => {
+      options.push({
+        id: node.id,
+        name: node.name,
+        type: node.type,
+        depth: depth
+      });
+      node.children.forEach(child => traverse(child, depth + 1));
+    };
+    roots.forEach(root => traverse(root, 0));
+    return options;
+  };
+
+  const budgetOptions = getBudgetOptions();
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!description || !amount || !date) {
-      alert('Veuillez remplir les champs obligatoires (Description, Montant, Date).');
+    if (!name.trim() || !amount || !date) {
+      alert('Veuillez remplir les champs obligatoires (Nom, Montant, Date).');
       return;
     }
 
@@ -56,14 +102,21 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
       return;
     }
 
-    const signedAmount = type === 'expense' ? -numAmount : numAmount;
+    // Resolve category name for backward-compatibility
+    const selectedCategory = categoriesList?.find(c => c.id === Number(categoryId));
 
     const transactionData = {
       accountId: Number(accountId),
-      description,
-      amount: signedAmount,
+      name: name.trim(),
+      description: name.trim(), // keeping for compatibility
+      amount: numAmount,
+      type,
       date,
-      category,
+      categoryId: categoryId ? Number(categoryId) : null,
+      category: selectedCategory ? selectedCategory.name : '', // keeping for compatibility
+      executionType,
+      budgetId: budgetId ? Number(budgetId) : null,
+      
       isRecurring,
       recurrencePeriod: isRecurring ? recurrencePeriod : 'none',
       recurrenceEnd: isRecurring ? recurrenceEnd : ''
@@ -72,26 +125,9 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
     onSave(transactionData);
   };
 
-  // Standard category suggestions
-  const defaultCategories = [
-    'Alimentation',
-    'Loisirs',
-    'Logement',
-    'Transports',
-    'Abonnements',
-    'Cadeaux',
-    'Santé',
-    'Salaire',
-    'Autre'
-  ];
-
-  // Combine standard categories and envelope names (ensuring uniqueness)
-  const envelopeNames = envelopes ? envelopes.map(e => e.name) : [];
-  const allCategories = Array.from(new Set([...envelopeNames, ...defaultCategories]));
-
   return (
     <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in">
+      <div className="bg-white border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in text-ac-brown select-none">
         <button 
           onClick={onClose}
           className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-colors"
@@ -103,15 +139,15 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
           {transaction ? 'Modifier la transaction' : 'Ajouter une transaction'}
         </h3>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Type Toggle (Dépense / Revenu) */}
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+          {/* Type Toggle (Débit / Crédit) */}
           <div className="flex border-2 border-ac-brown rounded-2xl overflow-hidden p-1 bg-ac-cream">
             <button
               type="button"
-              onClick={() => setType('expense')}
+              onClick={() => setType('debit')}
               className={`flex-1 py-2 font-black text-sm rounded-xl transition-all ${
-                type === 'expense'
-                  ? 'bg-ac-red text-white border-2 border-ac-brown'
+                type === 'debit'
+                  ? 'bg-ac-red text-white border-2 border-ac-brown shadow-ac-sm'
                   : 'text-ac-brown hover:bg-white/40'
               }`}
             >
@@ -119,10 +155,10 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             </button>
             <button
               type="button"
-              onClick={() => setType('income')}
+              onClick={() => setType('credit')}
               className={`flex-1 py-2 font-black text-sm rounded-xl transition-all ${
-                type === 'income'
-                  ? 'bg-ac-green text-white border-2 border-ac-brown'
+                type === 'credit'
+                  ? 'bg-ac-green text-white border-2 border-ac-brown shadow-ac-sm'
                   : 'text-ac-brown hover:bg-white/40'
               }`}
             >
@@ -130,15 +166,34 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             </button>
           </div>
 
-          {/* Description */}
+          {/* Execution Type Selection */}
           <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description *</label>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Type d'Exécution</label>
+            <select
+              value={executionType}
+              onChange={(e) => setExecutionType(e.target.value)}
+              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+            >
+              <option value="spontaneous">Spontanée (Immédiate)</option>
+              <option value="planned">À prévoir (Planifiée)</option>
+              <option value="past">Passée (Historique uniquement)</option>
+            </select>
+            <p className="text-[10px] text-ac-brown-light font-semibold mt-1">
+              {executionType === 'spontaneous' && "💡 Modifie le solde de ton compte immédiatement."}
+              {executionType === 'planned' && "💡 Modifie le solde uniquement le jour J. Figure sur le Calendrier."}
+              {executionType === 'past' && "💡 Note historique. N'impacte pas le solde principal."}
+            </p>
+          </div>
+
+          {/* Name */}
+          <div>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom de la transaction *</label>
             <input
               type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex: Baguette Magique"
-              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex: Baguette Magique, Vente de navets"
+              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
               required
             />
           </div>
@@ -155,7 +210,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
                   required
                 />
                 <span className="absolute left-3 top-2.5 text-xs font-black">🔔</span>
@@ -164,31 +219,29 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
 
             <div>
               <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Date *</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
-                  required
-                />
-              </div>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold focus:outline-none focus:bg-white"
+                required
+              />
             </div>
           </div>
 
-          {/* Category */}
+          {/* Category selection */}
           <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Catégorie / Enveloppe</label>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Catégorie</label>
             <div className="relative">
               <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white appearance-none"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none"
               >
                 <option value="">-- Sélectionner une catégorie --</option>
-                {allCategories.map(cat => (
-                  <option key={cat} value={cat}>
-                    {envelopeNames.includes(cat) ? `✉️ Enveloppe : ${cat}` : cat}
+                {categoriesList?.map(cat => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name} {cat.isDefault ? '(Défaut)' : ''}
                   </option>
                 ))}
               </select>
@@ -196,9 +249,29 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                 <Tag className="w-4 h-4 text-ac-brown-light" />
               </div>
             </div>
-            <p className="text-[10px] font-semibold text-ac-brown-light mt-1">
-              💡 Classer dans une catégorie portant le nom d'une enveloppe déduira automatiquement le montant de celle-ci.
-            </p>
+          </div>
+
+          {/* Budget envelope selection */}
+          <div>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Associer à une Enveloppe/Budget</label>
+            <div className="relative">
+              <select
+                value={budgetId}
+                onChange={(e) => setBudgetId(e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none"
+              >
+                <option value="">-- Aucun Budget lié --</option>
+                {budgetOptions.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {"\u00A0\u00A0".repeat(b.depth)}
+                    {b.type === 'objective' ? '🎯' : b.type === 'leisure' ? '✨' : '📅'} {b.name}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-3 pointer-events-none">
+                <Layers className="w-4 h-4 text-ac-brown-light" />
+              </div>
+            </div>
           </div>
 
           {/* Recurrence Toggle */}
@@ -237,7 +310,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                     type="date"
                     value={recurrenceEnd}
                     onChange={(e) => setRecurrenceEnd(e.target.value)}
-                    className="w-full bg-white border border-ac-brown rounded-xl px-2 py-1 text-xs font-bold text-ac-brown focus:outline-none"
+                    className="w-full bg-white border border-ac-brown rounded-xl px-2 py-1 text-xs font-bold focus:outline-none"
                   />
                 </div>
               </div>
