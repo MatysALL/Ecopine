@@ -565,7 +565,7 @@ export default function BudgetManager({ accountId, onAddTransaction }) {
                 className="w-full bg-ac-cream border-2 border-ac-brown rounded-xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none"
               >
                 <option value="regular">Régulier (Factures fixes)</option>
-                <option value="leisure">Loisir (Cumule reports & dettes)</option>
+                <option value="leisure">Cumul Évolutif (Reports & Dettes)</option>
                 <option value="objective">Objectif (Bloque des clochettes)</option>
               </select>
             </div>

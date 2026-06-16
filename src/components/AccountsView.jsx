@@ -241,6 +241,42 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
   };
 
+  const handleExportCSV = () => {
+    if (!transactions || transactions.length === 0) {
+      alert("Aucune transaction à exporter pour ce compte.");
+      return;
+    }
+
+    const headers = ["Date", "Description", "Categorie", "Montant", "Type"];
+    
+    const rows = transactions.map(t => [
+      t.date,
+      `"${(t.name || t.description || '').replace(/"/g, '""')}"`,
+      `"${(t.category || '').replace(/"/g, '""')}"`,
+      t.amount.toFixed(2),
+      t.type
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(e => e.join(","))
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    
+    const safeAccountName = (activeAccount?.name || 'compte').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `export_transactions_${safeAccountName}_${todayStr}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // CSV Drag and Drop Parser
   const handleDrag = (e) => {
     e.preventDefault();
@@ -516,15 +552,23 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   Visualise, ajoute ou modifie tes écritures comptables.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingTransaction(null);
-                  setTxModalOpen(true);
-                }}
-                className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer self-start sm:self-auto"
-              >
-                <Plus className="w-4 h-4" /> Nouvelle Transaction
-              </button>
+              <div className="flex flex-wrap gap-3 self-start sm:self-auto">
+                <button
+                  onClick={handleExportCSV}
+                  className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Exporter en CSV
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingTransaction(null);
+                    setTxModalOpen(true);
+                  }}
+                  className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Nouvelle Transaction
+                </button>
+              </div>
             </div>
 
             {/* CSV Synchro zone */}
@@ -715,7 +759,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm">
             <div>
               <h2 className="text-2xl font-black text-ac-brown flex items-center gap-2">
-                <Coins className="w-6 h-6 text-ac-green" /> Gestion des Comptes & Livrets
+                <Coins className="w-6 h-6 text-ac-green" /> Gestion des comptes
               </h2>
               <p className="text-xs font-semibold text-ac-brown-light mt-0.5">
                 Crée tes livrets d'épargne ou tes comptes courants pour visualiser tes finances.

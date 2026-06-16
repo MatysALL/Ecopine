@@ -9,6 +9,49 @@ import {
 export default function Dashboard({ onViewAccountDetails, username }) {
   const [noteText, setNoteText] = useState('');
 
+  const nookAdvices = [
+    "économise tes clochettes aujourd'hui pour t'offrir la maison de tes rêves demain !",
+    "Un prêt à taux zéro, c'est une affaire en or ! Oui, oui !",
+    "Pense à placer tes clochettes avant que le cours du navet ne chute !",
+    "Agrandir ta maison demande des sacrifices économiques constants...",
+    "Chaque projet de pont ou de rampe demande la participation de tous, mais surtout la tienne ! Oui, oui !"
+  ];
+
+  const [currentAdvice, setCurrentAdvice] = useState(nookAdvices[0]);
+  const [viewedIndices, setViewedIndices] = useState([0]);
+  const [isFinalMode, setIsFinalMode] = useState(false);
+  const [finalClickCount, setFinalClickCount] = useState(0);
+  const [nookPopped, setNookPopped] = useState(false);
+
+  const handleBubbleClick = () => {
+    if (nookPopped) return;
+
+    if (isFinalMode) {
+      const nextCount = finalClickCount + 1;
+      setFinalClickCount(nextCount);
+      if (nextCount >= 5) {
+        setNookPopped(true);
+      }
+      return;
+    }
+
+    // Find indices that haven't been viewed yet
+    const unviewed = nookAdvices
+      .map((_, idx) => idx)
+      .filter(idx => !viewedIndices.includes(idx));
+
+    if (unviewed.length > 0) {
+      // Pick a random one from unviewed
+      const randomIdx = unviewed[Math.floor(Math.random() * unviewed.length)];
+      setCurrentAdvice(nookAdvices[randomIdx]);
+      setViewedIndices(prev => [...prev, randomIdx]);
+    } else {
+      // All viewed! Go to final mode
+      setIsFinalMode(true);
+      setCurrentAdvice("Je ne suis pas une banque à conseils. Oui, Oui. Ma spécialité c'est garder mon argent");
+    }
+  };
+
   // Fetch current month details
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -128,8 +171,39 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       {/* 1. Bulle de bienvenue Tom Nook */}
       <div className="flex flex-col md:flex-row gap-6 bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden items-center md:items-start shadow-ac-sm">
         <div className="flex flex-col items-center shrink-0">
-          <div className="w-16 h-16 bg-ac-gold rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-2 transform hover:rotate-12 transition-transform cursor-pointer">
-            <span className="text-3xl">🦝</span>
+          <div className="w-16 h-16 bg-[#FFFDF9] rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-2 transform hover:rotate-6 hover:scale-105 transition-all duration-200 cursor-pointer">
+            <svg viewBox="0 0 100 100" className="w-12 h-12">
+              {/* Ears */}
+              <path d="M 15 35 L 25 10 L 45 25 Z" fill="#8B5A2D" stroke="#4A3E3D" strokeWidth="3" strokeLinejoin="round" />
+              <path d="M 8 35 L 75 10 L 55 25 Z" fill="#8B5A2D" stroke="#4A3E3D" strokeWidth="3" strokeLinejoin="round" />
+              <path d="M 20 32 L 27 15 L 40 25 Z" fill="#E6C29E" />
+              <path d="M 80 32 L 73 15 L 60 25 Z" fill="#E6C29E" />
+              
+              {/* Face Base */}
+              <circle cx="50" cy="55" r="38" fill="#D2B48C" stroke="#4A3E3D" strokeWidth="3" />
+              
+              {/* Dark Mask around Eyes */}
+              <path d="M 18 52 C 18 40, 38 40, 50 48 C 62 40, 82 40, 82 52 C 82 66, 62 64, 50 56 C 38 64, 18 66, 18 52 Z" fill="#4A3E3D" />
+              
+              {/* Eyes */}
+              <ellipse cx="36" cy="50" rx="7" ry="5" fill="#FFFFFF" />
+              <ellipse cx="36" cy="50" rx="4" ry="4" fill="#4A3E3D" />
+              <ellipse cx="64" cy="50" rx="7" ry="5" fill="#FFFFFF" />
+              <ellipse cx="64" cy="50" rx="4" ry="4" fill="#4A3E3D" />
+              
+              {/* Eyelids (Sleepy look) */}
+              <path d="M 28 48 Q 36 43 44 48" stroke="#D2B48C" strokeWidth="3" fill="none" />
+              <path d="M 56 48 Q 64 43 72 48" stroke="#D2B48C" strokeWidth="3" fill="none" />
+              
+              {/* Snout */}
+              <ellipse cx="50" cy="67" rx="14" ry="10" fill="#FFF8DC" stroke="#4A3E3D" strokeWidth="2.5" />
+              <polygon points="46,63 54,63 50,68" fill="#4A3E3D" />
+              <path d="M 50 68 L 50 72 Q 47 74 45 72 M 50 72 Q 53 74 55 72" stroke="#4A3E3D" strokeWidth="2" fill="none" />
+              
+              {/* Cheeks */}
+              <circle cx="22" cy="64" r="4" fill="#FFB6C1" opacity="0.6" />
+              <circle cx="78" cy="64" r="4" fill="#FFB6C1" opacity="0.6" />
+            </svg>
           </div>
           <span className="text-[10px] font-black text-white bg-ac-brown px-3 py-0.5 rounded-full border border-ac-brown shadow-ac-xs">
             Tom Nook
@@ -137,15 +211,28 @@ export default function Dashboard({ onViewAccountDetails, username }) {
         </div>
 
         <div className="flex-1 space-y-4 w-full">
-          <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative">
-            <h3 className="font-black text-sm text-ac-brown flex items-center gap-1">
-              Bonjour, {username || 'Îlien'} ! <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold animate-pulse" />
-            </h3>
-            <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
-              "Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de <strong>{totalBalance.toLocaleString('fr-FR')} 🔔</strong>. Prends soin de tes économies !"
-            </p>
-            {/* Dialogue bubble arrow */}
-            <div className="w-3 h-3 bg-white border-l-2 border-t-2 border-ac-brown/60 absolute left-[-7px] top-6 transform rotate-[-45deg] hidden md:block"></div>
+          <div 
+            onClick={handleBubbleClick}
+            className={`bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative cursor-pointer select-none transition-all duration-700 ${
+              nookPopped ? 'opacity-85 scale-95 border-dashed bg-ac-cream' : 'hover:scale-[1.01]'
+            }`}
+          >
+            {nookPopped ? (
+              <p className="text-xs font-black text-ac-red text-center py-2 animate-bounce-in">
+                Vendu.
+              </p>
+            ) : (
+              <>
+                <h3 className="font-black text-sm text-ac-brown flex items-center gap-1">
+                  Bonjour, {username || 'Îlien'} ! <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold animate-pulse" />
+                </h3>
+                <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
+                  "{currentAdvice}"
+                </p>
+                {/* Dialogue bubble arrow */}
+                <div className="w-3 h-3 bg-white border-l-2 border-t-2 border-ac-brown/60 absolute left-[-7px] top-6 transform rotate-[-45deg] hidden md:block"></div>
+              </>
+            )}
           </div>
 
           {/* Island Note textarea */}
@@ -259,7 +346,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           {/* 3. Section Autres Comptes */}
           <div className="ac-card p-6 bg-white border-ac-brown">
             <h3 className="text-lg font-black text-ac-brown mb-4 flex items-center gap-2">
-              Autres Comptes & Épargnes
+              Autres comptes
             </h3>
             {otherAccounts.length === 0 ? (
               <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">

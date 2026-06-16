@@ -261,7 +261,10 @@ export default function EconomicCalendar() {
       </div>
 
       {/* Main Calendar Card */}
-      <div className="ac-card p-6 bg-white border-ac-brown relative">
+      <div 
+        className="ac-card p-6 border-ac-brown relative transition-colors duration-500"
+        style={{ backgroundColor: isProjectionMode ? '#E1D9EC' : '#FFFFFF' }}
+      >
         {/* Month Selector */}
         <div className="flex justify-between items-center mb-6">
           <button

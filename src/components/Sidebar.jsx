@@ -3,9 +3,9 @@ import { Leaf, PiggyBank, Calendar, Settings, Smile, Gift } from 'lucide-react';
 export default function Sidebar({ activeTab, setActiveTab }) {
   const navItems = [
     { id: 'dashboard', label: 'Accueil', icon: Leaf, color: 'text-ac-green' },
-    { id: 'accounts', label: 'Comptes & Livrets', icon: PiggyBank, color: 'text-ac-gold' },
-    { id: 'calendar', label: 'Calendrier Éco', icon: Calendar, color: 'text-ac-sky' },
-    { id: 'wishlist', label: 'Catalogue Souhaits', icon: Gift, color: 'text-ac-red' },
+    { id: 'accounts', label: 'Comptes', icon: PiggyBank, color: 'text-ac-gold' },
+    { id: 'calendar', label: 'Calendrier', icon: Calendar, color: 'text-ac-sky' },
+    { id: 'wishlist', label: 'Souhaits', icon: Gift, color: 'text-ac-red' },
     { id: 'settings', label: 'Paramètres', icon: Settings, color: 'text-ac-brown-light' },
   ];
 
@@ -20,7 +20,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
           Ecopine
         </h1>
         <p className="text-xs font-semibold text-ac-brown-light text-center bg-ac-cream px-3 py-1 rounded-full border border-ac-brown/20">
-          Mon carnet de clochettes
+          Mon App de gestion économique
         </p>
       </div>
 
