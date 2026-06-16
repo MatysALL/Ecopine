@@ -312,6 +312,18 @@ export default function WishlistView() {
       {buyingWish && (
         <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown">
           <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in">
+            {/* Close button */}
+            <button 
+              type="button"
+              onClick={() => {
+                setBuyingWish(null);
+                setPurchaseSuccess(false);
+              }}
+              className="absolute top-4 right-4 z-50 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all hover:scale-110 text-ac-brown cursor-pointer"
+              title="Fermer"
+            >
+              <X className="w-5 h-5" />
+            </button>
             
             {/* Show success message or payment selection */}
             {purchaseSuccess ? (
@@ -327,13 +339,6 @@ export default function WishlistView() {
               </div>
             ) : (
               <>
-                <button 
-                  type="button"
-                  onClick={() => setBuyingWish(null)}
-                  className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5 text-ac-brown" />
-                </button>
 
                 <h3 className="text-lg font-black text-ac-brown mb-4 flex items-center gap-1.5 border-b border-ac-brown/10 pb-2">
                   <Coins className="w-5 h-5 text-ac-gold" /> Validation de l'achat
