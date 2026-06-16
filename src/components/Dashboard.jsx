@@ -130,39 +130,8 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       {/* 1. Bulle de bienvenue Tom Nook */}
       <div className="flex flex-col md:flex-row gap-6 bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden items-center md:items-start shadow-ac-sm">
         <div className="flex flex-col items-center shrink-0">
-          <div className="w-16 h-16 bg-[#FFFDF9] rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-2 transform hover:rotate-6 hover:scale-105 transition-all duration-200 cursor-pointer">
-            <svg viewBox="0 0 100 100" className="w-12 h-12">
-              {/* Ears */}
-              <path d="M 15 35 L 25 10 L 45 25 Z" fill="#8B5A2D" stroke="#4A3E3D" strokeWidth="3" strokeLinejoin="round" />
-              <path d="M 8 35 L 75 10 L 55 25 Z" fill="#8B5A2D" stroke="#4A3E3D" strokeWidth="3" strokeLinejoin="round" />
-              <path d="M 20 32 L 27 15 L 40 25 Z" fill="#E6C29E" />
-              <path d="M 80 32 L 73 15 L 60 25 Z" fill="#E6C29E" />
-              
-              {/* Face Base */}
-              <circle cx="50" cy="55" r="38" fill="#D2B48C" stroke="#4A3E3D" strokeWidth="3" />
-              
-              {/* Dark Mask around Eyes */}
-              <path d="M 18 52 C 18 40, 38 40, 50 48 C 62 40, 82 40, 82 52 C 82 66, 62 64, 50 56 C 38 64, 18 66, 18 52 Z" fill="#4A3E3D" />
-              
-              {/* Eyes */}
-              <ellipse cx="36" cy="50" rx="7" ry="5" fill="#FFFFFF" />
-              <ellipse cx="36" cy="50" rx="4" ry="4" fill="#4A3E3D" />
-              <ellipse cx="64" cy="50" rx="7" ry="5" fill="#FFFFFF" />
-              <ellipse cx="64" cy="50" rx="4" ry="4" fill="#4A3E3D" />
-              
-              {/* Eyelids (Sleepy look) */}
-              <path d="M 28 48 Q 36 43 44 48" stroke="#D2B48C" strokeWidth="3" fill="none" />
-              <path d="M 56 48 Q 64 43 72 48" stroke="#D2B48C" strokeWidth="3" fill="none" />
-              
-              {/* Snout */}
-              <ellipse cx="50" cy="67" rx="14" ry="10" fill="#FFF8DC" stroke="#4A3E3D" strokeWidth="2.5" />
-              <polygon points="46,63 54,63 50,68" fill="#4A3E3D" />
-              <path d="M 50 68 L 50 72 Q 47 74 45 72 M 50 72 Q 53 74 55 72" stroke="#4A3E3D" strokeWidth="2" fill="none" />
-              
-              {/* Cheeks */}
-              <circle cx="22" cy="64" r="4" fill="#FFB6C1" opacity="0.6" />
-              <circle cx="78" cy="64" r="4" fill="#FFB6C1" opacity="0.6" />
-            </svg>
+          <div className="w-16 h-16 bg-[#FFFDF9] rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-2 transform hover:rotate-6 hover:scale-105 transition-all duration-200 cursor-pointer overflow-hidden">
+            <img src="/tom-nook.png" alt="Tom Nook" className="w-12 h-12 object-contain" />
           </div>
           <span className="text-[10px] font-black text-white bg-ac-brown px-3 py-0.5 rounded-full border border-ac-brown shadow-ac-xs">
             Tom Nook
