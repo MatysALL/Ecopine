@@ -124,6 +124,7 @@ db.open().then(async () => {
  * Period calculations helpers
  */
 export function getISOWeek(date) {
+  if (!date || isNaN(date.getTime())) return '';
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
@@ -133,10 +134,27 @@ export function getISOWeek(date) {
 }
 
 export function getBiweeklyPeriod(date) {
+  if (!date || isNaN(date.getTime())) return '';
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const h = date.getDate() <= 15 ? 'H1' : 'H2';
   return `${y}-${m}-${h}`;
+}
+
+export function detectPeriodFrequency(periodStr) {
+  if (!periodStr) return 'monthly';
+  if (/^\d{4}-W\d{2}$/.test(periodStr)) return 'weekly';
+  if (/^\d{4}-\d{2}-H[12]$/.test(periodStr)) return 'biweekly';
+  if (/^\d{4}-\d{2}$/.test(periodStr)) return 'monthly';
+  if (/^\d{4}$/.test(periodStr)) return 'annual';
+  return 'monthly';
+}
+
+export function convertPeriod(periodStr, fromFreq, toFreq) {
+  if (!periodStr) return '';
+  const detectedFreq = fromFreq || detectPeriodFrequency(periodStr);
+  const safeRange = getPeriodDateRange(periodStr, detectedFreq);
+  return getPeriodForDate(safeRange.start, toFreq);
 }
 
 export function getPeriodForDate(dateStr, frequency) {
@@ -162,8 +180,15 @@ export function getPeriodForDate(dateStr, frequency) {
 export function getPeriodDateRange(periodStr, frequency) {
   const freq = frequency || 'monthly';
 
+  if (!periodStr || typeof periodStr !== 'string') {
+    return { start: '1970-01-01', end: '1970-01-01' };
+  }
+
   if (freq === 'monthly') {
-    const [y, m] = periodStr.split('-').map(Number);
+    const parts = periodStr.split('-');
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (isNaN(y) || isNaN(m)) return { start: '1970-01-01', end: '1970-01-01' };
     const start = `${y}-${String(m).padStart(2, '0')}-01`;
     const lastDay = new Date(y, m, 0).getDate();
     const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
@@ -171,12 +196,17 @@ export function getPeriodDateRange(periodStr, frequency) {
   }
   if (freq === 'annual') {
     const y = Number(periodStr);
+    if (isNaN(y)) return { start: '1970-01-01', end: '1970-01-01' };
     return { start: `${y}-01-01`, end: `${y}-12-31` };
   }
   if (freq === 'weekly') {
-    const [y, wStr] = periodStr.split('-W');
+    if (!periodStr.includes('-W')) return { start: '1970-01-01', end: '1970-01-01' };
+    const [yStr, wStr] = periodStr.split('-W');
+    const y = Number(yStr);
     const w = Number(wStr);
-    const simple = new Date(Number(y), 0, 1 + (w - 1) * 7);
+    if (isNaN(y) || isNaN(w)) return { start: '1970-01-01', end: '1970-01-01' };
+    const simple = new Date(y, 0, 1 + (w - 1) * 7);
+    if (isNaN(simple.getTime())) return { start: '1970-01-01', end: '1970-01-01' };
     const dow = simple.getDay();
     const ISOweekStart = simple;
     if (dow <= 4) {
@@ -195,6 +225,9 @@ export function getPeriodDateRange(periodStr, frequency) {
     const y = Number(parts[0]);
     const m = Number(parts[1]);
     const h = parts[2];
+    if (isNaN(y) || isNaN(m) || (h !== 'H1' && h !== 'H2')) {
+      return { start: '1970-01-01', end: '1970-01-01' };
+    }
     if (h === 'H1') {
       return {
         start: `${y}-${String(m).padStart(2, '0')}-01`,
@@ -216,39 +249,63 @@ export function getPeriodsBetween(startPeriod, endDateStr, frequency) {
   const freq = frequency || 'monthly';
   const endPeriod = getPeriodForDate(endDateStr, freq);
 
+  // Normalize startPeriod if its frequency doesn't match expected frequency format
+  const detectedStartFreq = detectPeriodFrequency(startPeriod);
+  let normalizedStartPeriod = startPeriod;
+  if (detectedStartFreq !== freq) {
+    normalizedStartPeriod = convertPeriod(startPeriod, detectedStartFreq, freq);
+  }
+
   if (freq === 'monthly') {
-    let [y, m] = startPeriod.split('-').map(Number);
+    if (!/^\d{4}-\d{2}$/.test(normalizedStartPeriod)) {
+      return [endPeriod];
+    }
+    let [y, m] = normalizedStartPeriod.split('-').map(Number);
     const [eY, eM] = endPeriod.split('-').map(Number);
-    while (y < eY || (y === eY && m <= eM)) {
+    if (isNaN(y) || isNaN(m) || isNaN(eY) || isNaN(eM)) return [endPeriod];
+    let count = 0;
+    while ((y < eY || (y === eY && m <= eM)) && count < 1200) {
       list.push(`${y}-${String(m).padStart(2, '0')}`);
       m++;
       if (m > 12) {
         m = 1;
         y++;
       }
+      count++;
     }
   } else if (freq === 'annual') {
-    let y = Number(startPeriod);
+    let y = Number(normalizedStartPeriod);
     const eY = Number(endPeriod);
-    for (let currentY = y; currentY <= eY; currentY++) {
+    if (isNaN(y) || isNaN(eY)) return [endPeriod];
+    let count = 0;
+    for (let currentY = y; currentY <= eY && count < 100; currentY++) {
       list.push(String(currentY));
+      count++;
     }
   } else if (freq === 'weekly') {
-    const startRange = getPeriodDateRange(startPeriod, 'weekly');
+    const startRange = getPeriodDateRange(normalizedStartPeriod, 'weekly');
     let current = new Date(startRange.start);
     const target = new Date(endDateStr);
-    while (current <= target) {
-      list.push(getISOWeek(current));
+    if (isNaN(current.getTime()) || isNaN(target.getTime())) return [endPeriod];
+    let count = 0;
+    while (current <= target && count < 5300) {
+      const weekStr = getISOWeek(current);
+      if (weekStr) list.push(weekStr);
       current.setDate(current.getDate() + 7);
+      count++;
     }
     list.push(endPeriod);
   } else if (freq === 'biweekly') {
-    const startRange = getPeriodDateRange(startPeriod, 'biweekly');
+    const startRange = getPeriodDateRange(normalizedStartPeriod, 'biweekly');
     let current = new Date(startRange.start);
     const target = new Date(endDateStr);
-    while (current <= target) {
-      list.push(getBiweeklyPeriod(current));
+    if (isNaN(current.getTime()) || isNaN(target.getTime())) return [endPeriod];
+    let count = 0;
+    while (current <= target && count < 2600) {
+      const biweekStr = getBiweeklyPeriod(current);
+      if (biweekStr) list.push(biweekStr);
       current.setDate(current.getDate() + 15);
+      count++;
     }
     list.push(endPeriod);
   }
@@ -553,8 +610,13 @@ export async function getAccountVisibleBalance(accountId, targetDateStr = null) 
     .equals(accountId)
     .toArray();
 
-  const result = calculateBudgetsState(budgets, transactions, target);
-  return realBalance - result.blockedObjectiveSum;
+  try {
+    const result = calculateBudgetsState(budgets, transactions, target);
+    return realBalance - result.blockedObjectiveSum;
+  } catch (err) {
+    console.error("Erreur lors du calcul du solde visible (getAccountVisibleBalance) :", err);
+    return realBalance;
+  }
 }
 
 /**

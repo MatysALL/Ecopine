@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, calculateBudgetsState, getPeriodForDate, getPeriodsBetween } from '../db';
+import { db, calculateBudgetsState, getPeriodForDate, getPeriodsBetween, detectPeriodFrequency, convertPeriod } from '../db';
 import { 
   FolderPlus, Plus, Trash2, Edit2, ChevronDown, ChevronRight, 
   Target, Calendar, Smile, Sparkles, Coins, ArrowRightLeft, ShieldAlert,
@@ -46,7 +46,15 @@ export default function BudgetManager({ accountId }) {
   }
 
   // Calculate live dynamic states using our unified chronological simulation
-  const { states: budgetStates } = calculateBudgetsState(budgets, transactions, todayStr);
+  let budgetStates = {};
+  let calculationError = null;
+  try {
+    const res = calculateBudgetsState(budgets, transactions, todayStr);
+    budgetStates = res.states;
+  } catch (err) {
+    console.error("Erreur lors du calcul des enveloppes :", err);
+    calculationError = err;
+  }
 
   const toggleNode = (id) => {
     setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
@@ -85,13 +93,31 @@ export default function BudgetManager({ accountId }) {
     const freq = renewalFrequency;
     const currentPeriod = getPeriodForDate(todayStr, freq);
 
+    const oldFreq = editingBudget ? (editingBudget.renewalFrequency || editingBudget.frequency || 'monthly') : freq;
+    const freqChanged = editingBudget && oldFreq !== freq;
+
     let updatedHistory = editingBudget ? { ...(editingBudget.history || {}) } : {};
     let createdAt = editingBudget ? (editingBudget.createdAt || currentPeriod) : currentPeriod;
+
+    if (freqChanged) {
+      const detectedCreatedAtFreq = detectPeriodFrequency(createdAt);
+      createdAt = convertPeriod(createdAt, detectedCreatedAtFreq, freq) || currentPeriod;
+
+      const newHistory = {};
+      Object.keys(updatedHistory).forEach(oldPeriod => {
+        const detectedOldPeriodFreq = detectPeriodFrequency(oldPeriod);
+        const newPeriod = convertPeriod(oldPeriod, detectedOldPeriodFreq, freq);
+        if (newPeriod) {
+          newHistory[newPeriod] = updatedHistory[oldPeriod];
+        }
+      });
+      updatedHistory = newHistory;
+    }
 
     // Freeze limit history for past periods if limit was changed
     if (editingBudget && limit !== editingBudget.limitAmount) {
       const oldLimit = editingBudget.limitAmount;
-      const startPeriod = editingBudget.createdAt || currentPeriod;
+      const startPeriod = createdAt || currentPeriod;
 
       const allPeriods = getPeriodsBetween(startPeriod, todayStr, freq);
       allPeriods.forEach(p => {
@@ -607,6 +633,15 @@ export default function BudgetManager({ accountId }) {
             </button>
           </div>
         </form>
+      )}
+
+      {calculationError && (
+        <div className="bg-ac-red-light/40 border-2 border-ac-red/35 rounded-2xl p-4 text-xs font-bold text-ac-red flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+          <div>
+            Une erreur de calcul est survenue : {calculationError.message}. Les enveloppes s'affichent avec des valeurs de secours (sans reports ni reports cumulés).
+          </div>
+        </div>
       )}
 
       {/* Tree list */}
