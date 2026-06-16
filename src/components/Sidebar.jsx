@@ -107,7 +107,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       {phase === 'sold' ? (
         <div className="border-4 border-dashed border-ac-red bg-ac-red-light/20 rounded-2xl p-6 flex items-center justify-center shadow-ac-sm animate-bounce-in relative">
           <span className="text-2xl font-black text-ac-red uppercase tracking-wider transform -rotate-12 border-4 border-ac-red px-4 py-2 rounded-xl bg-white shadow-ac-xs">
-            Vendu !
+            Vendu 
           </span>
         </div>
       ) : (
@@ -120,16 +120,10 @@ export default function Sidebar({ activeTab, setActiveTab }) {
           }`}
           style={{ transformOrigin: 'bottom' }}
         >
-          <div className={`absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[10px] font-black text-white flex items-center gap-1 ${
-            phase === 'yellow' ? 'bg-[#F1C40F]' : 'bg-ac-gold'
-          }`}>
+          <div className="absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[10px] font-black text-white bg-ac-gold flex items-center gap-1">
             <Smile className="w-3 h-3" /> Info
           </div>
-          <p className={`text-xs font-bold leading-relaxed text-center pt-1 ${
-            phase === 'yellow' 
-              ? 'text-[#F1C40F] font-black drop-shadow-[0_1.2px_1.2px_rgba(74,62,61,0.8)]' 
-              : 'text-ac-brown'
-          }`}>
+          <p className="text-xs font-bold leading-relaxed text-center pt-1 text-ac-brown">
             {phase === 'advices' && `"${nookAdvices[currentAdviceIndex]}"`}
             {phase === 'yellow' && `"Je ne suis pas une banque à conseils. Oui, Oui. Ma spécialité c'est garder mon argent"`}
             {phase === 'distress' && `"Eh je suis vraiment à sec !"`}
