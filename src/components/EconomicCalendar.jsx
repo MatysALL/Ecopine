@@ -114,7 +114,7 @@ export default function EconomicCalendar() {
           const accTxs = txsList.filter(t => {
             const exeType = t.executionType || 'spontaneous';
             const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
-            return t.accountId === acc.id && isEffective && t.date <= dateStr;
+            return Number(t.accountId) === acc.id && isEffective && t.date <= dateStr;
           });
 
           const sumTxs = accTxs.reduce((s, t) => {
@@ -126,7 +126,7 @@ export default function EconomicCalendar() {
 
           const isLivret = acc.type && acc.type.toLowerCase() !== 'courant';
           if (isLivret && Number(acc.rate) > 0) {
-            const interests = calculateLivretInterests(acc, txsList.filter(t => t.accountId === acc.id), dateStr);
+            const interests = calculateLivretInterests(acc, txsList.filter(t => Number(t.accountId) === acc.id), dateStr);
             bal += interests.capitalized;
           }
           sum += bal;
@@ -139,7 +139,7 @@ export default function EconomicCalendar() {
           const accTxs = txsList.filter(t => {
             const exeType = t.executionType || 'spontaneous';
             const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
-            return t.accountId === acc.id && isEffective && t.date <= todayStr;
+            return Number(t.accountId) === acc.id && isEffective && t.date <= todayStr;
           });
 
           const sumTxs = accTxs.reduce((s, t) => {
@@ -151,7 +151,7 @@ export default function EconomicCalendar() {
 
           const isLivret = acc.type && acc.type.toLowerCase() !== 'courant';
           if (isLivret && Number(acc.rate) > 0) {
-            const interests = calculateLivretInterests(acc, txsList.filter(t => t.accountId === acc.id), todayStr);
+            const interests = calculateLivretInterests(acc, txsList.filter(t => Number(t.accountId) === acc.id), todayStr);
             bal += interests.capitalized;
           }
           sum += bal;
@@ -163,7 +163,11 @@ export default function EconomicCalendar() {
 
         const tomorrowToTargetTxs = txsList.filter(t => {
           const exeType = t.executionType || 'spontaneous';
-          return exeType === 'planned' && t.date >= tomorrowStr && t.date <= dateStr;
+          if (exeType !== 'planned') return false;
+          if (t.isRecurring) {
+            return t.date <= dateStr && (!t.recurrenceEnd || t.recurrenceEnd >= tomorrowStr);
+          }
+          return t.date >= tomorrowStr && t.date <= dateStr;
         });
 
         const expanded = expandRecurringTransactions(tomorrowToTargetTxs, tomorrowStr, dateStr);
@@ -358,6 +362,76 @@ export default function EconomicCalendar() {
                     )}
                   </div>
                 )}
+
+                {/* Relative Hover Tooltip Detail Component */}
+                {hoveredDay === cell.dateStr && (
+                  <div 
+                    className={`absolute bottom-full mb-2 z-50 bg-[#FFFDF9] border-3 border-ac-brown rounded-2xl p-4 shadow-ac-lg max-w-sm w-72 pointer-events-none animate-fade-in text-ac-brown ${
+                      idx % 7 >= 4 
+                        ? 'right-0' 
+                        : 'left-1/2 -translate-x-1/2'
+                    }`}
+                  >
+                    {/* Tooltip triangle indicator */}
+                    <div className={`w-3 h-3 bg-[#FFFDF9] border-r-3 border-b-3 border-ac-brown absolute bottom-[-7px] rotate-[45deg] ${
+                      idx % 7 >= 4 
+                        ? 'right-8' 
+                        : 'left-1/2 -translate-x-1/2'
+                    }`}></div>
+
+                    <h4 className="font-black text-xs text-ac-brown border-b border-ac-brown/10 pb-2 mb-2">
+                      Détails du {new Date(hoveredDay).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </h4>
+
+                    {/* Mode 2 balance info (always display inside the tooltip) */}
+                    {hoveredProjectedBalance !== null && (
+                      <div className="mb-3 bg-ac-cream border-2 border-ac-brown/50 p-2 rounded-xl text-center">
+                        <span className="text-[8px] font-black text-ac-brown-light uppercase block">
+                          {hoveredDay <= new Date().toISOString().split('T')[0] ? 'Solde Historique Combiné' : 'Solde Prévisionnel Combiné'}
+                        </span>
+                        <span className="text-sm font-black text-ac-brown">
+                          {hoveredProjectedBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Transactions list */}
+                    {hoveredData.length === 0 ? (
+                      <p className="text-[10px] font-bold text-ac-brown-light italic py-2 text-center bg-ac-cream-dark/20 rounded-lg border border-dashed border-ac-brown/10">Aucun flux financier ce jour. 🍃</p>
+                    ) : (
+                      <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                        {hoveredData.map((tx, index) => {
+                          const acc = accounts?.find(a => a.id === Number(tx.accountId));
+                          const isIncome = tx.type === 'credit';
+                          return (
+                            <div key={index} className="flex justify-between items-center text-[10px] border-b border-ac-cream pb-1.5 last:border-b-0">
+                              <div className="truncate pr-2">
+                                <p className="font-extrabold text-ac-brown truncate">{tx.name || tx.description}</p>
+                                
+                                <div className="flex gap-1.5 mt-0.5">
+                                  <span className="text-[7px] font-bold text-ac-brown-light bg-ac-cream px-1 rounded uppercase">
+                                    {acc?.name || 'Compte'}
+                                  </span>
+                                  {tx.executionType && tx.executionType !== 'spontaneous' && (
+                                    <span className={`text-[7px] font-bold px-1 rounded uppercase border ${
+                                      tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/10 text-ac-sky' : 'bg-ac-cream-dark/40 border-ac-brown/10 text-ac-brown-light'
+                                    }`}>
+                                      {tx.executionType === 'planned' ? 'Prévu' : 'Passé'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <span className={`font-black whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
+                                {isIncome ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -400,71 +474,7 @@ export default function EconomicCalendar() {
         )}
       </div>
 
-      {/* Floating Hover Tooltip Detail Component */}
-      {hoveredDay && (
-        <div 
-          className="absolute z-50 bg-[#FFFDF9] border-3 border-ac-brown rounded-2xl p-4 shadow-ac-lg max-w-sm w-72 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 animate-fade-in text-ac-brown"
-          style={{ 
-            left: `${hoveredPosition.x - window.scrollX}px`, 
-            top: `${hoveredPosition.y - window.scrollY}px` 
-          }}
-        >
-          {/* Tooltip triangle indicator */}
-          <div className="w-3 h-3 bg-[#FFFDF9] border-r-3 border-b-3 border-ac-brown absolute bottom-[-7px] left-1/2 transform -translate-x-1/2 rotate-[45deg]"></div>
 
-          <h4 className="font-black text-xs text-ac-brown border-b border-ac-brown/10 pb-2 mb-2">
-            Détails du {new Date(hoveredDay).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </h4>
-
-          {/* Mode 2 balance info (always display inside the tooltip) */}
-          {hoveredProjectedBalance !== null && (
-            <div className="mb-3 bg-ac-cream border-2 border-ac-brown/50 p-2 rounded-xl text-center">
-              <span className="text-[8px] font-black text-ac-brown-light uppercase block">
-                {hoveredDay <= new Date().toISOString().split('T')[0] ? 'Solde Historique Combiné' : 'Solde Prévisionnel Combiné'}
-              </span>
-              <span className="text-sm font-black text-ac-brown">
-                {hoveredProjectedBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-              </span>
-            </div>
-          )}
-
-          {/* Transactions list */}
-          {hoveredData.length === 0 ? (
-            <p className="text-[10px] font-bold text-ac-brown-light italic py-2 text-center bg-ac-cream-dark/20 rounded-lg border border-dashed border-ac-brown/10">Aucun flux financier ce jour. 🍃</p>
-          ) : (
-            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-              {hoveredData.map((tx, index) => {
-                const acc = accounts?.find(a => a.id === tx.accountId);
-                const isIncome = tx.type === 'credit';
-                return (
-                  <div key={index} className="flex justify-between items-center text-[10px] border-b border-ac-cream pb-1.5 last:border-b-0">
-                    <div className="truncate pr-2">
-                      <p className="font-extrabold text-ac-brown truncate">{tx.name || tx.description}</p>
-                      
-                      <div className="flex gap-1.5 mt-0.5">
-                        <span className="text-[7px] font-bold text-ac-brown-light bg-ac-cream px-1 rounded uppercase">
-                          {acc?.name || 'Compte'}
-                        </span>
-                        {tx.executionType && tx.executionType !== 'spontaneous' && (
-                          <span className={`text-[7px] font-bold px-1 rounded uppercase border ${
-                            tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/10 text-ac-sky' : 'bg-ac-cream-dark/40 border-ac-brown/10 text-ac-brown-light'
-                          }`}>
-                            {tx.executionType === 'planned' ? 'Prévu' : 'Passé'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <span className={`font-black whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                      {isIncome ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

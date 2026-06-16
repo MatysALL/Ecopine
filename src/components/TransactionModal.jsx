@@ -3,7 +3,7 @@ import { X, Calendar, Tag, RefreshCw, Layers, Sparkles } from 'lucide-react';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
-export default function TransactionModal({ isOpen, onClose, onSave, transaction, accountId }) {
+export default function TransactionModal({ isOpen, onClose, onSave, transaction, accountId, preselectedBudgetId }) {
   const [name, setName] = useState('');
   const [type, setType] = useState('debit'); // 'debit' or 'credit'
   const [amount, setAmount] = useState('');
@@ -45,13 +45,13 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
       setDate(new Date().toISOString().split('T')[0]);
       setCategoryId('');
       setExecutionType('spontaneous');
-      setBudgetId('');
+      setBudgetId(preselectedBudgetId ? preselectedBudgetId.toString() : '');
       
       setIsRecurring(false);
       setRecurrencePeriod('monthly');
       setRecurrenceEnd('');
     }
-  }, [transaction, isOpen]);
+  }, [transaction, isOpen, preselectedBudgetId]);
 
   if (!isOpen) return null;
 

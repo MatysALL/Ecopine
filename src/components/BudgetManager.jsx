@@ -7,7 +7,7 @@ import {
   ArrowRight, HeartCrack
 } from 'lucide-react';
 
-export default function BudgetManager({ accountId }) {
+export default function BudgetManager({ accountId, onAddTransaction }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
   const [parentBudgetId, setParentBudgetId] = useState(null);
@@ -396,7 +396,16 @@ export default function BudgetManager({ accountId }) {
             </div>
 
             {/* Right side buttons */}
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+              {onAddTransaction && (
+                <button
+                  onClick={() => onAddTransaction(node.id)}
+                  className="bg-ac-green text-white hover:bg-ac-green-dark font-extrabold text-[10px] px-2.5 py-1.5 rounded-xl border-2 border-ac-brown shadow-ac-xs flex items-center gap-1 cursor-pointer transition-transform active:translate-y-[1px]"
+                  title="Ajouter une dépense avec cette enveloppe"
+                >
+                  <Plus className="w-3 h-3" /> + Dépense
+                </button>
+              )}
               {node.type === 'objective' && (
                 <button
                   onClick={() => {

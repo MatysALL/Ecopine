@@ -695,7 +695,11 @@ export async function getProjectedBalance(selectedAccountIds, targetDateStr) {
 
   const tomorrowToTargetTxs = txs.filter(t => {
     const exeType = t.executionType || 'spontaneous';
-    return exeType === 'planned' && t.date >= tomorrowStr && t.date <= targetDateStr;
+    if (exeType !== 'planned') return false;
+    if (t.isRecurring) {
+      return t.date <= targetDateStr && (!t.recurrenceEnd || t.recurrenceEnd >= tomorrowStr);
+    }
+    return t.date >= tomorrowStr && t.date <= targetDateStr;
   });
 
   const expanded = expandRecurringTransactions(tomorrowToTargetTxs, tomorrowStr, targetDateStr);
