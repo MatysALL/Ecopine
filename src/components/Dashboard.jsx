@@ -9,48 +9,7 @@ import {
 export default function Dashboard({ onViewAccountDetails, username }) {
   const [noteText, setNoteText] = useState('');
 
-  const nookAdvices = [
-    "économise tes clochettes aujourd'hui pour t'offrir la maison de tes rêves demain !",
-    "Un prêt à taux zéro, c'est une affaire en or ! Oui, oui !",
-    "Pense à placer tes clochettes avant que le cours du navet ne chute !",
-    "Agrandir ta maison demande des sacrifices économiques constants...",
-    "Chaque projet de pont ou de rampe demande la participation de tous, mais surtout la tienne ! Oui, oui !"
-  ];
 
-  const [currentAdvice, setCurrentAdvice] = useState(nookAdvices[0]);
-  const [viewedIndices, setViewedIndices] = useState([0]);
-  const [isFinalMode, setIsFinalMode] = useState(false);
-  const [finalClickCount, setFinalClickCount] = useState(0);
-  const [nookPopped, setNookPopped] = useState(false);
-
-  const handleBubbleClick = () => {
-    if (nookPopped) return;
-
-    if (isFinalMode) {
-      const nextCount = finalClickCount + 1;
-      setFinalClickCount(nextCount);
-      if (nextCount >= 5) {
-        setNookPopped(true);
-      }
-      return;
-    }
-
-    // Find indices that haven't been viewed yet
-    const unviewed = nookAdvices
-      .map((_, idx) => idx)
-      .filter(idx => !viewedIndices.includes(idx));
-
-    if (unviewed.length > 0) {
-      // Pick a random one from unviewed
-      const randomIdx = unviewed[Math.floor(Math.random() * unviewed.length)];
-      setCurrentAdvice(nookAdvices[randomIdx]);
-      setViewedIndices(prev => [...prev, randomIdx]);
-    } else {
-      // All viewed! Go to final mode
-      setIsFinalMode(true);
-      setCurrentAdvice("Je ne suis pas une banque à conseils. Oui, Oui. Ma spécialité c'est garder mon argent");
-    }
-  };
 
   // Fetch current month details
   const today = new Date();
@@ -211,28 +170,15 @@ export default function Dashboard({ onViewAccountDetails, username }) {
         </div>
 
         <div className="flex-1 space-y-4 w-full">
-          <div 
-            onClick={handleBubbleClick}
-            className={`bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative cursor-pointer select-none transition-all duration-700 ${
-              nookPopped ? 'opacity-85 scale-95 border-dashed bg-ac-cream' : 'hover:scale-[1.01]'
-            }`}
-          >
-            {nookPopped ? (
-              <p className="text-xs font-black text-ac-red text-center py-2 animate-bounce-in">
-                Vendu.
-              </p>
-            ) : (
-              <>
-                <h3 className="font-black text-sm text-ac-brown flex items-center gap-1">
-                  Bonjour, {username || 'Îlien'} ! <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold animate-pulse" />
-                </h3>
-                <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
-                  "{currentAdvice}"
-                </p>
-                {/* Dialogue bubble arrow */}
-                <div className="w-3 h-3 bg-white border-l-2 border-t-2 border-ac-brown/60 absolute left-[-7px] top-6 transform rotate-[-45deg] hidden md:block"></div>
-              </>
-            )}
+          <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative">
+            <h3 className="font-black text-sm text-ac-brown flex items-center gap-1">
+              Bonjour, {username || 'Îlien'} ! <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold animate-pulse" />
+            </h3>
+            <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
+              "Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de <strong>{totalBalance.toLocaleString('fr-FR')} 🔔</strong>. Prends soin de tes économies !"
+            </p>
+            {/* Dialogue bubble arrow */}
+            <div className="w-3 h-3 bg-white border-l-2 border-t-2 border-ac-brown/60 absolute left-[-7px] top-6 transform rotate-[-45deg] hidden md:block"></div>
           </div>
 
           {/* Island Note textarea */}
