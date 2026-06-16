@@ -7,6 +7,7 @@ import AccountsView from './components/AccountsView';
 import EconomicCalendar from './components/EconomicCalendar';
 import Settings from './components/Settings';
 import OnboardingModal from './components/OnboardingModal';
+import WishlistView from './components/WishlistView';
 
 import Dexie from 'dexie';
 
@@ -91,6 +92,8 @@ export default function App() {
         );
       case 'calendar':
         return <EconomicCalendar />;
+      case 'wishlist':
+        return <WishlistView />;
       case 'settings':
         return <Settings />;
       default:

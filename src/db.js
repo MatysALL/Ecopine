@@ -73,6 +73,16 @@ db.version(3).stores({
   }
 });
 
+// Version 4 schema (updated for Wishlist)
+db.version(4).stores({
+  user_meta: 'key',
+  accounts: '++id, name, type, bankName, initialBalance, currentBalance, rate, description, rib',
+  categories: '++id, name, isDefault',
+  budgets: '++id, accountId, parentBudgetId, name, type, limitAmount, currentAmount, carryOverAmount, frequency',
+  transactions: '++id, accountId, budgetId, name, amount, type, date, categoryId, executionType',
+  wishlist: '++id, name, price, description'
+});
+
 // Handle version change and blocked events
 db.on('versionchange', () => {
   console.warn("Changement de version de la base de données détecté. Fermeture de la connexion...");
