@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getAccountBalance, getAccountVisibleBalance, calculateLivretInterests } from '../db';
+import React, { useState, useMemo } from 'react';
+import { db, useDb, calculateLivretInterests } from '../db';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
-  Coins, PiggyBank, Briefcase, HelpCircle, Save, Info, AlertTriangle, 
-  Landmark, CreditCard, Sparkles, FileSpreadsheet, X, ArrowRightLeft
+  Coins, PiggyBank, HelpCircle, AlertTriangle, 
+  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import BudgetManager from './BudgetManager';
@@ -38,43 +37,28 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
 
-  // Fetch accounts with both real and visible balances
-  const accounts = useLiveQuery(async () => {
-    const list = await db.accounts.toArray();
-    return Promise.all(
-      list.map(async (acc) => {
-        const bal = await getAccountBalance(acc.id);
-        const visBal = await getAccountVisibleBalance(acc.id);
-        return { ...acc, balance: bal, visibleBalance: visBal };
-      })
-    );
-  });
+  const { accountsData: accounts, transactions: allTransactions } = useDb();
 
   // Fetch transactions for the active account
   const activeAccount = accounts?.find(a => a.id === selectedAccountId);
-  const transactions = useLiveQuery(() => {
-    if (!selectedAccountId) return [];
-    return db.transactions
-      .where('accountId')
-      .equals(Number(selectedAccountId))
-      .reverse()
-      .sortBy('date');
-  }, [selectedAccountId]);
+
+  const transactions = useMemo(() => {
+    if (!selectedAccountId || !allTransactions) return [];
+    return allTransactions
+      .filter(t => t.accountId === selectedAccountId)
+      .slice()
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [selectedAccountId, allTransactions]);
 
   // Fetch live interest simulation for booklet accounts
-  const activeAccountInterests = useLiveQuery(async () => {
-    if (!activeAccount) return null;
+  const activeAccountInterests = useMemo(() => {
+    if (!activeAccount || !transactions) return null;
     const isLivret = activeAccount.type && activeAccount.type.toLowerCase() !== 'courant';
     if (!isLivret || Number(activeAccount.rate) <= 0) return null;
 
-    const txs = await db.transactions
-      .where('accountId')
-      .equals(activeAccount.id)
-      .toArray();
-
     const todayStr = new Date().toISOString().split('T')[0];
-    return calculateLivretInterests(activeAccount, txs, todayStr);
-  }, [activeAccount]);
+    return calculateLivretInterests(activeAccount, transactions, todayStr);
+  }, [activeAccount, transactions]);
 
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
@@ -137,8 +121,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       return;
     }
 
-    const sourceAccount = accounts.find(a => a.id === Number(transferSourceId));
-    const destAccount = accounts.find(a => a.id === Number(transferDestId));
+    const sourceAccount = accounts.find(a => a.id === transferSourceId);
+    const destAccount = accounts.find(a => a.id === transferDestId);
 
     if (!sourceAccount || !destAccount) {
       alert("Comptes introuvables.");
@@ -149,7 +133,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     const dateStr = new Date().toISOString().split('T')[0];
 
     const sourceTx = {
-      accountId: Number(transferSourceId),
+      accountId: transferSourceId,
       name: `Virement vers ${destAccount.name} : ${desc}`,
       description: `Virement vers ${destAccount.name} : ${desc}`,
       amount: amount,
@@ -164,7 +148,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     };
 
     const destTx = {
-      accountId: Number(transferDestId),
+      accountId: transferDestId,
       name: `Virement depuis ${sourceAccount.name} : ${desc}`,
       description: `Virement depuis ${sourceAccount.name} : ${desc}`,
       amount: amount,
@@ -213,8 +197,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     if (!confirmDelete) return;
 
     await db.accounts.delete(accId);
-    await db.transactions.where('accountId').equals(accId).delete();
-    await db.budgets.where('accountId').equals(accId).delete();
     setSelectedAccountId(null);
   };
 
@@ -417,7 +399,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     
     const preparedTxs = csvPreviewTxs.map(tx => ({
       ...tx,
-      accountId: Number(selectedAccountId)
+      accountId: selectedAccountId
     }));
 
     await db.transactions.bulkAdd(preparedTxs);
@@ -796,242 +778,79 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
           ) : accounts.length === 0 ? (
             <div className="text-center py-10 bg-white rounded-3xl border-3 border-ac-brown text-ac-brown-light">
               <p className="font-extrabold mb-4">Tu n'as pas encore créé de compte ou de livret.</p>
-              <p className="text-xs">Commence par créer ton compte courant principal en clicking sur "Nouveau Compte" ci-dessus !</p>
+              <p className="text-xs">Commence par créer ton compte courant principal en cliquant sur "Nouveau Compte" ci-dessus !</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {accounts.map((acc) => {
-                const isCurrent = acc.type === 'Courant';
-                return (
-                  <div
-                    key={acc.id}
-                    onClick={() => setSelectedAccountId(acc.id)}
-                    className={`ac-card p-6 cursor-pointer border-ac-brown select-none relative group overflow-hidden ${
-                      isCurrent ? 'bg-ac-gold-light' : 'bg-white'
-                    }`}
-                  >
-                    {/* Corner badge for Type */}
-                    <div className="absolute top-0 right-0 bg-ac-brown border-l-2 border-b-2 border-ac-brown rounded-bl-xl px-2.5 py-0.5 text-[10px] font-black text-white">
-                      {acc.type}
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-ac-brown shadow-ac-sm ${
-                        isCurrent ? 'bg-ac-gold text-white' : 'bg-ac-sky text-white'
-                      }`}>
-                        {isCurrent ? <Coins className="w-5 h-5" /> : <PiggyBank className="w-5 h-5" />}
-                      </div>
-                      <h3 className="font-black text-base text-ac-brown">{acc.name}</h3>
-                    </div>
-
-                    {acc.bankName && (
-                      <span className="text-[9px] font-extrabold text-ac-brown-light block mt-2">
-                        🏦 Banque : {acc.bankName}
-                      </span>
-                    )}
-
-                    <div className="mt-4 flex flex-col gap-1">
-                      <span className="text-[9px] font-bold text-ac-brown-light uppercase block">Solde Réel</span>
-                      <span className="text-xl font-black text-ac-brown">
-                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                      </span>
-                      
-                      {acc.balance !== acc.visibleBalance && (
-                        <div className="mt-1 flex flex-col">
-                          <span className="text-[8px] font-bold text-ac-gold-dark uppercase block flex items-center gap-1">
-                            Solde Disponible <Sparkles className="w-2.5 h-2.5 fill-ac-gold text-ac-gold-dark" />
-                          </span>
-                          <span className="text-sm font-black text-ac-gold-dark">
-                            {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                          </span>
-                        </div>
+              {accounts.map((acc) => (
+                <div 
+                  key={acc.id}
+                  onClick={() => setSelectedAccountId(acc.id)}
+                  className="ac-card bg-[#FFFDF9] border-ac-brown p-5 cursor-pointer relative group overflow-hidden flex flex-col justify-between"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-extrabold text-sm text-ac-brown leading-tight flex items-center gap-1.5 flex-wrap">
+                        {acc.name}
+                        <span className="text-[8px] font-black uppercase tracking-wider bg-ac-cream-dark/50 border border-ac-brown/10 text-ac-brown-light px-2 py-0.5 rounded-full">
+                          {acc.type}
+                        </span>
+                      </h4>
+                      {acc.bankName && (
+                        <span className="text-[9px] font-bold text-ac-brown-light/80 block mt-1">
+                          🏦 {acc.bankName}
+                        </span>
                       )}
                     </div>
 
-                    {acc.rate > 0 && (
-                      <div className="mt-3 text-[10px] font-bold text-ac-green bg-ac-green-light border border-ac-green/20 px-2 py-0.5 rounded-md inline-block">
-                        Intérêts: {acc.rate}%
-                      </div>
-                    )}
-
-                    <div className="mt-4 pt-3 border-t border-t-ac-brown/10 flex justify-between items-center text-[10px] font-black text-ac-brown-light group-hover:text-ac-brown transition-colors">
-                      <span>Détail et transactions</span>
-                      <ArrowLeft className="w-3.5 h-3.5 transform rotate-180 group-hover:translate-x-1 transition-transform" />
+                    <div className="w-9 h-9 bg-ac-cream rounded-full border border-ac-brown/20 flex items-center justify-center shrink-0 group-hover:bg-ac-gold/10 transition-colors">
+                      <PiggyBank className="w-5 h-5 text-ac-gold" />
                     </div>
                   </div>
-                );
-              })}
+
+                  <div className="mt-4 pt-3 border-t border-ac-brown/10 flex justify-between items-baseline">
+                    <span className="text-[10px] font-black uppercase tracking-wide text-ac-brown-light/60">Solde Disponible</span>
+                    <span className="font-black text-base text-ac-brown">
+                      {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Account Creator Form (Modal Overlay) */}
-      {accountFormOpen && (
-        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown">
-          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-2xl w-full shadow-ac-lg relative animate-bounce-in">
-            <button 
-              type="button"
-              onClick={() => {
-                setAccountFormOpen(false);
-                resetAccountForm();
-              }}
-              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5 text-ac-brown" />
-            </button>
-
-            <h3 className="text-xl font-black text-ac-brown mb-6 flex items-center gap-1.5 border-b border-ac-brown/10 pb-4">
-              {editingAccount ? 'Modifier le compte' : 'Créer un nouveau compte'}
-            </h3>
-
-            <form onSubmit={handleAccountSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom du Compte *</label>
-                  <input
-                    type="text"
-                    value={accName}
-                    onChange={(e) => setAccName(e.target.value)}
-                    placeholder="Ex: Compte Courant Principal, Livret Clochettes"
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Type de Compte</label>
-                  <select
-                    value={accType}
-                    onChange={(e) => setAccType(e.target.value)}
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:bg-white animate-none"
-                  >
-                    <option value="Courant">Courant</option>
-                    <option value="Livret A">Livret A</option>
-                    <option value="LDDS">LDDS</option>
-                    <option value="PEA">PEA</option>
-                    <option value="Autre">Autre Épargne (Livret)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Solde Initial *</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={accInitial}
-                      onChange={(e) => setAccInitial(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
-                      required
-                    />
-                    <span className="absolute left-3 top-2.5 text-xs font-black">🔔</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom de la Banque</label>
-                  <input
-                    type="text"
-                    value={accBankName}
-                    onChange={(e) => setAccBankName(e.target.value)}
-                    placeholder="Ex: Banque Nook"
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description</label>
-                  <input
-                    type="text"
-                    value={accDescription}
-                    onChange={(e) => setAccDescription(e.target.value)}
-                    placeholder="Ex: Compte pour les dépenses quotidiennes de l'île"
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Taux d'Intérêt % (Livrets)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={accRate}
-                    onChange={(e) => setAccRate(e.target.value)}
-                    placeholder="Ex: 3.0"
-                    disabled={accType === 'Courant'}
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white disabled:opacity-55"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Numéro RIB / Compte</label>
-                <input
-                  type="text"
-                  value={accRib}
-                  onChange={(e) => setAccRib(e.target.value)}
-                  placeholder="Ex: FR76 1234 5678 9012 3456 7890 123"
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white font-mono"
-                />
-              </div>
-
-              <div className="flex gap-4 pt-4 border-t border-ac-brown/10">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAccountFormOpen(false);
-                    resetAccountForm();
-                  }}
-                  className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm active:translate-y-1 active:shadow-none cursor-pointer"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm active:translate-y-1 active:shadow-none cursor-pointer"
-                >
-                  Sauvegarder
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Transfer Modal Overlay */}
+      {/* Transfer Dialog Modal */}
       {transferModalOpen && (
         <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown">
           <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in">
+            {/* Close button */}
             <button 
               type="button"
               onClick={() => {
                 setTransferModalOpen(false);
                 resetTransferForm();
               }}
-              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all hover:scale-110 text-ac-brown cursor-pointer"
             >
-              <X className="w-5 h-5 text-ac-brown" />
+              <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-xl font-black text-ac-brown mb-6 flex items-center gap-1.5 border-b border-ac-brown/10 pb-4">
-              <ArrowRightLeft className="w-5 h-5 text-ac-gold" /> Faire un virement
+            <h3 className="text-lg font-black mb-4 flex items-center gap-1.5 border-b border-ac-brown/10 pb-2">
+              <ArrowRightLeft className="w-5 h-5 text-ac-gold" /> Faire un virement interne
             </h3>
 
             <form onSubmit={handleTransferSubmit} className="space-y-4">
-              {/* Source Account */}
               <div>
-                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Compte Source *</label>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5">Compte Source (Débit) *</label>
                 <select
                   value={transferSourceId}
                   onChange={(e) => setTransferSourceId(e.target.value)}
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
                   required
                 >
-                  <option value="">-- Choisir le compte source --</option>
+                  <option value="">-- Sélectionner le compte à débiter --</option>
                   {accounts?.map(acc => (
                     <option key={acc.id} value={acc.id}>
                       {acc.name} ({acc.visibleBalance.toLocaleString('fr-FR')} 🔔 dispo)
@@ -1040,16 +859,15 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 </select>
               </div>
 
-              {/* Destination Account */}
               <div>
-                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Compte Destination *</label>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5">Compte Cible (Crédit) *</label>
                 <select
                   value={transferDestId}
                   onChange={(e) => setTransferDestId(e.target.value)}
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
                   required
                 >
-                  <option value="">-- Choisir le compte destination --</option>
+                  <option value="">-- Sélectionner le compte à créditer --</option>
                   {accounts?.map(acc => (
                     <option key={acc.id} value={acc.id}>
                       {acc.name} ({acc.visibleBalance.toLocaleString('fr-FR')} 🔔 dispo)
@@ -1058,10 +876,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 </select>
               </div>
 
-              {/* Amount and Description */}
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (Clochettes) *</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant *</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -1070,21 +887,21 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       value={transferAmount}
                       onChange={(e) => setTransferAmount(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                       required
                     />
-                    <span className="absolute left-3 top-2.5 text-xs font-black">🔔</span>
+                    <span className="absolute left-2.5 top-2.5 text-xs font-black">🔔</span>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description / Motif</label>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Motif / Description</label>
                   <input
                     type="text"
                     value={transferDesc}
                     onChange={(e) => setTransferDesc(e.target.value)}
-                    placeholder="Ex: Épargne mensuelle, remboursement..."
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+                    placeholder="Épargne mensuelle, remboursement..."
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                   />
                 </div>
               </div>
@@ -1096,15 +913,159 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     setTransferModalOpen(false);
                     resetTransferForm();
                   }}
-                  className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm active:translate-y-1 active:shadow-none cursor-pointer"
+                  className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm active:translate-y-1 active:shadow-none cursor-pointer"
+                  className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
                 >
                   Transférer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Account Creation / Edition Modal Form */}
+      {accountFormOpen && (
+        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown">
+          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-lg w-full shadow-ac-lg relative animate-bounce-in">
+            {/* Close button */}
+            <button 
+              type="button"
+              onClick={() => {
+                setAccountFormOpen(false);
+                setEditingAccount(null);
+                resetAccountForm();
+              }}
+              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all hover:scale-110 text-ac-brown cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-lg font-black mb-4 flex items-center gap-1.5 border-b border-ac-brown/10 pb-2">
+              <Coins className="w-5 h-5 text-ac-green" /> {editingAccount ? 'Modifier le compte' : 'Créer un nouveau compte'}
+            </h3>
+
+            <form onSubmit={handleAccountSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom du compte *</label>
+                  <input
+                    type="text"
+                    value={accName}
+                    onChange={(e) => setAccName(e.target.value)}
+                    placeholder="Ex: Livret A, Poche principale"
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Type de Compte</label>
+                  <select
+                    value={accType}
+                    onChange={(e) => setAccType(e.target.value)}
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+                  >
+                    <option value="Courant">Courant (Dépenses courantes)</option>
+                    <option value="Livret A">Livret A (Épargne)</option>
+                    <option value="LDDS">LDDS (Épargne)</option>
+                    <option value="LEP">LEP (Épargne pop.)</option>
+                    <option value="Autre Livret">Autre Livret d'épargne</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Banque / Établissement</label>
+                  <input
+                    type="text"
+                    value={accBankName}
+                    onChange={(e) => setAccBankName(e.target.value)}
+                    placeholder="Ex: Nook Banque, Caisse d'Épargne"
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Numéro de Compte / RIB</label>
+                  <input
+                    type="text"
+                    value={accRib}
+                    onChange={(e) => setAccRib(e.target.value)}
+                    placeholder="Ex: FR76 3000..."
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Solde Initial *</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={accInitial}
+                      onChange={(e) => setAccInitial(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                      disabled={!!editingAccount}
+                      required
+                    />
+                    <span className="absolute left-2.5 top-2.5 text-xs font-black">🔔</span>
+                  </div>
+                  {editingAccount && <p className="text-[9px] text-ac-brown-light/60 mt-1">Le solde initial ne peut pas être modifié après création.</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Taux d'intérêt annuel (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={accRate}
+                    onChange={(e) => setAccRate(e.target.value)}
+                    placeholder="0.00"
+                    disabled={accType === 'Courant'}
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description / Rôle du compte</label>
+                <input
+                  type="text"
+                  value={accDescription}
+                  onChange={(e) => setAccDescription(e.target.value)}
+                  placeholder="Ex: Pour financer mon futur projet de pont..."
+                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                />
+              </div>
+
+              <div className="flex gap-4 pt-4 border-t border-ac-brown/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountFormOpen(false);
+                    setEditingAccount(null);
+                    resetAccountForm();
+                  }}
+                  className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+                >
+                  Sauvegarder
                 </button>
               </div>
             </form>

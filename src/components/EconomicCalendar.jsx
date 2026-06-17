@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, expandRecurringTransactions, getProjectedBalance, calculateLivretInterests } from '../db';
+import React, { useState, useMemo } from 'react';
+import { useDb, expandRecurringTransactions, getProjectedBalanceSync, calculateLivretInterests } from '../db';
 import { 
-  ChevronLeft, ChevronRight, HelpCircle, Calendar, 
-  Coins, Leaf, ArrowUpRight, ArrowDownRight, EyeOff, Sparkles, HelpCircle as InfoIcon
+  ChevronLeft, ChevronRight, Calendar, 
+  Coins, Leaf, ArrowUpRight, ArrowDownRight, EyeOff, Sparkles, Smile
 } from 'lucide-react';
 
 export default function EconomicCalendar() {
@@ -18,8 +17,7 @@ export default function EconomicCalendar() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // 1. Fetch accounts to build filters
-  const accounts = useLiveQuery(() => db.accounts.toArray());
+  const { accounts, transactions: allTransactions } = useDb();
 
   // Initialize selected accounts dictionary
   React.useEffect(() => {
@@ -33,24 +31,25 @@ export default function EconomicCalendar() {
   }, [accounts]);
 
   // Determine active account IDs list
-  const activeAccountIds = accounts
-    ? accounts.filter(a => selectedAccounts[a.id]).map(a => a.id)
-    : [];
+  const activeAccountIds = useMemo(() => {
+    return accounts
+      ? accounts.filter(a => selectedAccounts[a.id]).map(a => a.id)
+      : [];
+  }, [accounts, selectedAccounts]);
 
-  // 2. Fetch and expand transactions for the active month
+  // Determine date ranges for the active month
   const startOfMonthStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
   const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
   const endOfMonthStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
 
-  const transactionsData = useLiveQuery(async () => {
-    if (activeAccountIds.length === 0) return [];
+  // Fetch and expand transactions for the active month
+  const transactionsData = useMemo(() => {
+    if (activeAccountIds.length === 0 || !allTransactions) return [];
     
-    const txs = await db.transactions
-      .filter(t => activeAccountIds.includes(Number(t.accountId)))
-      .toArray();
+    const txs = allTransactions.filter(t => activeAccountIds.includes(t.accountId));
 
     return expandRecurringTransactions(txs, startOfMonthStr, endOfMonthStr);
-  }, [selectedAccounts, currentDate]);
+  }, [activeAccountIds, currentDate, allTransactions]);
 
   // Calendar Grid builder helpers
   const firstDayIndex = new Date(year, month, 1).getDay();
@@ -94,12 +93,11 @@ export default function EconomicCalendar() {
   }
 
   // Optimized fetching of balances for Mode 2 (Projected balance trajectory)
-  const calendarBalances = useLiveQuery(async () => {
-    if (activeAccountIds.length === 0 || !isProjectionMode) return {};
+  const calendarBalances = useMemo(() => {
+    if (activeAccountIds.length === 0 || !isProjectionMode || !accounts || !allTransactions) return {};
 
     const balances = {};
-    const accountsList = await db.accounts.filter(a => activeAccountIds.includes(a.id)).toArray();
-    const txsList = await db.transactions.filter(t => activeAccountIds.includes(Number(t.accountId))).toArray();
+    const accountsList = accounts.filter(a => activeAccountIds.includes(a.id));
     
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -111,10 +109,10 @@ export default function EconomicCalendar() {
         // Historical balance calculation
         let sum = 0;
         for (const acc of accountsList) {
-          const accTxs = txsList.filter(t => {
+          const accTxs = allTransactions.filter(t => {
             const exeType = t.executionType || 'spontaneous';
             const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
-            return Number(t.accountId) === acc.id && isEffective && t.date <= dateStr;
+            return t.accountId === acc.id && isEffective && t.date <= dateStr;
           });
 
           const sumTxs = accTxs.reduce((s, t) => {
@@ -126,7 +124,7 @@ export default function EconomicCalendar() {
 
           const isLivret = acc.type && acc.type.toLowerCase() !== 'courant';
           if (isLivret && Number(acc.rate) > 0) {
-            const interests = calculateLivretInterests(acc, txsList.filter(t => Number(t.accountId) === acc.id), dateStr);
+            const interests = calculateLivretInterests(acc, allTransactions.filter(t => t.accountId === acc.id), dateStr);
             bal += interests.capitalized;
           }
           sum += bal;
@@ -136,10 +134,10 @@ export default function EconomicCalendar() {
         // Future projected balance calculation
         let sum = 0;
         for (const acc of accountsList) {
-          const accTxs = txsList.filter(t => {
+          const accTxs = allTransactions.filter(t => {
             const exeType = t.executionType || 'spontaneous';
             const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
-            return Number(t.accountId) === acc.id && isEffective && t.date <= todayStr;
+            return t.accountId === acc.id && isEffective && t.date <= todayStr;
           });
 
           const sumTxs = accTxs.reduce((s, t) => {
@@ -151,7 +149,7 @@ export default function EconomicCalendar() {
 
           const isLivret = acc.type && acc.type.toLowerCase() !== 'courant';
           if (isLivret && Number(acc.rate) > 0) {
-            const interests = calculateLivretInterests(acc, txsList.filter(t => Number(t.accountId) === acc.id), todayStr);
+            const interests = calculateLivretInterests(acc, allTransactions.filter(t => t.accountId === acc.id), todayStr);
             bal += interests.capitalized;
           }
           sum += bal;
@@ -161,7 +159,7 @@ export default function EconomicCalendar() {
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-        const tomorrowToTargetTxs = txsList.filter(t => {
+        const tomorrowToTargetTxs = allTransactions.filter(t => {
           const exeType = t.executionType || 'spontaneous';
           if (exeType !== 'planned') return false;
           if (t.isRecurring) {
@@ -181,7 +179,7 @@ export default function EconomicCalendar() {
       }
     }
     return balances;
-  }, [selectedAccounts, currentDate, isProjectionMode]);
+  }, [selectedAccounts, currentDate, isProjectionMode, accounts, allTransactions, activeAccountIds, calendarCells]);
 
   const navigateMonth = (direction) => {
     const nextDate = new Date(currentDate);
@@ -196,7 +194,7 @@ export default function EconomicCalendar() {
     }));
   };
 
-  const handleDayHoverEnter = async (e, cell) => {
+  const handleDayHoverEnter = (e, cell) => {
     if (!cell.isCurrentMonth) return;
     
     // In Mode 1 or 2, we list transactions on that date
@@ -215,7 +213,7 @@ export default function EconomicCalendar() {
     });
 
     // Solve balance for that day in the past or future
-    const bal = await getProjectedBalance(activeAccountIds, cell.dateStr);
+    const bal = getProjectedBalanceSync(activeAccountIds, cell.dateStr, accounts, allTransactions);
     setHoveredProjectedBalance(bal);
   };
 
@@ -404,7 +402,7 @@ export default function EconomicCalendar() {
                     ) : (
                       <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
                         {hoveredData.map((tx, index) => {
-                          const acc = accounts?.find(a => a.id === Number(tx.accountId));
+                          const acc = accounts?.find(a => a.id === tx.accountId);
                           const isIncome = tx.type === 'credit';
                           return (
                             <div key={index} className="flex justify-between items-center text-[10px] border-b border-ac-cream pb-1.5 last:border-b-0">
@@ -476,8 +474,6 @@ export default function EconomicCalendar() {
           </div>
         )}
       </div>
-
-
     </div>
   );
 }

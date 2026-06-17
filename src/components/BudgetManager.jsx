@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, calculateBudgetsState, getPeriodForDate, getPeriodsBetween, detectPeriodFrequency, convertPeriod } from '../db';
+import React, { useState, useMemo } from 'react';
+import { db, useDb, calculateBudgetsState, getPeriodForDate, getPeriodsBetween, detectPeriodFrequency, convertPeriod } from '../db';
 import { 
   FolderPlus, Plus, Trash2, Edit2, ChevronDown, ChevronRight, 
   Target, Calendar, Smile, Sparkles, Coins, ArrowRightLeft, ShieldAlert,
@@ -31,19 +30,19 @@ export default function BudgetManager({ accountId, onAddTransaction }) {
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
 
-  // 1. Fetch budgets for this account
-  const budgets = useLiveQuery(() => 
-    db.budgets.where('accountId').equals(Number(accountId)).toArray()
-  , [accountId]);
+  const { budgets: allBudgets, transactions: allTransactions } = useDb();
 
-  // 2. Fetch all transactions for this account
-  const transactions = useLiveQuery(() => 
-    db.transactions.where('accountId').equals(Number(accountId)).toArray()
-  , [accountId]);
+  // Filter budgets for this account
+  const budgets = useMemo(() => {
+    if (!allBudgets || !accountId) return [];
+    return allBudgets.filter(b => b.accountId === accountId);
+  }, [allBudgets, accountId]);
 
-  if (!budgets || !transactions) {
-    return <div className="text-xs font-bold text-ac-brown-light text-center py-6">Chargement des enveloppes...</div>;
-  }
+  // Filter transactions for this account
+  const transactions = useMemo(() => {
+    if (!allTransactions || !accountId) return [];
+    return allTransactions.filter(t => t.accountId === accountId);
+  }, [allTransactions, accountId]);
 
   // Calculate live dynamic states using our unified chronological simulation
   let budgetStates = {};
@@ -79,7 +78,7 @@ export default function BudgetManager({ accountId, onAddTransaction }) {
     const limit = parseFloat(limitAmount);
     if (isNaN(limit) || limit <= 0) return;
 
-    const redirId = redirectionBudgetId ? Number(redirectionBudgetId) : null;
+    const redirId = redirectionBudgetId || null;
 
     // Strict constraint validation: destination CANNOT be a regular budget
     if (redirId) {
@@ -128,8 +127,8 @@ export default function BudgetManager({ accountId, onAddTransaction }) {
     }
 
     const budgetData = {
-      accountId: Number(accountId),
-      parentBudgetId: parentBudgetId ? Number(parentBudgetId) : null,
+      accountId: accountId,
+      parentBudgetId: parentBudgetId || null,
       name: name.trim(),
       type,
       limitAmount: limit,
@@ -182,14 +181,19 @@ export default function BudgetManager({ accountId, onAddTransaction }) {
         await db.budgets.bulkDelete(idsToDelete);
         
         // Dissociate transactions
-        await db.transactions
-          .filter(t => t.budgetId && idsToDelete.includes(Number(t.budgetId)))
-          .modify({ budgetId: null });
+        const batch = db.transactions.bulkAdd ? null : {}; // We can use the compatible API which we implemented in dbCompat
+        
+        // We will make sequential updates to transactions in dbCompat
+        const txsToModify = allTransactions.filter(t => t.budgetId && idsToDelete.includes(t.budgetId));
+        for (const t of txsToModify) {
+          await db.transactions.update(t.id, { budgetId: null });
+        }
 
         // Clean up redirection configurations pointing to deleted budgets
-        await db.budgets
-          .filter(b => b.redirectionBudgetId && idsToDelete.includes(Number(b.redirectionBudgetId)))
-          .modify({ redirectionBudgetId: null });
+        const budgetsToModify = allBudgets.filter(b => b.redirectionBudgetId && idsToDelete.includes(b.redirectionBudgetId));
+        for (const b of budgetsToModify) {
+          await db.budgets.update(b.id, { redirectionBudgetId: null });
+        }
       });
     }
   };
@@ -226,7 +230,7 @@ export default function BudgetManager({ accountId, onAddTransaction }) {
 
     // Note historical transaction
     await db.transactions.add({
-      accountId: Number(accountId),
+      accountId: accountId,
       budgetId: fundTargetBudget.id,
       name: fundAction === 'add' ? `Dépôt objectif : ${fundTargetBudget.name}` : `Retrait objectif : ${fundTargetBudget.name}`,
       amount: amount,

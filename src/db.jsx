@@ -1,134 +1,15 @@
-import Dexie from 'dexie';
-
-export const db = new Dexie('EcopineDB');
-
-// Version 2 schema (legacy)
-db.version(2).stores({
-  accounts: '++id, name, type, initialBalance, rate',
-  transactions: '++id, accountId, date, amount, description, category, isRecurring, recurrencePeriod, recurrenceEnd',
-  envelopes: '++id, accountId, name, monthlyLimit, carryOver, blockBalance',
-  budgets: '++id, month, limit',
-  user_meta: '++id, key, value'
-});
-
-// Version 3 schema (updated)
-db.version(3).stores({
-  user_meta: 'key',
-  accounts: '++id, name, type, bankName, initialBalance, currentBalance, rate, description, rib',
-  categories: '++id, name, isDefault',
-  budgets: '++id, accountId, parentBudgetId, name, type, limitAmount, currentAmount, carryOverAmount, frequency',
-  transactions: '++id, accountId, budgetId, name, amount, type, date, categoryId, executionType'
-}).upgrade(async (tx) => {
-  // 1. Migrate user_meta
-  const oldMeta = await tx.table('user_meta').toArray();
-  await tx.table('user_meta').clear();
-  for (const m of oldMeta) {
-    if (m.key) {
-      await tx.table('user_meta').put({ key: m.key, value: m.value });
-    }
-  }
-
-  // 2. Migrate envelopes to budgets
-  const oldEnvs = await tx.table('envelopes').toArray();
-  const envToBudgetId = {};
-  for (const env of oldEnvs) {
-    const newBudgetId = await tx.table('budgets').add({
-      accountId: Number(env.accountId),
-      parentBudgetId: null,
-      name: env.name,
-      type: env.carryOver ? 'leisure' : 'regular',
-      limitAmount: Number(env.monthlyLimit) || 0,
-      currentAmount: 0,
-      carryOverAmount: 0,
-      frequency: 'monthly',
-      renewalFrequency: 'monthly',
-      redirectionBudgetId: null,
-      history: {},
-      createdAt: new Date().toISOString().split('T')[0].substring(0, 7) // 'YYYY-MM'
-    });
-    envToBudgetId[env.name] = newBudgetId;
-  }
-
-  // 3. Migrate transactions
-  const oldTxs = await tx.table('transactions').toArray();
-  await tx.table('transactions').clear();
-  for (const txObj of oldTxs) {
-    const isIncome = txObj.amount > 0;
-    const absAmount = Math.abs(txObj.amount);
-    const budgetId = envToBudgetId[txObj.category] || null;
-
-    await tx.table('transactions').add({
-      accountId: Number(txObj.accountId),
-      budgetId: budgetId,
-      name: txObj.description || 'Transaction',
-      amount: absAmount,
-      type: isIncome ? 'credit' : 'debit',
-      date: txObj.date,
-      categoryId: null,
-      executionType: 'spontaneous',
-      isRecurring: txObj.isRecurring || false,
-      recurrencePeriod: txObj.recurrencePeriod || 'none',
-      recurrenceEnd: txObj.recurrenceEnd || ''
-    });
-  }
-});
-
-// Version 4 schema (updated for Wishlist)
-db.version(4).stores({
-  user_meta: 'key',
-  accounts: '++id, name, type, bankName, initialBalance, currentBalance, rate, description, rib',
-  categories: '++id, name, isDefault',
-  budgets: '++id, accountId, parentBudgetId, name, type, limitAmount, currentAmount, carryOverAmount, frequency',
-  transactions: '++id, accountId, budgetId, name, amount, type, date, categoryId, executionType',
-  wishlist: '++id, name, price, description'
-});
-
-// Handle version change and blocked events
-db.on('versionchange', () => {
-  console.warn("Changement de version de la base de données détecté. Fermeture de la connexion...");
-  db.close();
-  window.location.reload();
-});
-
-db.on('blocked', () => {
-  console.warn("La mise à niveau de la base de données est bloquée par un autre onglet ouvert.");
-});
-
-// Open database and handle collisions
-db.open().catch(async (err) => {
-  console.error("Erreur lors de l'ouverture d'IndexedDB:", err);
-  if (err.name === 'VersionError' || err.name === 'UpgradeError' || err.message?.includes('schema')) {
-    console.warn("Version mismatch or schema issue detected. Re-creating EcopineDB...");
-    try {
-      await Dexie.delete('EcopineDB');
-      window.location.reload();
-    } catch (deleteErr) {
-      console.error("Failed to delete database:", deleteErr);
-    }
-  }
-});
-
-// Populate default categories if empty
-db.open().then(async () => {
-  try {
-    const count = await db.categories.count();
-    if (count === 0) {
-      await db.categories.bulkAdd([
-        { name: 'Loisirs', isDefault: 1 },
-        { name: 'Nourriture', isDefault: 1 },
-        { name: 'Logement', isDefault: 1 },
-        { name: 'Transports', isDefault: 1 },
-        { name: 'Abonnements', isDefault: 1 },
-        { name: 'Cadeaux', isDefault: 1 },
-        { name: 'Santé', isDefault: 1 },
-        { name: 'Salaire', isDefault: 1 },
-        { name: 'Autre', isDefault: 1 }
-      ]);
-    }
-  } catch (err) {
-    console.error("Erreur lors de la population des catégories:", err);
-  }
-});
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { auth, db as firestoreDb } from './firebase';
+import { 
+  collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, 
+  setDoc, query, where, onSnapshot, writeBatch 
+} from 'firebase/firestore';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut,
+  onAuthStateChanged
+} from 'firebase/auth';
 
 /**
  * Period calculations helpers
@@ -397,7 +278,7 @@ export function calculateBudgetsState(budgets, transactions, todayStr) {
     const descendantIds = getDescendantIds(bid, budgets);
     const periodTxs = transactions.filter(t => 
       t.date >= start && t.date <= end && 
-      t.budgetId && descendantIds.includes(Number(t.budgetId))
+      t.budgetId && descendantIds.includes(t.budgetId)
     );
     const spent = periodTxs.reduce((sum, t) => {
       const amt = Number(t.amount) || 0;
@@ -421,7 +302,7 @@ export function calculateBudgetsState(budgets, transactions, todayStr) {
       } else {
         // Surplus carryover or redirection
         if (budget.redirectionBudgetId) {
-          const destId = Number(budget.redirectionBudgetId);
+          const destId = budget.redirectionBudgetId;
           const destBudget = budgets.find(b => b.id === destId);
           if (destBudget) {
             if (destBudget.type === 'objective') {
@@ -566,19 +447,15 @@ export function calculateLivretInterests(account, transactions, targetDateStr) {
 /**
  * Calculates the REAL balance of an account at a specific date
  */
-export async function getAccountBalance(accountId, targetDateStr = null) {
-  const account = await db.accounts.get(accountId);
+export function getAccountBalanceSync(account, transactions, targetDateStr = null) {
   if (!account) return 0;
 
   const todayStr = new Date().toISOString().split('T')[0];
   const target = targetDateStr || todayStr;
 
-  const transactions = await db.transactions
-    .where('accountId')
-    .equals(accountId)
-    .toArray();
+  const accTxs = transactions.filter(t => t.accountId === account.id);
 
-  const validTxs = transactions.filter(t => {
+  const validTxs = accTxs.filter(t => {
     const exeType = t.executionType || 'spontaneous';
     const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
     return isEffective && t.date <= target;
@@ -593,7 +470,7 @@ export async function getAccountBalance(accountId, targetDateStr = null) {
 
   const isLivret = account.type && account.type.toLowerCase() !== 'courant';
   if (isLivret && Number(account.rate) > 0) {
-    const interests = calculateLivretInterests(account, transactions, target);
+    const interests = calculateLivretInterests(account, accTxs, target);
     balance += interests.capitalized;
   }
 
@@ -603,28 +480,21 @@ export async function getAccountBalance(accountId, targetDateStr = null) {
 /**
  * Calculates the VISIBLE balance (Real Balance - Blocked Objective funds)
  */
-export async function getAccountVisibleBalance(accountId, targetDateStr = null) {
-  const realBalance = await getAccountBalance(accountId, targetDateStr);
+export function getAccountVisibleBalanceSync(account, budgets, transactions, targetDateStr = null) {
+  const realBalance = getAccountBalanceSync(account, transactions, targetDateStr);
   const todayStr = new Date().toISOString().split('T')[0];
   const target = targetDateStr || todayStr;
 
-  const budgets = await db.budgets
-    .where('accountId')
-    .equals(accountId)
-    .toArray();
+  const accBudgets = budgets.filter(b => b.accountId === account.id);
+  if (accBudgets.length === 0) return realBalance;
 
-  if (budgets.length === 0) return realBalance;
-
-  const transactions = await db.transactions
-    .where('accountId')
-    .equals(accountId)
-    .toArray();
+  const accTxs = transactions.filter(t => t.accountId === account.id);
 
   try {
-    const result = calculateBudgetsState(budgets, transactions, target);
+    const result = calculateBudgetsState(accBudgets, accTxs, target);
     return realBalance - result.blockedObjectiveSum;
   } catch (err) {
-    console.error("Erreur lors du calcul du solde visible (getAccountVisibleBalance) :", err);
+    console.error("Erreur lors du calcul du solde visible (getAccountVisibleBalanceSync) :", err);
     return realBalance;
   }
 }
@@ -679,25 +549,25 @@ export function expandRecurringTransactions(txs, startDateStr, endDateStr) {
 /**
  * Projects combined balance of accounts up to a future date or displays historical past balance
  */
-export async function getProjectedBalance(selectedAccountIds, targetDateStr) {
+export function getProjectedBalanceSync(selectedAccountIds, targetDateStr, accounts, transactions) {
   const todayStr = new Date().toISOString().split('T')[0];
 
   if (targetDateStr <= todayStr) {
     let sum = 0;
     for (const accId of selectedAccountIds) {
-      sum += await getAccountBalance(accId, targetDateStr);
+      const acc = accounts.find(a => a.id === accId);
+      sum += getAccountBalanceSync(acc, transactions, targetDateStr);
     }
     return sum;
   }
 
   let sum = 0;
   for (const accId of selectedAccountIds) {
-    sum += await getAccountBalance(accId, todayStr);
+    const acc = accounts.find(a => a.id === accId);
+    sum += getAccountBalanceSync(acc, transactions, todayStr);
   }
 
-  const txs = await db.transactions
-    .filter(t => selectedAccountIds.includes(Number(t.accountId)))
-    .toArray();
+  const txs = transactions.filter(t => selectedAccountIds.includes(t.accountId));
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -721,3 +591,503 @@ export async function getProjectedBalance(selectedAccountIds, targetDateStr) {
 
   return sum + futureSum;
 }
+
+/**
+ * Legacy API compatibility layer mapping Dexie actions to Cloud Firestore
+ */
+export const db = {
+  user_meta: {
+    put: async ({ key, value }) => {
+      if (!auth.currentUser) return;
+      const ref = doc(firestoreDb, 'users_meta', auth.currentUser.uid);
+      const fieldMap = {
+        'username': 'username',
+        'favorite_account_id': 'favoriteAccountId',
+        'dashboard_note': 'dashboardNote'
+      };
+      const field = fieldMap[key];
+      if (field) {
+        await setDoc(ref, { [field]: value }, { merge: true });
+      }
+    },
+    get: async (key) => {
+      if (!auth.currentUser) return null;
+      const docSnap = await getDoc(doc(firestoreDb, 'users_meta', auth.currentUser.uid));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (key === 'username') return { key: 'username', value: data.username };
+        if (key === 'favorite_account_id') return { key: 'favorite_account_id', value: data.favoriteAccountId };
+        if (key === 'dashboard_note') return { key: 'dashboard_note', value: data.dashboardNote };
+      }
+      return null;
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const ref = doc(firestoreDb, 'users_meta', auth.currentUser.uid);
+      await deleteDoc(ref);
+    },
+    bulkAdd: async (list) => {
+      if (!auth.currentUser) return;
+      const ref = doc(firestoreDb, 'users_meta', auth.currentUser.uid);
+      const fields = {};
+      list.forEach(m => {
+        if (m.key === 'username') fields.username = m.value;
+        if (m.key === 'favorite_account_id') fields.favoriteAccountId = m.value;
+        if (m.key === 'dashboard_note') fields.dashboardNote = m.value;
+      });
+      await setDoc(ref, fields, { merge: true });
+    }
+  },
+  accounts: {
+    add: async (data) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const docRef = await addDoc(collection(firestoreDb, 'accounts'), {
+        ...data,
+        userId: auth.currentUser.uid
+      });
+      return docRef.id;
+    },
+    update: async (id, data) => {
+      const ref = doc(firestoreDb, 'accounts', id);
+      await updateDoc(ref, data);
+    },
+    delete: async (id) => {
+      if (!auth.currentUser) return;
+      await deleteDoc(doc(firestoreDb, 'accounts', id));
+      
+      const txsQuery = query(collection(firestoreDb, 'transactions'), where('accountId', '==', id));
+      const txsSnap = await getDocs(txsQuery);
+      const batch = writeBatch(firestoreDb);
+      txsSnap.docs.forEach(docSnap => {
+        batch.delete(doc(firestoreDb, 'transactions', docSnap.id));
+      });
+      
+      const budgetsQuery = query(collection(firestoreDb, 'budgets'), where('accountId', '==', id));
+      const budgetsSnap = await getDocs(budgetsQuery);
+      budgetsSnap.docs.forEach(docSnap => {
+        batch.delete(doc(firestoreDb, 'budgets', docSnap.id));
+      });
+      
+      await batch.commit();
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const q = query(collection(firestoreDb, 'accounts'), where('userId', '==', auth.currentUser.uid));
+      const snap = await getDocs(q);
+      const batch = writeBatch(firestoreDb);
+      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'accounts', docSnap.id)));
+      await batch.commit();
+    },
+    bulkAdd: async (list) => {
+      if (!auth.currentUser) return;
+      const batch = writeBatch(firestoreDb);
+      list.forEach(item => {
+        const ref = doc(collection(firestoreDb, 'accounts'));
+        const { id, ...rest } = item;
+        batch.set(ref, {
+          ...rest,
+          userId: auth.currentUser.uid
+        });
+      });
+      await batch.commit();
+    }
+  },
+  transactions: {
+    add: async (data) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const docRef = await addDoc(collection(firestoreDb, 'transactions'), {
+        ...data,
+        userId: auth.currentUser.uid
+      });
+      return docRef.id;
+    },
+    update: async (id, data) => {
+      await updateDoc(doc(firestoreDb, 'transactions', id), data);
+    },
+    delete: async (id) => {
+      await deleteDoc(doc(firestoreDb, 'transactions', id));
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const q = query(collection(firestoreDb, 'transactions'), where('userId', '==', auth.currentUser.uid));
+      const snap = await getDocs(q);
+      const batch = writeBatch(firestoreDb);
+      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'transactions', docSnap.id)));
+      await batch.commit();
+    },
+    bulkAdd: async (txs) => {
+      if (!auth.currentUser) return;
+      const batch = writeBatch(firestoreDb);
+      txs.forEach(tx => {
+        const ref = doc(collection(firestoreDb, 'transactions'));
+        const { id, ...rest } = tx;
+        batch.set(ref, {
+          ...rest,
+          userId: auth.currentUser.uid
+        });
+      });
+      await batch.commit();
+    }
+  },
+  budgets: {
+    add: async (data) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const docRef = await addDoc(collection(firestoreDb, 'budgets'), {
+        ...data,
+        userId: auth.currentUser.uid
+      });
+      return docRef.id;
+    },
+    update: async (id, data) => {
+      await updateDoc(doc(firestoreDb, 'budgets', id), data);
+    },
+    delete: async (id) => {
+      await deleteDoc(doc(firestoreDb, 'budgets', id));
+    },
+    bulkDelete: async (ids) => {
+      if (!auth.currentUser) return;
+      const batch = writeBatch(firestoreDb);
+      ids.forEach(id => {
+        batch.delete(doc(firestoreDb, 'budgets', id));
+      });
+      await batch.commit();
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const q = query(collection(firestoreDb, 'budgets'), where('userId', '==', auth.currentUser.uid));
+      const snap = await getDocs(q);
+      const batch = writeBatch(firestoreDb);
+      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'budgets', docSnap.id)));
+      await batch.commit();
+    },
+    bulkAdd: async (list) => {
+      if (!auth.currentUser) return;
+      const batch = writeBatch(firestoreDb);
+      list.forEach(item => {
+        const ref = doc(collection(firestoreDb, 'budgets'));
+        const { id, ...rest } = item;
+        batch.set(ref, {
+          ...rest,
+          userId: auth.currentUser.uid
+        });
+      });
+      await batch.commit();
+    }
+  },
+  wishlist: {
+    add: async (data) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const docRef = await addDoc(collection(firestoreDb, 'wishlist'), {
+        ...data,
+        userId: auth.currentUser.uid
+      });
+      return docRef.id;
+    },
+    update: async (id, data) => {
+      await updateDoc(doc(firestoreDb, 'wishlist', id), data);
+    },
+    delete: async (id) => {
+      await deleteDoc(doc(firestoreDb, 'wishlist', id));
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const q = query(collection(firestoreDb, 'wishlist'), where('userId', '==', auth.currentUser.uid));
+      const snap = await getDocs(q);
+      const batch = writeBatch(firestoreDb);
+      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'wishlist', docSnap.id)));
+      await batch.commit();
+    },
+    bulkAdd: async (list) => {
+      if (!auth.currentUser) return;
+      const batch = writeBatch(firestoreDb);
+      list.forEach(item => {
+        const ref = doc(collection(firestoreDb, 'wishlist'));
+        const { id, ...rest } = item;
+        batch.set(ref, {
+          ...rest,
+          userId: auth.currentUser.uid
+        });
+      });
+      await batch.commit();
+    }
+  },
+  categories: {
+    add: async (data) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const docRef = await addDoc(collection(firestoreDb, 'categories'), {
+        ...data,
+        userId: auth.currentUser.uid
+      });
+      return docRef.id;
+    },
+    delete: async (id) => {
+      await deleteDoc(doc(firestoreDb, 'categories', id));
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const q = query(collection(firestoreDb, 'categories'), where('userId', '==', auth.currentUser.uid));
+      const snap = await getDocs(q);
+      const batch = writeBatch(firestoreDb);
+      snap.docs.forEach(docSnap => {
+        batch.delete(doc(firestoreDb, 'categories', docSnap.id));
+      });
+      await batch.commit();
+    },
+    bulkAdd: async (cats) => {
+      if (!auth.currentUser) return;
+      const batch = writeBatch(firestoreDb);
+      cats.forEach(cat => {
+        const ref = doc(collection(firestoreDb, 'categories'));
+        const { id, ...rest } = cat;
+        batch.set(ref, {
+          ...rest,
+          userId: auth.currentUser.uid
+        });
+      });
+      await batch.commit();
+    }
+  },
+  transaction: async (mode, tables, fn) => {
+    return fn();
+  }
+};
+
+/**
+ * Firebase React Context & Hook definition
+ */
+const DbContext = createContext(null);
+
+export const useDb = () => {
+  const context = useContext(DbContext);
+  if (!context) throw new Error("useDb must be used within a DbProvider");
+  return context;
+};
+
+export const DbProvider = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Firestore Realtime Collections
+  const [accounts, setAccounts] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [budgets, setBudgets] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
+  const [categories, setCategories] = useState([]);
+  
+  // Single document state
+  const [usersMetaDoc, setUsersMetaDoc] = useState(null);
+  const [dataLoading, setDataLoading] = useState(false);
+
+  // Sign up and create user profile & default categories
+  const signUpUser = async (email, password, firstname) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    
+    // Create users_meta doc
+    const metaRef = doc(firestoreDb, 'users_meta', user.uid);
+    await setDoc(metaRef, {
+      username: firstname.trim(),
+      favoriteAccountId: null,
+      dashboardNote: ''
+    });
+    
+    // Create default categories
+    const defaultCategories = [
+      { name: 'Loisirs', isDefault: 1 },
+      { name: 'Nourriture', isDefault: 1 },
+      { name: 'Logement', isDefault: 1 },
+      { name: 'Transports', isDefault: 1 },
+      { name: 'Abonnements', isDefault: 1 },
+      { name: 'Cadeaux', isDefault: 1 },
+      { name: 'Santé', isDefault: 1 },
+      { name: 'Salaire', isDefault: 1 },
+      { name: 'Autre', isDefault: 1 }
+    ];
+    
+    const batch = writeBatch(firestoreDb);
+    defaultCategories.forEach(cat => {
+      const catRef = doc(collection(firestoreDb, 'categories'));
+      batch.set(catRef, {
+        ...cat,
+        userId: user.uid
+      });
+    });
+    await batch.commit();
+
+    return user;
+  };
+
+  const logInUser = async (email, password) => {
+    return signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const logOutUser = async () => {
+    return signOut(auth);
+  };
+
+  // Auth Subscription
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+      if (!user) {
+        // Clear state if logged out
+        setAccounts([]);
+        setTransactions([]);
+        setBudgets([]);
+        setWishlist([]);
+        setCategories([]);
+        setUsersMetaDoc(null);
+      }
+    });
+    return unsubscribeAuth;
+  }, []);
+
+  // Data Subscription (only when logged in)
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    setDataLoading(true);
+    let unsubscribes = [];
+
+    // 1. Subscribe to users_meta doc
+    const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
+    const unsubMeta = onSnapshot(metaRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setUsersMetaDoc(docSnap.data());
+      } else {
+        setUsersMetaDoc(null);
+      }
+    });
+    unsubscribes.push(unsubMeta);
+
+    // Helper for snapshot listeners
+    const subscribeCollection = (colName, setList) => {
+      const q = query(collection(firestoreDb, colName), where('userId', '==', currentUser.uid));
+      return onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(d => ({
+          id: d.id,
+          ...d.data()
+        }));
+        setList(list);
+      });
+    };
+
+    unsubscribes.push(subscribeCollection('accounts', setAccounts));
+    unsubscribes.push(subscribeCollection('transactions', setTransactions));
+    unsubscribes.push(subscribeCollection('budgets', setBudgets));
+    unsubscribes.push(subscribeCollection('wishlist', setWishlist));
+    unsubscribes.push(subscribeCollection('categories', setCategories));
+
+    // Wait a brief moment to let snapshots populate before disabling loader
+    const timer = setTimeout(() => {
+      setDataLoading(false);
+    }, 800);
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+      clearTimeout(timer);
+    };
+  }, [currentUser]);
+
+  // Derived userMeta compatibility format (array of {key, value})
+  const userMeta = useMemo(() => {
+    const list = [];
+    if (usersMetaDoc) {
+      if (usersMetaDoc.username !== undefined) {
+        list.push({ key: 'username', value: usersMetaDoc.username });
+      }
+      if (usersMetaDoc.favoriteAccountId !== undefined) {
+        list.push({ key: 'favorite_account_id', value: usersMetaDoc.favoriteAccountId });
+      }
+      if (usersMetaDoc.dashboardNote !== undefined) {
+        list.push({ key: 'dashboard_note', value: usersMetaDoc.dashboardNote });
+      }
+    }
+    return list;
+  }, [usersMetaDoc]);
+
+  // Derived state: accountsData with live balances pre-calculated
+  const accountsData = useMemo(() => {
+    if (!accounts || !transactions || !budgets) return [];
+    return accounts.map(acc => {
+      const balance = getAccountBalanceSync(acc, transactions);
+      const visibleBalance = getAccountVisibleBalanceSync(acc, budgets, transactions);
+      return { ...acc, balance, visibleBalance };
+    });
+  }, [accounts, transactions, budgets]);
+
+  // Derived state: favoriteAccountDetails
+  const favoriteAccountDetails = useMemo(() => {
+    if (accountsData.length === 0) return null;
+    
+    let favId = usersMetaDoc?.favoriteAccountId;
+    if (!favId) {
+      const courant = accountsData.find(a => a.type === 'Courant');
+      favId = courant ? courant.id : accountsData[0].id;
+    }
+
+    const favAccount = accountsData.find(a => a.id === favId);
+    if (!favAccount) return null;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const prevDate = new Date();
+    prevDate.setDate(prevDate.getDate() - 30);
+    const prevDateStr = prevDate.toISOString().split('T')[0];
+
+    const balToday = getAccountVisibleBalanceSync(favAccount, budgets, transactions, todayStr);
+    const balPrev = getAccountVisibleBalanceSync(favAccount, budgets, transactions, prevDateStr);
+
+    let variationPct = 0;
+    if (balPrev !== 0) {
+      variationPct = ((balToday - balPrev) / Math.abs(balPrev)) * 100;
+    } else if (balToday !== 0) {
+      variationPct = balToday > 0 ? 100 : -100;
+    }
+
+    // Latest 5 transactions for favorite account
+    const favTxs = transactions
+      .filter(t => t.accountId === favId)
+      .slice()
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 5);
+
+    return {
+      account: favAccount,
+      variationPct,
+      latestTxs: favTxs
+    };
+  }, [accountsData, usersMetaDoc, transactions, budgets]);
+
+  // Derived state: globalLatestTransactions
+  const globalLatestTransactions = useMemo(() => {
+    return transactions
+      .slice()
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 5);
+  }, [transactions]);
+
+  const value = {
+    isLoading: authLoading || dataLoading,
+    user: currentUser,
+    username: usersMetaDoc?.username || '',
+    userMeta,
+    accounts,
+    transactions,
+    budgets,
+    wishlist,
+    categories,
+    accountsData,
+    favoriteAccountDetails,
+    globalLatestTransactions,
+    signUpUser,
+    logInUser,
+    logOutUser
+  };
+
+  return (
+    <DbContext.Provider value={value}>
+      {children}
+    </DbContext.Provider>
+  );
+};

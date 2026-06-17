@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db';
+import { db, useDb } from '../db';
 import { 
   Download, Upload, Trash2, ShieldAlert, CheckCircle, AlertCircle, 
-  User, Star, Tag, Plus, FileSpreadsheet, Sparkles 
+  User, Tag, Plus, FileSpreadsheet 
 } from 'lucide-react';
 
 export default function Settings() {
@@ -18,14 +17,14 @@ export default function Settings() {
   // Custom Category states
   const [newCatName, setNewCatName] = useState('');
 
-  // 1. Fetch user metadata
-  const userMeta = useLiveQuery(() => db.user_meta.toArray());
-
-  // 2. Fetch all accounts
-  const accountsList = useLiveQuery(() => db.accounts.toArray());
-
-  // 3. Fetch categories
-  const categoriesList = useLiveQuery(() => db.categories.toArray());
+  const { 
+    userMeta, 
+    accountsData: accountsList, 
+    categories: categoriesList,
+    transactions: allTransactions,
+    budgets: budgetsList,
+    logOutUser
+  } = useDb();
 
   // Initial load of metadata
   useEffect(() => {
@@ -82,11 +81,11 @@ export default function Settings() {
     if (window.confirm(`Supprimer la catégorie "${cat.name}" ? Les transactions associées perdront leur étiquette de catégorie.`)) {
       await db.transaction('rw', db.categories, db.transactions, async () => {
         await db.categories.delete(catId);
-        // Dissociate from transactions
-        await db.transactions
-          .where('categoryId')
-          .equals(catId)
-          .modify({ categoryId: null, category: '' });
+        // Dissociate from transactions sequentially
+        const txsToModify = allTransactions.filter(t => t.categoryId === catId);
+        for (const t of txsToModify) {
+          await db.transactions.update(t.id, { categoryId: null, category: '' });
+        }
       });
     }
   };
@@ -94,11 +93,11 @@ export default function Settings() {
   const handleExport = async () => {
     try {
       const data = {
-        user_meta: await db.user_meta.toArray(),
-        accounts: await db.accounts.toArray(),
-        transactions: await db.transactions.toArray(),
-        budgets: await db.budgets.toArray(),
-        categories: await db.categories.toArray()
+        user_meta: userMeta,
+        accounts: accountsList,
+        transactions: allTransactions,
+        budgets: budgetsList,
+        categories: categoriesList
       };
 
       const jsonStr = JSON.stringify(data, null, 2);
@@ -108,7 +107,7 @@ export default function Settings() {
       const todayStr = new Date().toISOString().split('T')[0];
       const link = document.createElement('a');
       link.href = url;
-      link.download = `ecopine_v3_backup_${todayStr}.json`;
+      link.download = `ecopine_backup_${todayStr}.json`;
       link.click();
       
       URL.revokeObjectURL(url);
@@ -223,9 +222,9 @@ export default function Settings() {
 
   const handleCSVExport = async () => {
     try {
-      const txs = await db.transactions.toArray();
-      const accs = await db.accounts.toArray();
-      const categories = await db.categories.toArray();
+      const txs = allTransactions;
+      const accs = accountsList;
+      const categories = categoriesList;
 
       const csvRows = [
         ['Date', 'Compte', 'Transaction', 'Montant', 'Type', 'Categorie', 'Execution'].join(',')
@@ -260,6 +259,17 @@ export default function Settings() {
     } catch (err) {
       console.error(err);
       alert("Erreur lors de l'export CSV : " + err.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (window.confirm("Es-tu sûr de vouloir quitter ton île budgétaire ?")) {
+      try {
+        await logOutUser();
+      } catch (err) {
+        console.error(err);
+        alert("Erreur lors de la déconnexion.");
+      }
     }
   };
 
@@ -303,7 +313,7 @@ export default function Settings() {
                 <select
                   value={favAccountId}
                   onChange={(e) => setFavAccountId(e.target.value)}
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white cursor-pointer"
                 >
                   <option value="">-- Sélectionner un compte favori --</option>
                   {accountsList?.map(acc => (
@@ -314,12 +324,20 @@ export default function Settings() {
                 </select>
               </div>
 
-              <div className="pt-2 flex items-center gap-3">
+              <div className="pt-2 flex items-center gap-3 flex-wrap">
                 <button
                   type="submit"
                   className="bg-ac-green text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer"
                 >
                   Enregistrer les modifications
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="bg-ac-red text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer"
+                >
+                  Se déconnecter
                 </button>
 
                 {saveSuccess && (
@@ -384,53 +402,53 @@ export default function Settings() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Tableur Excel/CSV Export Card */}
-        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
+        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-[220px] justify-between">
           <div>
             <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-2">
               <FileSpreadsheet className="w-5 h-5 text-ac-green" /> Export Tableur
             </h3>
-            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-6">
+            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-4">
               Télécharge l'historique complet de tes écritures sous la forme d'un fichier CSV optimisé pour Excel.
             </p>
           </div>
           <button
             onClick={handleCSVExport}
-            className="w-full bg-ac-green text-white font-extrabold text-xs py-3 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-ac-green text-white font-extrabold text-xs py-3 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer mt-auto"
           >
             Télécharger le fichier CSV (.csv)
           </button>
         </div>
 
         {/* Database backup Card */}
-        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
+        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-[220px] justify-between">
           <div>
             <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-2">
               <Download className="w-5 h-5 text-ac-gold" /> Sauvegarder la base
             </h3>
-            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-6">
-              Exporte toutes tes tables IndexedDB locales dans un fichier JSON confidentiel pour sauvegarder ton île.
+            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-4">
+              Exporte toutes tes tables Cloud dans un fichier JSON confidentiel pour sauvegarder ton île.
             </p>
           </div>
           <button
             onClick={handleExport}
-            className="w-full bg-white hover:bg-ac-cream border-3 border-ac-brown text-ac-brown font-extrabold text-xs py-3 rounded-2xl shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-white hover:bg-ac-cream border-3 border-ac-brown text-ac-brown font-extrabold text-xs py-3 rounded-2xl shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer mt-auto"
           >
             Exporter mes données (.json)
           </button>
         </div>
 
         {/* Restore backup Card */}
-        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
+        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-[220px] justify-between">
           <div>
             <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-2">
               <Upload className="w-5 h-5 text-ac-sky animate-pulse" /> Restaurer sauvegarde
             </h3>
-            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-4">
-              Sélectionne un fichier de sauvegarde JSON pour restaurer ton île financière. <strong>Tes données actuelles seront remplacées !</strong>
+            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-2">
+              Sélectionne un fichier de sauvegarde JSON pour restaurer ton île. <strong>Données écrasées !</strong>
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-2 mt-auto">
             <label className="w-full bg-ac-sky-light text-ac-sky hover:bg-ac-sky/10 font-extrabold text-xs py-3 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer">
               <Upload className="w-3.5 h-3.5" />
               Choisir une sauvegarde (.json)
@@ -443,12 +461,11 @@ export default function Settings() {
             </label>
 
             {importStatus && (
-              <div className={`text-xs font-bold px-3 py-2 rounded-xl border flex items-center gap-2 animate-bounce-in ${
+              <div className={`text-[10px] font-bold px-2 py-1 rounded-xl border flex items-center gap-1.5 animate-bounce-in ${
                 importStatus === 'success'
                   ? 'bg-ac-green-light text-ac-green border-ac-green/20'
                   : 'bg-ac-red-light text-ac-red border-ac-red/20'
               }`}>
-                {importStatus === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                 <span>{importMessage}</span>
               </div>
             )}

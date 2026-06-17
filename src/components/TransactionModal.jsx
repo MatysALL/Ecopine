@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { X, Calendar, Tag, RefreshCw, Layers, Sparkles } from 'lucide-react';
-import { db } from '../db';
-import { useLiveQuery } from 'dexie-react-hooks';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Tag, RefreshCw, Layers } from 'lucide-react';
+import { useDb } from '../db';
 
 export default function TransactionModal({ isOpen, onClose, onSave, transaction, accountId, preselectedBudgetId }) {
   const [name, setName] = useState('');
@@ -17,13 +16,13 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
   const [recurrencePeriod, setRecurrencePeriod] = useState('monthly');
   const [recurrenceEnd, setRecurrenceEnd] = useState('');
 
-  // 1. Fetch categories
-  const categoriesList = useLiveQuery(() => db.categories.toArray());
+  const { categories: categoriesList, budgets: allBudgets } = useDb();
 
-  // 2. Fetch budgets for this account
-  const budgetsList = useLiveQuery(() => 
-    accountId ? db.budgets.where('accountId').equals(Number(accountId)).toArray() : []
-  , [accountId]);
+  // Filter budgets for this account
+  const budgetsList = useMemo(() => {
+    if (!accountId || !allBudgets) return [];
+    return allBudgets.filter(b => b.accountId === accountId);
+  }, [allBudgets, accountId]);
 
   useEffect(() => {
     if (transaction) {
@@ -103,19 +102,19 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
     }
 
     // Resolve category name for backward-compatibility
-    const selectedCategory = categoriesList?.find(c => c.id === Number(categoryId));
+    const selectedCategory = categoriesList?.find(c => c.id === categoryId);
 
     const transactionData = {
-      accountId: Number(accountId),
+      accountId: accountId,
       name: name.trim(),
       description: name.trim(), // keeping for compatibility
       amount: numAmount,
       type,
       date,
-      categoryId: categoryId ? Number(categoryId) : null,
+      categoryId: categoryId || null,
       category: selectedCategory ? selectedCategory.name : '', // keeping for compatibility
       executionType,
-      budgetId: budgetId ? Number(budgetId) : null,
+      budgetId: budgetId || null,
       
       isRecurring,
       recurrencePeriod: isRecurring ? recurrencePeriod : 'none',
@@ -236,7 +235,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none"
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none cursor-pointer"
               >
                 <option value="">-- Sélectionner une catégorie --</option>
                 {categoriesList?.map(cat => (
@@ -258,7 +257,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
               <select
                 value={budgetId}
                 onChange={(e) => setBudgetId(e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none"
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none cursor-pointer"
               >
                 <option value="">-- Aucun Budget lié --</option>
                 {budgetOptions.map(b => (
@@ -322,13 +321,13 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none"
+              className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none"
+              className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
             >
               Sauvegarder
             </button>

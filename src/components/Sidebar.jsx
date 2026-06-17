@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { Leaf, PiggyBank, Calendar, Settings, Smile, Gift } from 'lucide-react';
+import { Leaf, PiggyBank, Calendar, Settings, Smile, Gift, LogOut } from 'lucide-react';
+import { useDb } from '../db';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
+  const { logOutUser } = useDb();
+  
   const navItems = [
     { id: 'dashboard', label: 'Accueil', icon: Leaf, color: 'text-ac-green' },
     { id: 'accounts', label: 'Comptes', icon: PiggyBank, color: 'text-ac-gold' },
@@ -66,6 +69,17 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     }, 300);
   };
 
+  const handleLogout = async () => {
+    if (window.confirm("Es-tu sûr de vouloir quitter ton île budgétaire ?")) {
+      try {
+        await logOutUser();
+      } catch (err) {
+        console.error(err);
+        alert("Erreur lors de la déconnexion.");
+      }
+    }
+  };
+
   return (
     <aside className="w-64 bg-ac-cream-dark border-r-3 border-ac-brown flex flex-col justify-between h-screen sticky top-0 p-6 select-none">
       {/* Brand & Logo */}
@@ -101,6 +115,15 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             </button>
           );
         })}
+
+        {/* Disconnect Button */}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 rounded-2xl border-3 font-extrabold text-sm bg-white text-ac-red border-ac-brown hover:bg-ac-red-light hover:translate-y-[-2px] transition-all duration-150 text-left ac-btn mt-4"
+        >
+          <LogOut className="w-5 h-5 text-ac-red" />
+          <span>Déconnexion</span>
+        </button>
       </nav>
 
       {/* Cute character advice widget */}

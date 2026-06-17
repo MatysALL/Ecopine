@@ -1,24 +1,12 @@
 import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getAccountBalance, getAccountVisibleBalance } from '../db';
+import { db, useDb } from '../db';
 import { 
   Plus, Edit2, Trash2, Gift, Coins, Sparkles, X, 
-  CheckCircle, ArrowRight, HelpCircle, Landmark 
+  Landmark 
 } from 'lucide-react';
 
 export default function WishlistView() {
-  // Database queries
-  const wishes = useLiveQuery(() => db.wishlist.toArray());
-  const accounts = useLiveQuery(async () => {
-    const list = await db.accounts.toArray();
-    return Promise.all(
-      list.map(async (acc) => {
-        const bal = await getAccountBalance(acc.id);
-        const visBal = await getAccountVisibleBalance(acc.id);
-        return { ...acc, balance: bal, visibleBalance: visBal };
-      })
-    );
-  });
+  const { wishlist: wishes, accountsData: accounts } = useDb();
 
   // UI state
   const [formOpen, setFormOpen] = useState(false);
@@ -94,7 +82,7 @@ export default function WishlistView() {
     e.preventDefault();
     if (!buyingWish || !selectedAccountId) return;
 
-    const selectedAccount = accounts?.find(a => a.id === Number(selectedAccountId));
+    const selectedAccount = accounts?.find(a => a.id === selectedAccountId);
     if (!selectedAccount) {
       alert("Compte sélectionné introuvable.");
       return;
@@ -104,10 +92,10 @@ export default function WishlistView() {
 
     // Create the debit transaction
     const newTx = {
-      accountId: Number(selectedAccountId),
+      accountId: selectedAccountId,
       name: `Achat : ${buyingWish.name}`,
       description: buyingWish.description || `Achat depuis le Catalogue : ${buyingWish.name}`,
-      amount: buyingWish.price, // Dexie amount is positive
+      amount: buyingWish.price,
       type: 'debit',
       date: todayStr,
       categoryId: null,
@@ -339,7 +327,6 @@ export default function WishlistView() {
               </div>
             ) : (
               <>
-
                 <h3 className="text-lg font-black text-ac-brown mb-4 flex items-center gap-1.5 border-b border-ac-brown/10 pb-2">
                   <Coins className="w-5 h-5 text-ac-gold" /> Validation de l'achat
                 </h3>
@@ -388,7 +375,6 @@ export default function WishlistView() {
                 </form>
               </>
             )}
-
           </div>
         </div>
       )}

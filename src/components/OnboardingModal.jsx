@@ -1,11 +1,19 @@
-import React, { useState } from 'react';
-import { db } from '../db';
+import React, { useState, useEffect } from 'react';
+import { db, useDb } from '../db';
 import { Leaf, Sparkles, User, Coins, Home } from 'lucide-react';
 
-export default function OnboardingModal({ onComplete }) {
+export default function OnboardingModal() {
+  const { username: dbUsername } = useDb();
   const [username, setUsername] = useState('');
   const [accountName, setAccountName] = useState('Poche');
   const [initialBalance, setInitialBalance] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (dbUsername) {
+      setUsername(dbUsername);
+    }
+  }, [dbUsername]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,6 +31,7 @@ export default function OnboardingModal({ onComplete }) {
       return;
     }
 
+    setLoading(true);
     try {
       // 1. Put user metadata
       await db.user_meta.put({ key: 'username', value: username.trim() });
@@ -38,12 +47,11 @@ export default function OnboardingModal({ onComplete }) {
         currentBalance: balance,
         rate: 0
       });
-
-      // 3. Callback to app
-      onComplete(username.trim());
     } catch (err) {
       console.error(err);
-      alert("Erreur lors de l'enregistrement de votre profil.");
+      alert("Erreur lors de l'enregistrement de votre premier compte.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -133,9 +141,17 @@ export default function OnboardingModal({ onComplete }) {
 
             <button
               type="submit"
-              className="w-full bg-ac-green text-white font-extrabold text-sm py-3.5 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer transition-transform"
+              disabled={loading}
+              className="w-full bg-ac-green text-white font-extrabold text-sm py-3.5 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer transition-transform disabled:opacity-50"
             >
-              <Leaf className="w-4 h-4 text-white fill-white" /> Installer ma tente budgétaire !
+              {loading ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              ) : (
+                <>
+                  <Leaf className="w-4 h-4 text-white fill-white" />
+                  Installer ma tente budgétaire !
+                </>
+              )}
             </button>
           </form>
         </div>

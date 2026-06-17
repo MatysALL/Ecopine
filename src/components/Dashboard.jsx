@@ -1,92 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getAccountBalance, getAccountVisibleBalance } from '../db';
+import { db, useDb } from '../db';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
-  ChevronRight, HelpCircle, MessageSquare, StickyNote, Activity
+  ChevronRight, StickyNote, Activity
 } from 'lucide-react';
 
 export default function Dashboard({ onViewAccountDetails, username }) {
   const [noteText, setNoteText] = useState('');
-
-
-
-  // Fetch current month details
-  const today = new Date();
-  const currentYear = today.getFullYear();
-  const currentMonthNum = today.getMonth() + 1;
-  const currentMonthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`;
-
-  // 1. Fetch user metadata (note & favorite account id)
-  const userMeta = useLiveQuery(() => db.user_meta.toArray());
-
-  // 2. Fetch all accounts with live balances
-  const accountsData = useLiveQuery(async () => {
-    const list = await db.accounts.toArray();
-    return Promise.all(
-      list.map(async (acc) => {
-        const bal = await getAccountBalance(acc.id);
-        const visBal = await getAccountVisibleBalance(acc.id);
-        return { ...acc, balance: bal, visibleBalance: visBal };
-      })
-    );
-  });
-
-  // Calculate 30-day balance variation and retrieve 5 latest transactions for favorite account
-  const favoriteAccountDetails = useLiveQuery(async () => {
-    if (!accountsData || accountsData.length === 0 || !userMeta) return null;
-
-    const favMeta = userMeta.find(m => m.key === 'favorite_account_id');
-    let favId = favMeta ? Number(favMeta.value) : null;
-    
-    // Fallback if no favorite account is configured
-    if (!favId) {
-      const courant = accountsData.find(a => a.type === 'Courant');
-      favId = courant ? courant.id : accountsData[0].id;
-    }
-
-    const favAccount = accountsData.find(a => a.id === favId);
-    if (!favAccount) return null;
-
-    // Date strings
-    const todayStr = today.toISOString().split('T')[0];
-    const prevDate = new Date();
-    prevDate.setDate(prevDate.getDate() - 30);
-    const prevDateStr = prevDate.toISOString().split('T')[0];
-
-    // Compute balance variation
-    const balToday = await getAccountVisibleBalance(favId, todayStr);
-    const balPrev = await getAccountVisibleBalance(favId, prevDateStr);
-
-    let variationPct = 0;
-    if (balPrev !== 0) {
-      variationPct = ((balToday - balPrev) / Math.abs(balPrev)) * 100;
-    } else if (balToday !== 0) {
-      variationPct = balToday > 0 ? 100 : -100;
-    }
-
-    // Get 5 latest transactions for this account
-    const txs = await db.transactions
-      .where('accountId')
-      .equals(favId)
-      .reverse()
-      .sortBy('date');
-    const latestTxs = txs.slice(0, 5);
-
-    return {
-      account: favAccount,
-      variationPct,
-      latestTxs
-    };
-  }, [accountsData, userMeta]);
-
-  // 3. Fetch last 5 transactions across ALL accounts
-  const globalLatestTransactions = useLiveQuery(async () => {
-    return db.transactions
-      .reverse()
-      .sortBy('date')
-      .then(txs => txs.slice(0, 5));
-  });
+  const { userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions } = useDb();
 
   // Initial load of the note text
   useEffect(() => {
@@ -103,18 +24,21 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     await db.user_meta.put({ key: 'dashboard_note', value: text });
   };
 
-  if (!accountsData) {
+  if (!accountsData || accountsData.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-ac-brown">
-        <div className="animate-spin w-12 h-12 border-4 border-ac-green border-t-transparent rounded-full mb-4"></div>
-        <p className="font-bold">Chargement de ton île...</p>
+      <div className="flex flex-col items-center justify-center py-20 text-ac-brown bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm text-center space-y-4">
+        <span className="text-4xl animate-bounce">🏝️</span>
+        <h3 className="font-black text-sm">Bienvenue sur ton île budgétaire !</h3>
+        <p className="text-xs text-ac-brown-light max-w-sm">
+          Pour commencer ton aventure financière, va dans l'onglet <strong>Comptes</strong> et crée ton premier compte courant.
+        </p>
       </div>
     );
   }
 
   // Split favorite vs others
   const favMeta = userMeta?.find(m => m.key === 'favorite_account_id');
-  let favoriteId = favMeta ? Number(favMeta.value) : null;
+  let favoriteId = favMeta ? favMeta.value : null;
   if (!favoriteId && accountsData.length > 0) {
     const courant = accountsData.find(a => a.type === 'Courant');
     favoriteId = courant ? courant.id : accountsData[0].id;
@@ -220,7 +144,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
               )}
 
               {/* 5 Latest transactions for this account */}
-              <div className="mt-6 space-y-3 bg-white/70 border-2 border-ac-brown/30 rounded-2xl p-4">
+              <div className="mt-6 space-y-3 bg-white/70 border-2 border-ac-brown/30 rounded-2xl p-4" onClick={(e) => e.stopPropagation()}>
                 <h4 className="text-xs font-black text-ac-brown border-b border-ac-brown/15 pb-1 flex items-center gap-1">
                   <Activity className="w-3.5 h-3.5 text-ac-gold" /> Dernières écritures de ce compte
                 </h4>
@@ -253,8 +177,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           ) : (
             <div className="ac-card bg-white p-6 border-ac-brown text-center py-12">
               <span className="text-xl">⭐</span>
-              <p className="font-extrabold text-ac-brown mt-2">Aucun compte configuré.</p>
-              <p className="text-xs text-ac-brown-light mt-1">Crée un compte dans l'onglet dédié.</p>
+              <p className="font-extrabold text-ac-brown mt-2">Aucun compte favori configuré.</p>
             </div>
           )}
 
@@ -301,7 +224,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                 Flux Global des Transactions
               </h3>
 
-              {globalLatestTransactions === undefined ? (
+              {!globalLatestTransactions ? (
                 <div className="text-center py-6 text-ac-brown-light text-xs font-bold">Chargement...</div>
               ) : globalLatestTransactions.length === 0 ? (
                 <div className="text-center py-8 bg-ac-cream rounded-3xl border border-dashed border-ac-brown/20 text-ac-brown-light text-xs font-semibold">

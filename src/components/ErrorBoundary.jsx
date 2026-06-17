@@ -1,5 +1,4 @@
 import React from 'react';
-import Dexie from 'dexie';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -20,14 +19,11 @@ export default class ErrorBoundary extends React.Component {
     window.location.reload();
   };
 
-  handleWipeDatabase = async () => {
-    if (window.confirm("Cela effacera définitivement toutes tes données locales d'Ecopine pour réparer IndexedDB et repartir à zéro. Continuer ?")) {
-      try {
-        await Dexie.delete('EcopineDB');
-        window.location.reload();
-      } catch (err) {
-        alert("Impossible de réinitialiser la base de données : " + err.message);
-      }
+  handleWipeDatabase = () => {
+    if (window.confirm("Cela effacera tes préférences locales et rechargera l'application. Continuer ?")) {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.reload();
     }
   };
 
