@@ -68,7 +68,7 @@ export default function App() {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Panel Content */}
-      <main className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
         <div className="animate-bounce-in">
           {needsOnboarding ? (
             <OnboardingModal />

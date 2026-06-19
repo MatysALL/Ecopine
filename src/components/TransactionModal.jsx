@@ -72,11 +72,11 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
   };
 
   return (
-    <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in text-ac-brown select-none">
+    <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in">
+      <div className="bg-white border-t-4 border-x-4 md:border-4 border-ac-brown rounded-t-3xl md:rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-slide-up md:animate-bounce-in text-ac-brown select-none pb-safe-bottom">
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-colors"
+          className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-colors z-10"
         >
           <X className="w-5 h-5 text-ac-brown" />
         </button>
@@ -91,7 +91,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             <button
               type="button"
               onClick={() => setType('debit')}
-              className={`flex-1 py-2 font-black text-sm rounded-xl transition-all ${
+              className={`flex-1 h-12 flex items-center justify-center font-black text-sm rounded-xl transition-all ${
                 type === 'debit'
                   ? 'bg-ac-red text-white border-2 border-ac-brown shadow-ac-sm'
                   : 'text-ac-brown hover:bg-white/40'
@@ -102,7 +102,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             <button
               type="button"
               onClick={() => setType('credit')}
-              className={`flex-1 py-2 font-black text-sm rounded-xl transition-all ${
+              className={`flex-1 h-12 flex items-center justify-center font-black text-sm rounded-xl transition-all ${
                 type === 'credit'
                   ? 'bg-ac-green text-white border-2 border-ac-brown shadow-ac-sm'
                   : 'text-ac-brown hover:bg-white/40'
@@ -120,7 +120,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Baguette Magique, Vente de navets"
-              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+              className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold focus:outline-none focus:bg-white"
               required
             />
           </div>
@@ -137,10 +137,10 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
+                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 text-sm font-bold focus:outline-none focus:bg-white"
                   required
                 />
-                <span className="absolute left-3 top-2.5 text-xs font-black">🔔</span>
+                <span className="absolute left-3 top-3.5 text-xs font-black">🔔</span>
               </div>
             </div>
 
@@ -150,7 +150,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold focus:outline-none focus:bg-white"
+                className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 text-xs font-bold focus:outline-none focus:bg-white"
                 required
               />
             </div>
@@ -163,7 +163,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
               <select
                 value={pocketId}
                 onChange={(e) => setPocketId(e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none cursor-pointer"
+                className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold focus:outline-none focus:bg-white appearance-none cursor-pointer"
               >
                 <option value="">-- Aucune Poche liée --</option>
                 {pocketsList.map(p => (
@@ -172,7 +172,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                   </option>
                 ))}
               </select>
-              <div className="absolute right-4 top-3 pointer-events-none">
+              <div className="absolute right-4 top-3.5 pointer-events-none">
                 <Layers className="w-4 h-4 text-ac-brown-light" />
               </div>
             </div>
@@ -183,14 +183,14 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+              className="flex-1 h-12 bg-white hover:bg-ac-cream text-ac-brown rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer flex items-center justify-center"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all ${
+              className={`flex-1 h-12 bg-ac-green text-white rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all flex items-center justify-center ${
                 isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-1'
               }`}
               style={isSubmitting ? { cursor: 'not-allowed' } : {}}

@@ -72,7 +72,7 @@ export default function WishlistView() {
   const handleStartLongPress = (id) => {
     longPressTimer.current = setTimeout(() => {
       setDraggableWishId(id);
-    }, 500);
+    }, 850);
   };
 
   const handleCancelLongPress = () => {
@@ -396,8 +396,8 @@ export default function WishlistView() {
 
       {/* Purchase Modal Dialog */}
       {buyingWish && (
-        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown">
-          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in">
+        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in text-ac-brown">
+          <div className="bg-[#FFFDF9] border-t-4 border-x-4 md:border-4 border-ac-brown rounded-t-3xl md:rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-slide-up md:animate-bounce-in pb-safe-bottom">
             {/* Close button */}
             <button 
               type="button"
@@ -443,7 +443,7 @@ export default function WishlistView() {
                     <select
                       value={selectedAccountId}
                       onChange={(e) => setSelectedAccountId(e.target.value)}
-                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+                      className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
                       required
                     >
                       <option value="">-- Choisir le compte de débit --</option>
@@ -459,14 +459,14 @@ export default function WishlistView() {
                     <button
                       type="button"
                       onClick={() => setBuyingWish(null)}
-                      className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+                      className="flex-1 h-12 bg-white hover:bg-ac-cream text-ac-brown rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer flex items-center justify-center"
                     >
                       Annuler
                     </button>
                     <button
                       type="submit"
                       disabled={isBuying}
-                      className={`flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all ${
+                      className={`flex-1 h-12 bg-ac-green text-white rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all flex items-center justify-center ${
                         isBuying ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-1'
                       }`}
                       style={isBuying ? { cursor: 'not-allowed' } : {}}

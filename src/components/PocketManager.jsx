@@ -228,7 +228,7 @@ export default function PocketManager({ accountId }) {
   const handleStartLongPress = (id) => {
     longPressTimer = setTimeout(() => {
       setDraggablePocketId(id);
-    }, 500);
+    }, 850);
   };
 
   const handleCancelLongPress = () => {
@@ -551,12 +551,12 @@ export default function PocketManager({ accountId }) {
 
       {/* Mini Quick Debit Pop-in Modal */}
       {debitModalOpen && debitTargetPocket && (
-        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown">
-          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-sm w-full shadow-ac-lg relative animate-bounce-in">
+        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in text-ac-brown">
+          <div className="bg-[#FFFDF9] border-t-4 border-x-4 md:border-4 border-ac-brown rounded-t-3xl md:rounded-3xl p-6 max-w-sm w-full shadow-ac-lg relative animate-slide-up md:animate-bounce-in pb-safe-bottom">
             <button 
               type="button"
               onClick={() => { setDebitModalOpen(false); setDebitTargetPocket(null); setDebitAmount(''); }}
-              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all text-ac-brown cursor-pointer"
+              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all text-ac-brown cursor-pointer z-10"
             >
               <X className="w-4 h-4" />
             </button>
@@ -574,10 +574,10 @@ export default function PocketManager({ accountId }) {
                     value={debitAmount}
                     onChange={(e) => setDebitAmount(e.target.value)}
                     placeholder="Ex: 500"
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 py-2 text-xs font-bold focus:outline-none focus:bg-white"
+                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 text-xs font-bold focus:outline-none focus:bg-white"
                     required
                   />
-                  <span className="absolute left-2.5 top-2 text-xs font-black">🔔</span>
+                  <span className="absolute left-2.5 top-3.5 text-xs font-black">🔔</span>
                 </div>
               </div>
 
@@ -585,14 +585,14 @@ export default function PocketManager({ accountId }) {
                 <button
                   type="button"
                   onClick={() => { setDebitModalOpen(false); setDebitTargetPocket(null); setDebitAmount(''); }}
-                  className="bg-white border-2 border-ac-brown text-ac-brown font-extrabold text-xs px-4 py-2 rounded-xl hover:bg-ac-cream cursor-pointer"
+                  className="h-12 px-4 bg-white border-2 border-ac-brown text-ac-brown font-extrabold text-xs rounded-xl hover:bg-ac-cream cursor-pointer flex items-center justify-center"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={isDebiting}
-                  className={`bg-ac-red text-white font-extrabold text-xs px-5 py-2 rounded-xl border-2 border-ac-brown shadow-ac-sm flex items-center gap-1 transition-all ${
+                  className={`h-12 px-5 bg-ac-red text-white font-extrabold text-xs rounded-xl border-2 border-ac-brown shadow-ac-sm flex items-center justify-center transition-all ${
                     isDebiting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-[1px]'
                   }`}
                   style={isDebiting ? { cursor: 'not-allowed' } : {}}

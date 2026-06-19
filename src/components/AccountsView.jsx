@@ -88,7 +88,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const handleStartLongPress = (id) => {
     longPressTimer.current = setTimeout(() => {
       setDraggableAccountId(id);
-    }, 500);
+    }, 850);
   };
 
   const handleCancelLongPress = () => {
@@ -701,89 +701,160 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 Aucune clochette dépensée ou gagnée ici pour le moment ! Utilise le bouton ci-dessus pour ajouter ta première transaction. 🍃
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[600px]">
-                  <thead>
-                    <tr className="border-b-2 border-ac-brown text-ac-brown-light font-black text-xs uppercase">
-                      <th className="pb-3 pt-2 pl-2">Date</th>
-                      <th className="pb-3 pt-2">Nom</th>
-                      <th className="pb-3 pt-2">Catégorie</th>
-                      <th className="pb-3 pt-2">Exécution</th>
-                      <th className="pb-3 pt-2 text-right">Montant</th>
-                      <th className="pb-3 pt-2 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ac-cream-dark">
-                    {transactions.map((tx) => {
-                      const isIncome = tx.type === 'credit';
-                      return (
-                        <tr key={tx.id} className="hover:bg-ac-cream-light/35 transition-colors group">
-                          <td className="py-3.5 pl-2 text-xs font-bold text-ac-brown-light">
-                            {new Date(tx.date).toLocaleDateString('fr-FR')}
-                          </td>
-                          <td className="py-3.5 font-extrabold text-sm text-ac-brown">
-                            <div className="flex items-center gap-1.5 flex-wrap">
+              <>
+                {/* Desktop View: Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
+                    <thead>
+                      <tr className="border-b-2 border-ac-brown text-ac-brown-light font-black text-xs uppercase">
+                        <th className="pb-3 pt-2 pl-2">Date</th>
+                        <th className="pb-3 pt-2">Nom</th>
+                        <th className="pb-3 pt-2">Catégorie</th>
+                        <th className="pb-3 pt-2">Exécution</th>
+                        <th className="pb-3 pt-2 text-right">Montant</th>
+                        <th className="pb-3 pt-2 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ac-cream-dark">
+                      {transactions.map((tx) => {
+                        const isIncome = tx.type === 'credit';
+                        return (
+                          <tr key={tx.id} className="hover:bg-ac-cream-light/35 transition-colors group">
+                            <td className="py-3.5 pl-2 text-xs font-bold text-ac-brown-light">
+                              {new Date(tx.date).toLocaleDateString('fr-FR')}
+                            </td>
+                            <td className="py-3.5 font-extrabold text-sm text-ac-brown">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {tx.name || tx.description}
+                                {tx.isRecurring && (
+                                  <span className="text-[9px] font-black bg-ac-gold-light border border-ac-gold/20 text-ac-gold-dark px-1.5 py-0.2 rounded" title="Transaction récurrente">
+                                    ♻️ {tx.recurrencePeriod === 'weekly' ? 'Hebdo' : 'Mensuel'}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3.5">
+                              {tx.category ? (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-ac-green-light text-ac-green border border-ac-green/10">
+                                  {tx.category}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-ac-cream-dark/50 text-ac-brown-light">
+                                  Aucun
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3.5">
+                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
+                                tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
+                                tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :
+                                'bg-ac-green-light border-ac-green/20 text-ac-green'
+                              }`}>
+                                {tx.executionType === 'planned' ? 'À prévoir' :
+                                 tx.executionType === 'past' ? 'Passée' : 'Spontanée'}
+                              </span>
+                            </td>
+                            <td className="py-3.5 text-right font-black text-sm">
+                              <span className={isIncome ? 'text-ac-green' : 'text-ac-brown'}>
+                                {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                              </span>
+                            </td>
+                            <td className="py-3.5 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingTransaction(tx);
+                                    setTxModalOpen(true);
+                                  }}
+                                  className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/25 cursor-pointer"
+                                  title="Modifier"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTransaction(tx.id)}
+                                  className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-brown/25 cursor-pointer"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile View: Compact list */}
+                <div className="md:hidden flex flex-col gap-3">
+                  {transactions.map((tx) => {
+                    const isIncome = tx.type === 'credit';
+                    return (
+                      <div key={tx.id} className="bg-ac-cream/20 border-2 border-ac-brown rounded-2xl p-4 flex flex-col gap-2 relative">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[10px] font-black text-ac-brown-light">
+                              {new Date(tx.date).toLocaleDateString('fr-FR')}
+                            </span>
+                            <h4 className="font-extrabold text-sm text-ac-brown mt-0.5">
                               {tx.name || tx.description}
                               {tx.isRecurring && (
-                                <span className="text-[9px] font-black bg-ac-gold-light border border-ac-gold/20 text-ac-gold-dark px-1.5 py-0.2 rounded" title="Transaction récurrente">
+                                <span className="text-[8px] font-black bg-ac-gold-light border border-ac-gold/20 text-ac-gold-dark px-1.5 py-0.2 rounded ml-1.5 inline-block">
                                   ♻️ {tx.recurrencePeriod === 'weekly' ? 'Hebdo' : 'Mensuel'}
                                 </span>
                               )}
-                            </div>
-                          </td>
-                          <td className="py-3.5">
-                            {tx.category ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-ac-green-light text-ac-green border border-ac-green/10">
-                                {tx.category}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-ac-cream-dark/50 text-ac-brown-light">
-                                Aucun
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3.5">
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
-                              tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
-                              tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :
-                              'bg-ac-green-light border-ac-green/20 text-ac-green'
-                            }`}>
-                              {tx.executionType === 'planned' ? 'À prévoir' :
-                               tx.executionType === 'past' ? 'Passée' : 'Spontanée'}
+                            </h4>
+                          </div>
+                          <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
+                            {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR')} 🔔
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 items-center mt-1">
+                          {tx.category ? (
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded bg-ac-green-light text-ac-green border border-ac-green/10">
+                              {tx.category}
                             </span>
-                          </td>
-                          <td className="py-3.5 text-right font-black text-sm">
-                            <span className={isIncome ? 'text-ac-green' : 'text-ac-brown'}>
-                              {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                          ) : (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-ac-cream-dark/55 text-ac-brown-light">
+                              Aucun
                             </span>
-                          </td>
-                          <td className="py-3.5 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setEditingTransaction(tx);
-                                  setTxModalOpen(true);
-                                }}
-                                className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/25 cursor-pointer"
-                                title="Modifier"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTransaction(tx.id)}
-                                className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-brown/25 cursor-pointer"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          )}
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded border ${
+                            tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
+                            tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :
+                            'bg-ac-green-light border-ac-green/20 text-ac-green'
+                          }`}>
+                            {tx.executionType === 'planned' ? 'À prévoir' :
+                             tx.executionType === 'past' ? 'Passée' : 'Spontanée'}
+                          </span>
+                        </div>
+
+                        {/* Actions for mobile (tactile-friendly) */}
+                        <div className="flex justify-end gap-3 mt-2 pt-2 border-t border-ac-brown/10">
+                          <button
+                            onClick={() => {
+                              setEditingTransaction(tx);
+                              setTxModalOpen(true);
+                            }}
+                            className="h-12 px-4 bg-white hover:bg-ac-cream text-ac-brown rounded-xl border-2 border-ac-brown shadow-ac-sm cursor-pointer flex items-center justify-center gap-1.5 font-bold text-xs"
+                          >
+                            <Edit className="w-3.5 h-3.5" /> Modifier
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTransaction(tx.id)}
+                            className="h-12 px-4 bg-white hover:bg-ac-red-light text-ac-red rounded-xl border-2 border-ac-brown shadow-ac-sm cursor-pointer flex items-center justify-center gap-1.5 font-bold text-xs"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
 
@@ -908,8 +979,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
       {/* Transfer Dialog Modal */}
       {transferModalOpen && (
-        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown">
-          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in">
+        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in text-ac-brown">
+          <div className="bg-[#FFFDF9] border-t-4 border-x-4 md:border-4 border-ac-brown rounded-t-3xl md:rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-slide-up md:animate-bounce-in pb-safe-bottom">
             {/* Close button */}
             <button 
               type="button"
@@ -917,7 +988,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 setTransferModalOpen(false);
                 resetTransferForm();
               }}
-              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all hover:scale-110 text-ac-brown cursor-pointer"
+              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all hover:scale-110 text-ac-brown cursor-pointer z-10"
             >
               <X className="w-5 h-5" />
             </button>
@@ -932,7 +1003,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 <select
                   value={transferSourceId}
                   onChange={(e) => setTransferSourceId(e.target.value)}
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
                   required
                 >
                   <option value="">-- Sélectionner le compte à débiter --</option>
@@ -949,7 +1020,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 <select
                   value={transferDestId}
                   onChange={(e) => setTransferDestId(e.target.value)}
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
                   required
                 >
                   <option value="">-- Sélectionner le compte à créditer --</option>
@@ -972,10 +1043,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       value={transferAmount}
                       onChange={(e) => setTransferAmount(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                      className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                       required
                     />
-                    <span className="absolute left-2.5 top-2.5 text-xs font-black">🔔</span>
+                    <span className="absolute left-2.5 top-3.5 text-xs font-black">🔔</span>
                   </div>
                 </div>
 
@@ -986,7 +1057,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     value={transferDesc}
                     onChange={(e) => setTransferDesc(e.target.value)}
                     placeholder="Épargne mensuelle, remboursement..."
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                   />
                 </div>
               </div>
@@ -998,13 +1069,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     setTransferModalOpen(false);
                     resetTransferForm();
                   }}
-                  className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+                  className="flex-1 h-12 bg-white hover:bg-ac-cream text-ac-brown rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer flex items-center justify-center"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+                  className="flex-1 h-12 bg-ac-green text-white rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer flex items-center justify-center"
                 >
                   Transférer
                 </button>
@@ -1016,8 +1087,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
       {/* Account Creation / Edition Modal Form */}
       {accountFormOpen && (
-        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown">
-          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-lg w-full shadow-ac-lg relative animate-bounce-in">
+        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in text-ac-brown">
+          <div className="bg-[#FFFDF9] border-t-4 border-x-4 md:border-4 border-ac-brown rounded-t-3xl md:rounded-3xl p-6 max-w-lg w-full shadow-ac-lg relative animate-slide-up md:animate-bounce-in pb-safe-bottom">
             {/* Close button */}
             <button 
               type="button"
@@ -1026,7 +1097,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 setEditingAccount(null);
                 resetAccountForm();
               }}
-              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all hover:scale-110 text-ac-brown cursor-pointer"
+              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-all hover:scale-110 text-ac-brown cursor-pointer z-10"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1044,7 +1115,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     value={accName}
                     onChange={(e) => setAccName(e.target.value)}
                     placeholder="Ex: Livret A, Poche principale"
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                     required
                   />
                 </div>
@@ -1054,7 +1125,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   <select
                     value={accType}
                     onChange={(e) => setAccType(e.target.value)}
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
                   >
                     <option value="Courant">Courant (Dépenses courantes)</option>
                     <option value="Livret A">Livret A (Épargne)</option>
@@ -1073,7 +1144,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     value={accBankName}
                     onChange={(e) => setAccBankName(e.target.value)}
                     placeholder="Ex: Nook Banque, Caisse d'Épargne"
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                   />
                 </div>
 
@@ -1084,7 +1155,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     value={accRib}
                     onChange={(e) => setAccRib(e.target.value)}
                     placeholder="Ex: FR76 3000..."
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white font-mono text-xs"
+                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white font-mono text-xs"
                   />
                 </div>
               </div>
@@ -1099,11 +1170,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       value={accInitial}
                       onChange={(e) => setAccInitial(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                      className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                       disabled={!!editingAccount}
                       required
                     />
-                    <span className="absolute left-2.5 top-2.5 text-xs font-black">🔔</span>
+                    <span className="absolute left-2.5 top-3.5 text-xs font-black">🔔</span>
                   </div>
                   {editingAccount && <p className="text-[9px] text-ac-brown-light/60 mt-1">Le solde initial ne peut pas être modifié après création.</p>}
                 </div>
@@ -1118,7 +1189,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     onChange={(e) => setAccRate(e.target.value)}
                     placeholder="0.00"
                     disabled={accType === 'Courant'}
-                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white disabled:opacity-40"
+                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white disabled:opacity-40"
                   />
                 </div>
               </div>
@@ -1130,7 +1201,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   value={accDescription}
                   onChange={(e) => setAccDescription(e.target.value)}
                   placeholder="Ex: Pour financer mon futur projet de pont..."
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                 />
               </div>
 
@@ -1142,14 +1213,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     setEditingAccount(null);
                     resetAccountForm();
                   }}
-                  className="flex-1 bg-white hover:bg-ac-cream text-ac-brown py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+                  className="flex-1 h-12 bg-white hover:bg-ac-cream text-ac-brown rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer flex items-center justify-center"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all ${
+                  className={`flex-1 h-12 bg-ac-green text-white rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all flex items-center justify-center ${
                     isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-1'
                   }`}
                   style={isSubmitting ? { cursor: 'not-allowed' } : {}}

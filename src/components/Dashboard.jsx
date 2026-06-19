@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useDb } from '../db';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
-  ChevronRight, Gift, Activity
+  ChevronRight, Gift, Activity, Smile
 } from 'lucide-react';
 
 export default function Dashboard({ onViewAccountDetails, username }) {
@@ -10,6 +10,66 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, 
     wishlist, pockets, categories 
   } = useDb();
+
+  // Tom Nook interactive advice states for mobile / welcome banner
+  const nookAdvices = [
+    "Économise tes clochettes aujourd'hui pour t'offrir la maison de tes rêves demain !",
+    "Un prêt à taux zéro, c'est une affaire en or ! Oui, oui !",
+    "Pense à placer tes clochettes avant que le cours du navet ne chute !",
+    "Agrandir ta maison demande des sacrifices économiques constants...",
+    "Chaque projet de pont ou de rampe demande la participation de tous, mais surtout la tienne ! Oui, oui !"
+  ];
+
+  const [currentAdviceIndex, setCurrentAdviceIndex] = useState(0);
+  const [viewedIndices, setViewedIndices] = useState([]);
+  const [phase, setPhase] = useState('welcome'); // 'welcome', 'advices', 'yellow', 'distress', 'sold'
+  const [yellowClickCount, setYellowClickCount] = useState(0);
+  const [distressClickCount, setDistressClickCount] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const handleBannerClick = () => {
+    if (isAnimating || phase === 'sold') return;
+
+    setIsAnimating(true);
+
+    // Swap text state halfway through animation (at 150ms)
+    setTimeout(() => {
+      if (phase === 'welcome') {
+        setPhase('advices');
+        setCurrentAdviceIndex(0);
+        setViewedIndices([0]);
+      } else if (phase === 'advices') {
+        const unviewed = nookAdvices
+          .map((_, idx) => idx)
+          .filter(idx => !viewedIndices.includes(idx));
+
+        if (unviewed.length > 0) {
+          const randomIdx = unviewed[Math.floor(Math.random() * unviewed.length)];
+          setCurrentAdviceIndex(randomIdx);
+          setViewedIndices(prev => [...prev, randomIdx]);
+        } else {
+          setPhase('yellow');
+        }
+      } else if (phase === 'yellow') {
+        const nextCount = yellowClickCount + 1;
+        setYellowClickCount(nextCount);
+        if (nextCount >= 5) {
+          setPhase('distress');
+        }
+      } else if (phase === 'distress') {
+        const nextCount = distressClickCount + 1;
+        setDistressClickCount(nextCount);
+        if (nextCount >= 10) {
+          setPhase('sold');
+        }
+      }
+    }, 150);
+
+    // End animation after 300ms
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 300);
+  };
 
   if (!accountsData || accountsData.length === 0) {
     return (
@@ -49,7 +109,14 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   return (
     <div className="space-y-8 select-none">
       {/* 1. Bulle de bienvenue Tom Nook */}
-      <div className="flex flex-col md:flex-row gap-6 bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden items-center md:items-start shadow-ac-sm">
+      <div 
+        onClick={handleBannerClick}
+        className={`flex flex-col md:flex-row gap-6 bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden items-center md:items-start shadow-ac-sm cursor-pointer transition-all duration-300 transform ${
+          isAnimating 
+            ? 'scale-95 opacity-80' 
+            : 'hover:scale-[1.01]'
+        }`}
+      >
         <div className="flex flex-col items-center shrink-0">
           <div className="w-16 h-16 bg-[#FFFDF9] rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-2 transform hover:rotate-6 hover:scale-105 transition-all duration-200 cursor-pointer overflow-hidden">
             <img src="/tom-nook.png" alt="Tom Nook" className="w-12 h-12 object-contain" />
@@ -59,14 +126,34 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           </span>
         </div>
 
-        <div className="flex-1 space-y-4 w-full">
-          <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative">
-            <h3 className="font-black text-sm text-ac-brown flex items-center gap-1">
-              Bonjour, {username || 'Îlien'} ! <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold animate-pulse" />
+        <div className="flex-1 space-y-4 w-full relative">
+          <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative min-h-[90px] flex flex-col justify-center">
+            {phase !== 'sold' && (
+              <div className="absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[8px] font-black text-white bg-ac-gold flex items-center gap-1 animate-pulse">
+                <Smile className="w-2.5 h-2.5" /> Info
+              </div>
+            )}
+
+            <h3 className="font-black text-sm text-ac-brown flex items-center gap-1.5">
+              {phase === 'welcome' ? `Bonjour, ${username || 'Îlien'} !` : "Conseil de Tom Nook"} <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold animate-pulse" />
             </h3>
+            
             <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
-              "Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de <strong>{totalBalance.toLocaleString('fr-FR')} 🔔</strong>. Prends soin de tes économies !"
+              {phase === 'welcome' && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${totalBalance.toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
+              {phase === 'advices' && `"${nookAdvices[currentAdviceIndex]}"`}
+              {phase === 'yellow' && `"Je ne suis pas une banque à conseils. Oui, Oui. Ma spécialité c'est garder mon argent"`}
+              {phase === 'distress' && `"Eh je suis vraiment à sec !"`}
+              {phase === 'sold' && `"..."`}
             </p>
+
+            {phase === 'sold' && (
+              <div className="absolute inset-0 bg-[#FFFDF9]/60 backdrop-blur-[1px] flex items-center justify-center rounded-2xl z-20 border-4 border-dashed border-ac-red">
+                <span className="text-2xl font-black text-ac-red uppercase tracking-wider transform -rotate-12 border-4 border-ac-red px-4 py-2 rounded-xl bg-white shadow-ac-xs animate-bounce-in">
+                  Vendu 
+                </span>
+              </div>
+            )}
+
             {/* Dialogue bubble arrow */}
             <div className="w-3 h-3 bg-white border-l-2 border-t-2 border-ac-brown/60 absolute left-[-7px] top-6 transform rotate-[-45deg] hidden md:block"></div>
           </div>
