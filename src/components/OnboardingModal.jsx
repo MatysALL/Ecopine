@@ -56,7 +56,7 @@ export default function OnboardingModal() {
   };
 
   return (
-    <div className="fixed inset-0 bg-ac-brown/65 backdrop-blur-md flex items-center justify-center p-4 z-50 text-ac-brown select-none">
+    <div className="flex items-center justify-center w-full min-h-[70vh] p-4 text-ac-brown select-none">
       <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl max-w-lg w-full p-8 shadow-ac-lg relative overflow-hidden flex flex-col md:flex-row gap-6 items-center">
         {/* Decorative patterns */}
         <div className="absolute top-0 right-0 w-12 h-12 bg-ac-green/10 rounded-bl-3xl border-l-2 border-b-2 border-ac-brown/10 pointer-events-none"></div>

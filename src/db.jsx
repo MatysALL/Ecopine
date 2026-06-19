@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { auth, db as firestoreDb } from './firebase';
 import { 
   collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, 
-  setDoc, query, where, onSnapshot, writeBatch 
+  setDoc, query, where, onSnapshot, writeBatch, runTransaction 
 } from 'firebase/firestore';
 import { 
   createUserWithEmailAndPassword, 
@@ -596,6 +596,7 @@ export function getProjectedBalanceSync(selectedAccountIds, targetDateStr, accou
  * Legacy API compatibility layer mapping Dexie actions to Cloud Firestore
  */
 export const db = {
+  _activeBatch: null,
   user_meta: {
     put: async ({ key, value }) => {
       if (!auth.currentUser) return;
@@ -607,7 +608,11 @@ export const db = {
       };
       const field = fieldMap[key];
       if (field) {
-        await setDoc(ref, { [field]: value }, { merge: true });
+        if (db._activeBatch) {
+          db._activeBatch.set(ref, { [field]: value }, { merge: true });
+        } else {
+          await setDoc(ref, { [field]: value }, { merge: true });
+        }
       }
     },
     get: async (key) => {
@@ -624,7 +629,11 @@ export const db = {
     clear: async () => {
       if (!auth.currentUser) return;
       const ref = doc(firestoreDb, 'users_meta', auth.currentUser.uid);
-      await deleteDoc(ref);
+      if (db._activeBatch) {
+        db._activeBatch.delete(ref);
+      } else {
+        await deleteDoc(ref);
+      }
     },
     bulkAdd: async (list) => {
       if (!auth.currentUser) return;
@@ -635,29 +644,43 @@ export const db = {
         if (m.key === 'favorite_account_id') fields.favoriteAccountId = m.value;
         if (m.key === 'dashboard_note') fields.dashboardNote = m.value;
       });
-      await setDoc(ref, fields, { merge: true });
+      if (db._activeBatch) {
+        db._activeBatch.set(ref, fields, { merge: true });
+      } else {
+        await setDoc(ref, fields, { merge: true });
+      }
     }
   },
   accounts: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const docRef = await addDoc(collection(firestoreDb, 'accounts'), {
+      const docData = {
         ...data,
         userId: auth.currentUser.uid
-      });
+      };
+      if (db._activeBatch) {
+        const ref = doc(collection(firestoreDb, 'accounts'));
+        db._activeBatch.set(ref, docData);
+        return ref.id;
+      }
+      const docRef = await addDoc(collection(firestoreDb, 'accounts'), docData);
       return docRef.id;
     },
     update: async (id, data) => {
       const ref = doc(firestoreDb, 'accounts', id);
-      await updateDoc(ref, data);
+      if (db._activeBatch) {
+        db._activeBatch.update(ref, data);
+      } else {
+        await updateDoc(ref, data);
+      }
     },
     delete: async (id) => {
       if (!auth.currentUser) return;
-      await deleteDoc(doc(firestoreDb, 'accounts', id));
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      batch.delete(doc(firestoreDb, 'accounts', id));
       
       const txsQuery = query(collection(firestoreDb, 'transactions'), where('accountId', '==', id));
       const txsSnap = await getDocs(txsQuery);
-      const batch = writeBatch(firestoreDb);
       txsSnap.docs.forEach(docSnap => {
         batch.delete(doc(firestoreDb, 'transactions', docSnap.id));
       });
@@ -668,19 +691,23 @@ export const db = {
         batch.delete(doc(firestoreDb, 'budgets', docSnap.id));
       });
       
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     },
     clear: async () => {
       if (!auth.currentUser) return;
       const q = query(collection(firestoreDb, 'accounts'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'accounts', docSnap.id)));
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     },
     bulkAdd: async (list) => {
       if (!auth.currentUser) return;
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       list.forEach(item => {
         const ref = doc(collection(firestoreDb, 'accounts'));
         const { id, ...rest } = item;
@@ -689,35 +716,55 @@ export const db = {
           userId: auth.currentUser.uid
         });
       });
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     }
   },
   transactions: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const docRef = await addDoc(collection(firestoreDb, 'transactions'), {
+      const docData = {
         ...data,
         userId: auth.currentUser.uid
-      });
+      };
+      if (db._activeBatch) {
+        const ref = doc(collection(firestoreDb, 'transactions'));
+        db._activeBatch.set(ref, docData);
+        return ref.id;
+      }
+      const docRef = await addDoc(collection(firestoreDb, 'transactions'), docData);
       return docRef.id;
     },
     update: async (id, data) => {
-      await updateDoc(doc(firestoreDb, 'transactions', id), data);
+      const ref = doc(firestoreDb, 'transactions', id);
+      if (db._activeBatch) {
+        db._activeBatch.update(ref, data);
+      } else {
+        await updateDoc(ref, data);
+      }
     },
     delete: async (id) => {
-      await deleteDoc(doc(firestoreDb, 'transactions', id));
+      const ref = doc(firestoreDb, 'transactions', id);
+      if (db._activeBatch) {
+        db._activeBatch.delete(ref);
+      } else {
+        await deleteDoc(ref);
+      }
     },
     clear: async () => {
       if (!auth.currentUser) return;
       const q = query(collection(firestoreDb, 'transactions'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'transactions', docSnap.id)));
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     },
     bulkAdd: async (txs) => {
       if (!auth.currentUser) return;
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       txs.forEach(tx => {
         const ref = doc(collection(firestoreDb, 'transactions'));
         const { id, ...rest } = tx;
@@ -726,43 +773,65 @@ export const db = {
           userId: auth.currentUser.uid
         });
       });
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     }
   },
   budgets: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const docRef = await addDoc(collection(firestoreDb, 'budgets'), {
+      const docData = {
         ...data,
         userId: auth.currentUser.uid
-      });
+      };
+      if (db._activeBatch) {
+        const ref = doc(collection(firestoreDb, 'budgets'));
+        db._activeBatch.set(ref, docData);
+        return ref.id;
+      }
+      const docRef = await addDoc(collection(firestoreDb, 'budgets'), docData);
       return docRef.id;
     },
     update: async (id, data) => {
-      await updateDoc(doc(firestoreDb, 'budgets', id), data);
+      const ref = doc(firestoreDb, 'budgets', id);
+      if (db._activeBatch) {
+        db._activeBatch.update(ref, data);
+      } else {
+        await updateDoc(ref, data);
+      }
     },
     delete: async (id) => {
-      await deleteDoc(doc(firestoreDb, 'budgets', id));
+      const ref = doc(firestoreDb, 'budgets', id);
+      if (db._activeBatch) {
+        db._activeBatch.delete(ref);
+      } else {
+        await deleteDoc(ref);
+      }
     },
     bulkDelete: async (ids) => {
       if (!auth.currentUser) return;
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       ids.forEach(id => {
         batch.delete(doc(firestoreDb, 'budgets', id));
       });
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     },
     clear: async () => {
       if (!auth.currentUser) return;
       const q = query(collection(firestoreDb, 'budgets'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'budgets', docSnap.id)));
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     },
     bulkAdd: async (list) => {
       if (!auth.currentUser) return;
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       list.forEach(item => {
         const ref = doc(collection(firestoreDb, 'budgets'));
         const { id, ...rest } = item;
@@ -771,35 +840,55 @@ export const db = {
           userId: auth.currentUser.uid
         });
       });
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     }
   },
   wishlist: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const docRef = await addDoc(collection(firestoreDb, 'wishlist'), {
+      const docData = {
         ...data,
         userId: auth.currentUser.uid
-      });
+      };
+      if (db._activeBatch) {
+        const ref = doc(collection(firestoreDb, 'wishlist'));
+        db._activeBatch.set(ref, docData);
+        return ref.id;
+      }
+      const docRef = await addDoc(collection(firestoreDb, 'wishlist'), docData);
       return docRef.id;
     },
     update: async (id, data) => {
-      await updateDoc(doc(firestoreDb, 'wishlist', id), data);
+      const ref = doc(firestoreDb, 'wishlist', id);
+      if (db._activeBatch) {
+        db._activeBatch.update(ref, data);
+      } else {
+        await updateDoc(ref, data);
+      }
     },
     delete: async (id) => {
-      await deleteDoc(doc(firestoreDb, 'wishlist', id));
+      const ref = doc(firestoreDb, 'wishlist', id);
+      if (db._activeBatch) {
+        db._activeBatch.delete(ref);
+      } else {
+        await deleteDoc(ref);
+      }
     },
     clear: async () => {
       if (!auth.currentUser) return;
       const q = query(collection(firestoreDb, 'wishlist'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'wishlist', docSnap.id)));
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     },
     bulkAdd: async (list) => {
       if (!auth.currentUser) return;
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       list.forEach(item => {
         const ref = doc(collection(firestoreDb, 'wishlist'));
         const { id, ...rest } = item;
@@ -808,34 +897,49 @@ export const db = {
           userId: auth.currentUser.uid
         });
       });
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     }
   },
   categories: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const docRef = await addDoc(collection(firestoreDb, 'categories'), {
+      const docData = {
         ...data,
         userId: auth.currentUser.uid
-      });
+      };
+      if (db._activeBatch) {
+        const ref = doc(collection(firestoreDb, 'categories'));
+        db._activeBatch.set(ref, docData);
+        return ref.id;
+      }
+      const docRef = await addDoc(collection(firestoreDb, 'categories'), docData);
       return docRef.id;
     },
     delete: async (id) => {
-      await deleteDoc(doc(firestoreDb, 'categories', id));
+      const ref = doc(firestoreDb, 'categories', id);
+      if (db._activeBatch) {
+        db._activeBatch.delete(ref);
+      } else {
+        await deleteDoc(ref);
+      }
     },
     clear: async () => {
       if (!auth.currentUser) return;
       const q = query(collection(firestoreDb, 'categories'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => {
         batch.delete(doc(firestoreDb, 'categories', docSnap.id));
       });
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     },
     bulkAdd: async (cats) => {
       if (!auth.currentUser) return;
-      const batch = writeBatch(firestoreDb);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
       cats.forEach(cat => {
         const ref = doc(collection(firestoreDb, 'categories'));
         const { id, ...rest } = cat;
@@ -844,11 +948,27 @@ export const db = {
           userId: auth.currentUser.uid
         });
       });
-      await batch.commit();
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
     }
   },
   transaction: async (mode, tables, fn) => {
-    return fn();
+    if (db._activeBatch) {
+      return fn();
+    }
+    const batch = writeBatch(firestoreDb);
+    db._activeBatch = batch;
+    try {
+      const result = await fn();
+      await batch.commit();
+      return result;
+    } catch (err) {
+      db._activeBatch = null;
+      throw err;
+    } finally {
+      db._activeBatch = null;
+    }
   }
 };
 

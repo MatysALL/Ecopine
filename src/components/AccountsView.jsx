@@ -3,7 +3,7 @@ import { db, useDb, calculateLivretInterests } from '../db';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
   Coins, PiggyBank, HelpCircle, AlertTriangle, 
-  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft
+  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import BudgetManager from './BudgetManager';

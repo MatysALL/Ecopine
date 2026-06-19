@@ -64,18 +64,17 @@ export default function App() {
 
   return (
     <div className="flex bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30">
-      {/* Onboarding block */}
-      {needsOnboarding && (
-        <OnboardingModal />
-      )}
-
       {/* Sidebar Navigation */}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Panel Content */}
       <main className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full">
         <div className="animate-bounce-in">
-          {renderContent()}
+          {needsOnboarding ? (
+            <OnboardingModal />
+          ) : (
+            renderContent()
+          )}
         </div>
       </main>
     </div>
