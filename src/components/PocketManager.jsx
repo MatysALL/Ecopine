@@ -177,9 +177,7 @@ export default function PocketManager({ accountId }) {
               >
                 <option value="none">Sans renouvellement</option>
                 <option value="weekly">Hebdomadaire</option>
-                <option value="biweekly">Toutes les 2 semaines</option>
                 <option value="monthly">Mensuel</option>
-                <option value="annual">Annuel</option>
               </select>
             </div>
 
@@ -246,10 +244,8 @@ export default function PocketManager({ accountId }) {
                     {pocket.renewalFrequency && pocket.renewalFrequency !== 'none' && pocket.nextRenewalDate ? (
                       <span className="text-[9px] font-black text-ac-brown-light/75 flex items-center gap-1 mt-0.5">
                         <Clock className="w-3 h-3" />
-                        Renouvellement : {new Date(pocket.nextRenewalDate).toLocaleDateString('fr-FR')} ({
-                          pocket.renewalFrequency === 'weekly' ? 'Hebdo' :
-                          pocket.renewalFrequency === 'biweekly' ? 'Bi-hebdo' :
-                          pocket.renewalFrequency === 'monthly' ? 'Mensuel' : 'Annuel'
+                        Renouvellement automatique le {new Date(pocket.nextRenewalDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} ({
+                          pocket.renewalFrequency === 'weekly' ? 'hebdomadaire' : 'mensuel'
                         })
                       </span>
                     ) : (
