@@ -1,28 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Tag, RefreshCw, Layers } from 'lucide-react';
+import { X, Layers } from 'lucide-react';
 import { useDb } from '../db';
 
-export default function TransactionModal({ isOpen, onClose, onSave, transaction, accountId, preselectedBudgetId }) {
+export default function TransactionModal({ isOpen, onClose, onSave, transaction, accountId }) {
   const [name, setName] = useState('');
   const [type, setType] = useState('debit'); // 'debit' or 'credit'
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [executionType, setExecutionType] = useState('spontaneous'); // 'spontaneous', 'past', 'planned'
-  const [budgetId, setBudgetId] = useState('');
-  
-  // Recurrence
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrencePeriod, setRecurrencePeriod] = useState('monthly');
-  const [recurrenceEnd, setRecurrenceEnd] = useState('');
+  const [pocketId, setPocketId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { categories: categoriesList, budgets: allBudgets } = useDb();
+  const { pockets: allPockets } = useDb();
 
-  // Filter budgets for this account
-  const budgetsList = useMemo(() => {
-    if (!accountId || !allBudgets) return [];
-    return allBudgets.filter(b => b.accountId === accountId);
-  }, [allBudgets, accountId]);
+  // Filter pockets for this account
+  const pocketsList = useMemo(() => {
+    if (!accountId || !allPockets) return [];
+    return allPockets.filter(p => p.accountId === accountId);
+  }, [allPockets, accountId]);
 
   useEffect(() => {
     if (transaction) {
@@ -30,67 +24,22 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
       setType(transaction.type || (transaction.amount < 0 ? 'debit' : 'credit'));
       setAmount(Math.abs(transaction.amount).toString() || '');
       setDate(transaction.date || '');
-      setCategoryId(transaction.categoryId ? transaction.categoryId.toString() : '');
-      setExecutionType(transaction.executionType || 'spontaneous');
-      setBudgetId(transaction.budgetId ? transaction.budgetId.toString() : '');
-      
-      setIsRecurring(transaction.isRecurring || false);
-      setRecurrencePeriod(transaction.recurrencePeriod || 'monthly');
-      setRecurrenceEnd(transaction.recurrenceEnd || '');
+      setPocketId(transaction.pocketId ? transaction.pocketId.toString() : '');
     } else {
       setName('');
       setType('debit');
       setAmount('');
       setDate(new Date().toISOString().split('T')[0]);
-      setCategoryId('');
-      setExecutionType('spontaneous');
-      setBudgetId(preselectedBudgetId ? preselectedBudgetId.toString() : '');
-      
-      setIsRecurring(false);
-      setRecurrencePeriod('monthly');
-      setRecurrenceEnd('');
+      setPocketId('');
     }
-  }, [transaction, isOpen, preselectedBudgetId]);
+    setIsSubmitting(false);
+  }, [transaction, isOpen]);
 
   if (!isOpen) return null;
 
-  // Build the indented budget select options list
-  const getBudgetOptions = () => {
-    if (!budgetsList || budgetsList.length === 0) return [];
-    
-    const map = {};
-    budgetsList.forEach(b => {
-      map[b.id] = { ...b, children: [] };
-    });
-    
-    const roots = [];
-    budgetsList.forEach(b => {
-      if (b.parentBudgetId && map[b.parentBudgetId]) {
-        map[b.parentBudgetId].children.push(map[b.id]);
-      } else {
-        roots.push(map[b.id]);
-      }
-    });
-
-    const options = [];
-    const traverse = (node, depth) => {
-      options.push({
-        id: node.id,
-        name: node.name,
-        type: node.type,
-        depth: depth
-      });
-      node.children.forEach(child => traverse(child, depth + 1));
-    };
-    roots.forEach(root => traverse(root, 0));
-    return options;
-  };
-
-  const budgetOptions = getBudgetOptions();
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !amount || !date) {
+    if (!name.trim() || !amount || !date || isSubmitting) {
       alert('Veuillez remplir les champs obligatoires (Nom, Montant, Date).');
       return;
     }
@@ -101,27 +50,25 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
       return;
     }
 
-    // Resolve category name for backward-compatibility
-    const selectedCategory = categoriesList?.find(c => c.id === categoryId);
+    setIsSubmitting(true);
+    try {
+      const transactionData = {
+        accountId: accountId,
+        name: name.trim(),
+        description: name.trim(), // keeping for compatibility
+        amount: numAmount,
+        type,
+        date,
+        pocketId: pocketId || null
+      };
 
-    const transactionData = {
-      accountId: accountId,
-      name: name.trim(),
-      description: name.trim(), // keeping for compatibility
-      amount: numAmount,
-      type,
-      date,
-      categoryId: categoryId || null,
-      category: selectedCategory ? selectedCategory.name : '', // keeping for compatibility
-      executionType,
-      budgetId: budgetId || null,
-      
-      isRecurring,
-      recurrencePeriod: isRecurring ? recurrencePeriod : 'none',
-      recurrenceEnd: isRecurring ? recurrenceEnd : ''
-    };
-
-    onSave(transactionData);
+      await onSave(transactionData);
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'enregistrement de la transaction.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -163,25 +110,6 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             >
               Revenu (+)
             </button>
-          </div>
-
-          {/* Execution Type Selection */}
-          <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Type d'Exécution</label>
-            <select
-              value={executionType}
-              onChange={(e) => setExecutionType(e.target.value)}
-              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white"
-            >
-              <option value="spontaneous">Spontanée (Immédiate)</option>
-              <option value="planned">À prévoir (Planifiée)</option>
-              <option value="past">Passée (Historique uniquement)</option>
-            </select>
-            <p className="text-[10px] text-ac-brown-light font-semibold mt-1">
-              {executionType === 'spontaneous' && "💡 Modifie le solde de ton compte immédiatement."}
-              {executionType === 'planned' && "💡 Modifie le solde uniquement le jour J. Figure sur le Calendrier."}
-              {executionType === 'past' && "💡 Note historique. N'impacte pas le solde principal."}
-            </p>
           </div>
 
           {/* Name */}
@@ -228,42 +156,19 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             </div>
           </div>
 
-          {/* Category selection */}
+          {/* Pocket selection */}
           <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Catégorie</label>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Associer à une Poche</label>
             <div className="relative">
               <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
+                value={pocketId}
+                onChange={(e) => setPocketId(e.target.value)}
                 className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none cursor-pointer"
               >
-                <option value="">-- Sélectionner une catégorie --</option>
-                {categoriesList?.map(cat => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name} {cat.isDefault ? '(Défaut)' : ''}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-4 top-3 pointer-events-none">
-                <Tag className="w-4 h-4 text-ac-brown-light" />
-              </div>
-            </div>
-          </div>
-
-          {/* Budget envelope selection */}
-          <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Associer à une Enveloppe/Budget</label>
-            <div className="relative">
-              <select
-                value={budgetId}
-                onChange={(e) => setBudgetId(e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white appearance-none cursor-pointer"
-              >
-                <option value="">-- Aucun Budget lié --</option>
-                {budgetOptions.map(b => (
-                  <option key={b.id} value={b.id}>
-                    {"\u00A0\u00A0".repeat(b.depth)}
-                    {b.type === 'objective' ? '🎯' : b.type === 'leisure' ? '✨' : '📅'} {b.name}
+                <option value="">-- Aucune Poche liée --</option>
+                {pocketsList.map(p => (
+                  <option key={p.id} value={p.id}>
+                    🍃 {p.name} ({(p.currentAmount !== undefined ? Number(p.currentAmount) : Number(p.allocatedAmount)).toLocaleString('fr-FR')} 🔔 dispo)
                   </option>
                 ))}
               </select>
@@ -271,49 +176,6 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                 <Layers className="w-4 h-4 text-ac-brown-light" />
               </div>
             </div>
-          </div>
-
-          {/* Recurrence Toggle */}
-          <div className="bg-ac-cream/40 rounded-2xl border border-ac-brown/20 p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-ac-brown flex items-center gap-1.5">
-                <RefreshCw className="w-3.5 h-3.5 text-ac-gold" /> Planification récurrente ?
-              </span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isRecurring}
-                  onChange={(e) => setIsRecurring(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-ac-cream-dark peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-ac-brown after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-ac-green border border-ac-brown"></div>
-              </label>
-            </div>
-
-            {isRecurring && (
-              <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-ac-brown/10 animate-fade-in">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Période</label>
-                  <select
-                    value={recurrencePeriod}
-                    onChange={(e) => setRecurrencePeriod(e.target.value)}
-                    className="w-full bg-white border border-ac-brown rounded-xl px-2 py-1 text-xs font-bold text-ac-brown focus:outline-none"
-                  >
-                    <option value="weekly">Hebdomadaire</option>
-                    <option value="monthly">Mensuel</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Date de Fin (Opt.)</label>
-                  <input
-                    type="date"
-                    value={recurrenceEnd}
-                    onChange={(e) => setRecurrenceEnd(e.target.value)}
-                    className="w-full bg-white border border-ac-brown rounded-xl px-2 py-1 text-xs font-bold focus:outline-none"
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Action Buttons */}
@@ -327,9 +189,13 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             </button>
             <button
               type="submit"
-              className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+              disabled={isSubmitting}
+              className={`flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-1'
+              }`}
+              style={isSubmitting ? { cursor: 'not-allowed' } : {}}
             >
-              Sauvegarder
+              {isSubmitting ? 'Enregistrement...' : 'Sauvegarder'}
             </button>
           </div>
         </form>

@@ -480,23 +480,26 @@ export function getAccountBalanceSync(account, transactions, targetDateStr = nul
 /**
  * Calculates the VISIBLE balance (Real Balance - Blocked Objective funds)
  */
-export function getAccountVisibleBalanceSync(account, budgets, transactions, targetDateStr = null) {
-  const realBalance = getAccountBalanceSync(account, transactions, targetDateStr);
-  const todayStr = new Date().toISOString().split('T')[0];
-  const target = targetDateStr || todayStr;
-
-  const accBudgets = budgets.filter(b => b.accountId === account.id);
-  if (accBudgets.length === 0) return realBalance;
-
-  const accTxs = transactions.filter(t => t.accountId === account.id);
-
-  try {
-    const result = calculateBudgetsState(accBudgets, accTxs, target);
-    return realBalance - result.blockedObjectiveSum;
-  } catch (err) {
-    console.error("Erreur lors du calcul du solde visible (getAccountVisibleBalanceSync) :", err);
-    return realBalance;
+export function getNextRenewalDate(dateStr, frequency) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+  if (frequency === 'weekly') {
+    date.setDate(date.getDate() + 7);
+  } else if (frequency === 'biweekly') {
+    date.setDate(date.getDate() + 14);
+  } else if (frequency === 'monthly') {
+    date.setMonth(date.getMonth() + 1);
+  } else if (frequency === 'annual') {
+    date.setFullYear(date.getFullYear() + 1);
+  } else {
+    return '';
   }
+  return date.toISOString().split('T')[0];
+}
+
+export function getAccountVisibleBalanceSync(account, budgets, transactions, targetDateStr = null) {
+  return getAccountBalanceSync(account, transactions, targetDateStr);
 }
 
 /**
@@ -685,10 +688,10 @@ export const db = {
         batch.delete(doc(firestoreDb, 'transactions', docSnap.id));
       });
       
-      const budgetsQuery = query(collection(firestoreDb, 'budgets'), where('accountId', '==', id));
-      const budgetsSnap = await getDocs(budgetsQuery);
-      budgetsSnap.docs.forEach(docSnap => {
-        batch.delete(doc(firestoreDb, 'budgets', docSnap.id));
+      const pocketsQuery = query(collection(firestoreDb, 'pockets'), where('accountId', '==', id));
+      const pocketsSnap = await getDocs(pocketsQuery);
+      pocketsSnap.docs.forEach(docSnap => {
+        batch.delete(doc(firestoreDb, 'pockets', docSnap.id));
       });
       
       if (!db._activeBatch) {
@@ -728,28 +731,104 @@ export const db = {
         ...data,
         userId: auth.currentUser.uid
       };
-      if (db._activeBatch) {
-        const ref = doc(collection(firestoreDb, 'transactions'));
-        db._activeBatch.set(ref, docData);
-        return ref.id;
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      const txRef = doc(collection(firestoreDb, 'transactions'));
+      batch.set(txRef, docData);
+
+      if (data.pocketId) {
+        const pocketRef = doc(firestoreDb, 'pockets', data.pocketId);
+        const pocketSnap = await getDoc(pocketRef);
+        if (pocketSnap.exists()) {
+          const pocketData = pocketSnap.data();
+          const current = Number(pocketData.currentAmount) || 0;
+          const txAmt = Number(data.amount) || 0;
+          const newAmt = data.type === 'debit' ? current - txAmt : current + txAmt;
+          batch.update(pocketRef, { currentAmount: newAmt });
+        }
       }
-      const docRef = await addDoc(collection(firestoreDb, 'transactions'), docData);
-      return docRef.id;
+
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
+      return txRef.id;
     },
     update: async (id, data) => {
-      const ref = doc(firestoreDb, 'transactions', id);
-      if (db._activeBatch) {
-        db._activeBatch.update(ref, data);
-      } else {
-        await updateDoc(ref, data);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      const txRef = doc(firestoreDb, 'transactions', id);
+      
+      const oldTxSnap = await getDoc(txRef);
+      if (!oldTxSnap.exists()) {
+        throw new Error("Transaction non trouvée");
+      }
+      const oldTx = oldTxSnap.data();
+      const oldPocketId = oldTx.pocketId || null;
+      const targetPocketId = data.hasOwnProperty('pocketId') ? data.pocketId : oldPocketId;
+
+      // 1. Revert old pocket if it existed
+      if (oldPocketId) {
+        const oldPocketRef = doc(firestoreDb, 'pockets', oldPocketId);
+        const oldPocketSnap = await getDoc(oldPocketRef);
+        if (oldPocketSnap.exists()) {
+          const oldPocketData = oldPocketSnap.data();
+          const current = Number(oldPocketData.currentAmount) || 0;
+          const oldTxAmt = Number(oldTx.amount) || 0;
+          const revertedAmt = oldTx.type === 'debit' ? current + oldTxAmt : current - oldTxAmt;
+          batch.update(oldPocketRef, { currentAmount: revertedAmt });
+        }
+      }
+
+      // 2. Apply new pocket if it exists
+      if (targetPocketId) {
+        const newPocketRef = doc(firestoreDb, 'pockets', targetPocketId);
+        const newPocketSnap = await getDoc(newPocketRef);
+        if (newPocketSnap.exists()) {
+          const newPocketData = newPocketSnap.data();
+          let current = Number(newPocketData.currentAmount) || 0;
+
+          // If the pocket is the same, base calculation on the reverted amount in memory
+          if (oldPocketId === targetPocketId) {
+            const oldTxAmt = Number(oldTx.amount) || 0;
+            const revertedAmt = oldTx.type === 'debit' ? current + oldTxAmt : current - oldTxAmt;
+            current = revertedAmt;
+          }
+
+          const txAmt = Number(data.amount !== undefined ? data.amount : oldTx.amount) || 0;
+          const type = data.type !== undefined ? data.type : oldTx.type;
+          const newAmt = type === 'debit' ? current - txAmt : current + txAmt;
+          batch.update(newPocketRef, { currentAmount: newAmt });
+        }
+      }
+
+      batch.update(txRef, data);
+
+      if (!db._activeBatch) {
+        await batch.commit();
       }
     },
     delete: async (id) => {
-      const ref = doc(firestoreDb, 'transactions', id);
-      if (db._activeBatch) {
-        db._activeBatch.delete(ref);
-      } else {
-        await deleteDoc(ref);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      const txRef = doc(firestoreDb, 'transactions', id);
+      
+      const txSnap = await getDoc(txRef);
+      if (txSnap.exists()) {
+        const txData = txSnap.data();
+        if (txData.pocketId) {
+          const pocketRef = doc(firestoreDb, 'pockets', txData.pocketId);
+          const pocketSnap = await getDoc(pocketRef);
+          if (pocketSnap.exists()) {
+            const pocketData = pocketSnap.data();
+            const current = Number(pocketData.currentAmount) || 0;
+            const txAmt = Number(txData.amount) || 0;
+            const revertedAmt = txData.type === 'debit' ? current + txAmt : current - txAmt;
+            batch.update(pocketRef, { currentAmount: revertedAmt });
+          }
+        }
+      }
+
+      batch.delete(txRef);
+
+      if (!db._activeBatch) {
+        await batch.commit();
       }
     },
     clear: async () => {
@@ -778,7 +857,7 @@ export const db = {
       }
     }
   },
-  budgets: {
+  pockets: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
@@ -786,15 +865,15 @@ export const db = {
         userId: auth.currentUser.uid
       };
       if (db._activeBatch) {
-        const ref = doc(collection(firestoreDb, 'budgets'));
+        const ref = doc(collection(firestoreDb, 'pockets'));
         db._activeBatch.set(ref, docData);
         return ref.id;
       }
-      const docRef = await addDoc(collection(firestoreDb, 'budgets'), docData);
+      const docRef = await addDoc(collection(firestoreDb, 'pockets'), docData);
       return docRef.id;
     },
     update: async (id, data) => {
-      const ref = doc(firestoreDb, 'budgets', id);
+      const ref = doc(firestoreDb, 'pockets', id);
       if (db._activeBatch) {
         db._activeBatch.update(ref, data);
       } else {
@@ -802,29 +881,19 @@ export const db = {
       }
     },
     delete: async (id) => {
-      const ref = doc(firestoreDb, 'budgets', id);
+      const ref = doc(firestoreDb, 'pockets', id);
       if (db._activeBatch) {
         db._activeBatch.delete(ref);
       } else {
         await deleteDoc(ref);
       }
     },
-    bulkDelete: async (ids) => {
-      if (!auth.currentUser) return;
-      const batch = db._activeBatch || writeBatch(firestoreDb);
-      ids.forEach(id => {
-        batch.delete(doc(firestoreDb, 'budgets', id));
-      });
-      if (!db._activeBatch) {
-        await batch.commit();
-      }
-    },
     clear: async () => {
       if (!auth.currentUser) return;
-      const q = query(collection(firestoreDb, 'budgets'), where('userId', '==', auth.currentUser.uid));
+      const q = query(collection(firestoreDb, 'pockets'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
       const batch = db._activeBatch || writeBatch(firestoreDb);
-      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'budgets', docSnap.id)));
+      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'pockets', docSnap.id)));
       if (!db._activeBatch) {
         await batch.commit();
       }
@@ -833,7 +902,7 @@ export const db = {
       if (!auth.currentUser) return;
       const batch = db._activeBatch || writeBatch(firestoreDb);
       list.forEach(item => {
-        const ref = doc(collection(firestoreDb, 'budgets'));
+        const ref = doc(collection(firestoreDb, 'pockets'));
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
@@ -953,7 +1022,9 @@ export const db = {
       }
     }
   },
-  transaction: async (mode, tables, fn) => {
+  transaction: async (...args) => {
+    const fn = args[args.length - 1];
+    if (typeof fn !== 'function') throw new Error("Transaction callback is not a function");
     if (db._activeBatch) {
       return fn();
     }
@@ -970,7 +1041,7 @@ export const db = {
       db._activeBatch = null;
     }
   }
-};
+};;
 
 /**
  * Firebase React Context & Hook definition
@@ -990,7 +1061,7 @@ export const DbProvider = ({ children }) => {
   // Firestore Realtime Collections
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [budgets, setBudgets] = useState([]);
+  const [pockets, setPockets] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [categories, setCategories] = useState([]);
   
@@ -1054,7 +1125,7 @@ export const DbProvider = ({ children }) => {
         // Clear state if logged out
         setAccounts([]);
         setTransactions([]);
-        setBudgets([]);
+        setPockets([]);
         setWishlist([]);
         setCategories([]);
         setUsersMetaDoc(null);
@@ -1095,7 +1166,7 @@ export const DbProvider = ({ children }) => {
 
     unsubscribes.push(subscribeCollection('accounts', setAccounts));
     unsubscribes.push(subscribeCollection('transactions', setTransactions));
-    unsubscribes.push(subscribeCollection('budgets', setBudgets));
+    unsubscribes.push(subscribeCollection('pockets', setPockets));
     unsubscribes.push(subscribeCollection('wishlist', setWishlist));
     unsubscribes.push(subscribeCollection('categories', setCategories));
 
@@ -1109,6 +1180,43 @@ export const DbProvider = ({ children }) => {
       clearTimeout(timer);
     };
   }, [currentUser]);
+
+  // Pockets auto-renewal effect
+  useEffect(() => {
+    if (!currentUser || pockets.length === 0) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const updateRenewals = async () => {
+      const batch = writeBatch(firestoreDb);
+      let hasUpdates = false;
+
+      for (const pocket of pockets) {
+        if (pocket.renewalFrequency && pocket.renewalFrequency !== 'none' && pocket.nextRenewalDate) {
+          if (pocket.nextRenewalDate <= todayStr) {
+            let nextDate = pocket.nextRenewalDate;
+            while (nextDate && nextDate <= todayStr) {
+              const computed = getNextRenewalDate(nextDate, pocket.renewalFrequency);
+              if (!computed || computed === nextDate) break;
+              nextDate = computed;
+            }
+
+            const ref = doc(firestoreDb, 'pockets', pocket.id);
+            batch.update(ref, {
+              currentAmount: Number(pocket.allocatedAmount) || 0,
+              nextRenewalDate: nextDate
+            });
+            hasUpdates = true;
+          }
+        }
+      }
+
+      if (hasUpdates) {
+        await batch.commit();
+      }
+    };
+
+    updateRenewals().catch(err => console.error("Error auto-renewing pockets:", err));
+  }, [pockets, currentUser]);
 
   // Derived userMeta compatibility format (array of {key, value})
   const userMeta = useMemo(() => {
@@ -1129,13 +1237,12 @@ export const DbProvider = ({ children }) => {
 
   // Derived state: accountsData with live balances pre-calculated
   const accountsData = useMemo(() => {
-    if (!accounts || !transactions || !budgets) return [];
+    if (!accounts || !transactions) return [];
     return accounts.map(acc => {
       const balance = getAccountBalanceSync(acc, transactions);
-      const visibleBalance = getAccountVisibleBalanceSync(acc, budgets, transactions);
-      return { ...acc, balance, visibleBalance };
+      return { ...acc, balance, visibleBalance: balance };
     });
-  }, [accounts, transactions, budgets]);
+  }, [accounts, transactions]);
 
   // Derived state: favoriteAccountDetails
   const favoriteAccountDetails = useMemo(() => {
@@ -1155,8 +1262,8 @@ export const DbProvider = ({ children }) => {
     prevDate.setDate(prevDate.getDate() - 30);
     const prevDateStr = prevDate.toISOString().split('T')[0];
 
-    const balToday = getAccountVisibleBalanceSync(favAccount, budgets, transactions, todayStr);
-    const balPrev = getAccountVisibleBalanceSync(favAccount, budgets, transactions, prevDateStr);
+    const balToday = getAccountBalanceSync(favAccount, transactions, todayStr);
+    const balPrev = getAccountBalanceSync(favAccount, transactions, prevDateStr);
 
     let variationPct = 0;
     if (balPrev !== 0) {
@@ -1177,7 +1284,7 @@ export const DbProvider = ({ children }) => {
       variationPct,
       latestTxs: favTxs
     };
-  }, [accountsData, usersMetaDoc, transactions, budgets]);
+  }, [accountsData, usersMetaDoc, transactions]);
 
   // Derived state: globalLatestTransactions
   const globalLatestTransactions = useMemo(() => {
@@ -1194,7 +1301,7 @@ export const DbProvider = ({ children }) => {
     userMeta,
     accounts,
     transactions,
-    budgets,
+    pockets,
     wishlist,
     categories,
     accountsData,

@@ -6,7 +6,7 @@ import {
   Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
-import BudgetManager from './BudgetManager';
+import PocketManager from './PocketManager';
 
 export default function AccountsView({ selectedAccountId, setSelectedAccountId }) {
   // Account Form states
@@ -19,6 +19,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [accRib, setAccRib] = useState('');
   const [accInitial, setAccInitial] = useState('');
   const [accRate, setAccRate] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Transaction Modal state
   const [txModalOpen, setTxModalOpen] = useState(false);
@@ -63,34 +64,42 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
     e.preventDefault();
-    if (!accName || !accInitial) return;
+    if (!accName || !accInitial || isSubmitting) return;
 
-    const initial = parseFloat(accInitial);
-    const rate = accRate ? parseFloat(accRate) : 0;
+    setIsSubmitting(true);
+    try {
+      const initial = parseFloat(accInitial);
+      const rate = accRate ? parseFloat(accRate) : 0;
 
-    const data = {
-      name: accName.trim(),
-      type: accType,
-      bankName: accBankName.trim(),
-      description: accDescription.trim(),
-      rib: accRib.trim(),
-      initialBalance: isNaN(initial) ? 0 : initial,
-      rate: isNaN(rate) ? 0 : rate
-    };
+      const data = {
+        name: accName.trim(),
+        type: accType,
+        bankName: accBankName.trim(),
+        description: accDescription.trim(),
+        rib: accRib.trim(),
+        initialBalance: isNaN(initial) ? 0 : initial,
+        rate: isNaN(rate) ? 0 : rate
+      };
 
-    if (editingAccount) {
-      await db.accounts.update(editingAccount.id, data);
-      setEditingAccount(null);
-    } else {
-      const newId = await db.accounts.add({
-        ...data,
-        currentBalance: data.initialBalance
-      });
-      setSelectedAccountId(newId);
+      if (editingAccount) {
+        await db.accounts.update(editingAccount.id, data);
+        setEditingAccount(null);
+      } else {
+        const newId = await db.accounts.add({
+          ...data,
+          currentBalance: data.initialBalance
+        });
+        setSelectedAccountId(newId);
+      }
+
+      setAccountFormOpen(false);
+      resetAccountForm();
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'enregistrement du compte.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setAccountFormOpen(false);
-    resetAccountForm();
   };
 
   const resetAccountForm = () => {
@@ -520,8 +529,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             </button>
           </div>
 
-          {/* Nested Budget Section */}
-          <BudgetManager accountId={activeAccount.id} onAddTransaction={handleAddTransactionFromBudget} />
+          {/* Nested Pocket Section */}
+          <PocketManager accountId={activeAccount.id} />
 
           {/* Transactions CRUD Card */}
           <div className="ac-card p-6 bg-white border-ac-brown">
@@ -1063,9 +1072,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+                  disabled={isSubmitting}
+                  className={`flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all ${
+                    isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-1'
+                  }`}
+                  style={isSubmitting ? { cursor: 'not-allowed' } : {}}
                 >
-                  Sauvegarder
+                  {isSubmitting ? 'Sauvegarde...' : 'Sauvegarder'}
                 </button>
               </div>
             </form>

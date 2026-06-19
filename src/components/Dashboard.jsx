@@ -1,28 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { db, useDb } from '../db';
+import React from 'react';
+import { useDb } from '../db';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
-  ChevronRight, StickyNote, Activity
+  ChevronRight, Gift, Activity
 } from 'lucide-react';
 
 export default function Dashboard({ onViewAccountDetails, username }) {
-  const [noteText, setNoteText] = useState('');
-  const { userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions } = useDb();
-
-  // Initial load of the note text
-  useEffect(() => {
-    if (userMeta) {
-      const noteMeta = userMeta.find(m => m.key === 'dashboard_note');
-      setNoteText(noteMeta?.value || '');
-    }
-  }, [userMeta]);
-
-  // Handle note writing and auto-saving
-  const handleNoteChange = async (e) => {
-    const text = e.target.value.slice(0, 500);
-    setNoteText(text);
-    await db.user_meta.put({ key: 'dashboard_note', value: text });
-  };
+  const { userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, wishlist } = useDb();
 
   if (!accountsData || accountsData.length === 0) {
     return (
@@ -44,7 +28,8 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     favoriteId = courant ? courant.id : accountsData[0].id;
   }
 
-  const otherAccounts = accountsData.filter(a => a.id !== favoriteId);
+  // Limit other accounts to a maximum of 4
+  const otherAccounts = accountsData.filter(a => a.id !== favoriteId).slice(0, 4);
 
   // Compute total balance across all accounts
   const totalBalance = accountsData.reduce((sum, a) => sum + a.balance, 0);
@@ -72,23 +57,6 @@ export default function Dashboard({ onViewAccountDetails, username }) {
             </p>
             {/* Dialogue bubble arrow */}
             <div className="w-3 h-3 bg-white border-l-2 border-t-2 border-ac-brown/60 absolute left-[-7px] top-6 transform rotate-[-45deg] hidden md:block"></div>
-          </div>
-
-          {/* Island Note textarea */}
-          <div className="space-y-1">
-            <label className="block text-[10px] font-black uppercase text-ac-brown-light flex items-center gap-1.5">
-              <StickyNote className="w-3.5 h-3.5" /> Note de l'île (Sauvegarde en direct)
-            </label>
-            <textarea
-              value={noteText}
-              onChange={handleNoteChange}
-              placeholder="Écris tes remarques, projets de construction, ou objectifs de clochettes ici..."
-              className="w-full bg-white border-2 border-ac-brown rounded-2xl p-3 text-xs font-bold text-ac-brown placeholder:text-ac-brown-light/40 focus:outline-none focus:ring-2 focus:ring-ac-green/30 resize-none h-20"
-              maxLength={500}
-            />
-            <div className="text-right text-[9px] font-bold text-ac-brown-light/60">
-              {noteText.length}/500 caractères
-            </div>
           </div>
         </div>
       </div>
@@ -216,8 +184,39 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           </div>
         </div>
 
-        {/* Right column: Global flow of transactions */}
+        {/* Right column: Wishlist Card & Global flow of transactions */}
         <div className="space-y-8">
+          {/* Wishlist Card */}
+          <div className="ac-card p-6 bg-white border-ac-brown">
+            <h3 className="text-base font-black text-ac-brown mb-4 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
+              <Gift className="w-5 h-5 text-ac-red fill-ac-red/20" /> Mes Souhaits ({wishlist ? wishlist.length : 0})
+            </h3>
+            {!wishlist || wishlist.length === 0 ? (
+              <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
+                Aucun souhait en cours. 🍃
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {wishlist.slice(0, 2).map((wish) => (
+                  <div key={wish.id} className="p-3 bg-ac-cream rounded-2xl border-2 border-ac-brown flex justify-between items-center">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-extrabold text-xs text-ac-brown truncate">{wish.name}</h4>
+                      {wish.description && (
+                        <p className="text-[10px] text-ac-brown-light truncate">{wish.description}</p>
+                      )}
+                    </div>
+                    <div className="text-right ml-3 shrink-0">
+                      <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs">
+                        {wish.price.toLocaleString('fr-FR')} 🔔
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Transactions Flux */}
           <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-full justify-between">
             <div>
               <h3 className="text-base font-black text-ac-brown mb-6 flex items-center gap-2 border-b border-ac-brown/10 pb-4">

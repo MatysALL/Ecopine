@@ -22,7 +22,8 @@ export default function Settings() {
     accountsData: accountsList, 
     categories: categoriesList,
     transactions: allTransactions,
-    budgets: budgetsList,
+    pockets: pocketsList,
+    user,
     logOutUser
   } = useDb();
 
@@ -96,7 +97,7 @@ export default function Settings() {
         user_meta: userMeta,
         accounts: accountsList,
         transactions: allTransactions,
-        budgets: budgetsList,
+        pockets: pocketsList,
         categories: categoriesList
       };
 
@@ -147,17 +148,17 @@ export default function Settings() {
         if (!confirmOverwrite) return;
 
         // Perform import by clearing tables and bulk-adding
-        await db.transaction('rw', db.accounts, db.transactions, db.budgets, db.categories, db.user_meta, async () => {
+        await db.transaction('rw', db.accounts, db.transactions, db.pockets, db.categories, db.user_meta, async () => {
           await db.accounts.clear();
           await db.transactions.clear();
-          await db.budgets.clear();
+          await db.pockets.clear();
           await db.categories.clear();
           await db.user_meta.clear();
 
           if (data.user_meta && data.user_meta.length > 0) await db.user_meta.bulkAdd(data.user_meta);
           if (data.accounts.length > 0) await db.accounts.bulkAdd(data.accounts);
           if (data.transactions.length > 0) await db.transactions.bulkAdd(data.transactions);
-          if (data.budgets && data.budgets.length > 0) await db.budgets.bulkAdd(data.budgets);
+          if (data.pockets && data.pockets.length > 0) await db.pockets.bulkAdd(data.pockets);
           if (data.categories && data.categories.length > 0) {
             await db.categories.bulkAdd(data.categories);
           } else {
@@ -195,10 +196,10 @@ export default function Settings() {
     );
     if (!confirmWipe) return;
 
-    await db.transaction('rw', db.accounts, db.transactions, db.budgets, db.categories, db.user_meta, async () => {
+    await db.transaction('rw', db.accounts, db.transactions, db.pockets, db.categories, db.user_meta, async () => {
       await db.accounts.clear();
       await db.transactions.clear();
-      await db.budgets.clear();
+      await db.pockets.clear();
       await db.categories.clear();
       await db.user_meta.clear();
       
@@ -307,6 +308,13 @@ export default function Settings() {
                   required
                 />
               </div>
+
+              {user?.email && (
+                <div className="text-xs font-bold text-ac-brown-light bg-ac-cream-dark/20 px-4 py-2 rounded-2xl border border-ac-brown/10">
+                  <span className="block text-[9px] font-black uppercase text-ac-brown-light/65 mb-0.5">Adresse e-mail</span>
+                  <span className="text-ac-brown">{user.email}</span>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Compte Favori (Mise en avant)</label>

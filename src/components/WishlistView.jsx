@@ -21,11 +21,13 @@ export default function WishlistView() {
   const [buyingWish, setBuyingWish] = useState(null);
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBuying, setIsBuying] = useState(false);
 
   // Handlers for Wish Form
   const handleWishSubmit = async (e) => {
     e.preventDefault();
-    if (!wishName || !wishPrice) return;
+    if (!wishName || !wishPrice || isSubmitting) return;
 
     const priceValue = parseFloat(wishPrice);
     if (isNaN(priceValue) || priceValue <= 0) {
@@ -33,20 +35,28 @@ export default function WishlistView() {
       return;
     }
 
-    const wishData = {
-      name: wishName.trim(),
-      price: priceValue,
-      description: wishDescription.trim()
-    };
+    setIsSubmitting(true);
+    try {
+      const wishData = {
+        name: wishName.trim(),
+        price: priceValue,
+        description: wishDescription.trim()
+      };
 
-    if (editingWish) {
-      await db.wishlist.update(editingWish.id, wishData);
-      setEditingWish(null);
-    } else {
-      await db.wishlist.add(wishData);
+      if (editingWish) {
+        await db.wishlist.update(editingWish.id, wishData);
+        setEditingWish(null);
+      } else {
+        await db.wishlist.add(wishData);
+      }
+
+      resetForm();
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'enregistrement du souhait.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    resetForm();
   };
 
   const handleEditWish = (wish) => {
@@ -80,7 +90,7 @@ export default function WishlistView() {
 
   const handleConfirmPurchase = async (e) => {
     e.preventDefault();
-    if (!buyingWish || !selectedAccountId) return;
+    if (!buyingWish || !selectedAccountId || isBuying) return;
 
     const selectedAccount = accounts?.find(a => a.id === selectedAccountId);
     if (!selectedAccount) {
@@ -88,37 +98,43 @@ export default function WishlistView() {
       return;
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    setIsBuying(true);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
 
-    // Create the debit transaction
-    const newTx = {
-      accountId: selectedAccountId,
-      name: `Achat : ${buyingWish.name}`,
-      description: buyingWish.description || `Achat depuis le Catalogue : ${buyingWish.name}`,
-      amount: buyingWish.price,
-      type: 'debit',
-      date: todayStr,
-      categoryId: null,
-      category: 'Catalogue Souhaits',
-      executionType: 'spontaneous'
-    };
+      // Create the debit transaction (simplified structure)
+      const newTx = {
+        accountId: selectedAccountId,
+        name: `Achat : ${buyingWish.name}`,
+        description: buyingWish.description || `Achat depuis le Catalogue : ${buyingWish.name}`,
+        amount: buyingWish.price,
+        type: 'debit',
+        date: todayStr,
+        pocketId: null
+      };
 
-    // Execute in a single db transaction
-    await db.transaction('rw', [db.transactions, db.wishlist], async () => {
-      // Add transaction
-      await db.transactions.add(newTx);
-      // Delete wish from wishlist
-      await db.wishlist.delete(buyingWish.id);
-    });
+      // Execute in a single db transaction
+      await db.transaction('rw', [db.transactions, db.wishlist], async () => {
+        // Add transaction
+        await db.transactions.add(newTx);
+        // Delete wish from wishlist
+        await db.wishlist.delete(buyingWish.id);
+      });
 
-    // Show cute success notification
-    setPurchaseSuccess(true);
+      // Show cute success notification
+      setPurchaseSuccess(true);
 
-    // Close modal after 3 seconds or on click
-    setTimeout(() => {
-      setBuyingWish(null);
-      setPurchaseSuccess(false);
-    }, 3200);
+      // Close modal after 3 seconds or on click
+      setTimeout(() => {
+        setBuyingWish(null);
+        setPurchaseSuccess(false);
+      }, 3200);
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la validation de l'achat.");
+    } finally {
+      setIsBuying(false);
+    }
   };
 
   if (!wishes) {
@@ -212,9 +228,13 @@ export default function WishlistView() {
             </button>
             <button
               type="submit"
-              className="bg-ac-green text-white font-extrabold text-xs px-4 py-2.5 rounded-xl border border-ac-brown shadow-ac-sm active:translate-y-[1px] cursor-pointer"
+              disabled={isSubmitting}
+              className={`bg-ac-green text-white font-extrabold text-xs px-4 py-2.5 rounded-xl border border-ac-brown shadow-ac-sm transition-all ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-[1px]'
+              }`}
+              style={isSubmitting ? { cursor: 'not-allowed' } : {}}
             >
-              Enregistrer
+              {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
             </button>
           </div>
         </form>
@@ -367,9 +387,13 @@ export default function WishlistView() {
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+                      disabled={isBuying}
+                      className={`flex-1 bg-ac-green text-white py-3 rounded-2xl border-3 border-ac-brown font-extrabold text-sm shadow-ac-sm transition-all ${
+                        isBuying ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-1'
+                      }`}
+                      style={isBuying ? { cursor: 'not-allowed' } : {}}
                     >
-                      Valider l'achat
+                      {isBuying ? 'Validation...' : "Valider l'achat"}
                     </button>
                   </div>
                 </form>
