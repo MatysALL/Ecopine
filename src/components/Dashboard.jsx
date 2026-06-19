@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useDb } from '../db';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
@@ -6,7 +6,10 @@ import {
 } from 'lucide-react';
 
 export default function Dashboard({ onViewAccountDetails, username }) {
-  const { userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, wishlist } = useDb();
+  const { 
+    userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, 
+    wishlist, pockets, categories 
+  } = useDb();
 
   if (!accountsData || accountsData.length === 0) {
     return (
@@ -33,6 +36,15 @@ export default function Dashboard({ onViewAccountDetails, username }) {
 
   // Compute total balance across all accounts
   const totalBalance = accountsData.reduce((sum, a) => sum + a.balance, 0);
+
+  // Filter pockets for favorite account, sort by order, slice to 2 max
+  const favPockets = useMemo(() => {
+    if (!pockets || !favoriteId) return [];
+    return pockets
+      .filter(p => p.accountId === favoriteId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .slice(0, 2);
+  }, [pockets, favoriteId]);
 
   return (
     <div className="space-y-8 select-none">
@@ -108,6 +120,54 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                   <span>
                     Solde réel : <strong>{favoriteAccountDetails.account.balance.toLocaleString('fr-FR')} 🔔</strong> (dont <strong>{(favoriteAccountDetails.account.balance - favoriteAccountDetails.account.visibleBalance).toLocaleString('fr-FR')} 🔔</strong> bloqués dans des objectifs).
                   </span>
+                </div>
+              )}
+
+              {/* Pockets Section */}
+              {favPockets.length > 0 && (
+                <div className="mt-6 space-y-3 bg-white/70 border-2 border-ac-brown/30 rounded-2xl p-4" onClick={(e) => e.stopPropagation()}>
+                  <h4 className="text-xs font-black text-ac-brown border-b border-ac-brown/15 pb-1 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-ac-gold fill-ac-gold" /> Pochettes actives du compte
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {favPockets.map(pocket => {
+                      const current = pocket.currentAmount !== undefined ? Number(pocket.currentAmount) : Number(pocket.allocatedAmount);
+                      const allocated = Number(pocket.allocatedAmount) || 1;
+                      const percentage = Math.min(100, Math.max(0, (current / allocated) * 100));
+                      
+                      let progressBg = 'bg-ac-green';
+                      if (percentage < 25) progressBg = 'bg-ac-red';
+                      else if (percentage < 60) progressBg = 'bg-ac-gold';
+
+                      const cat = categories?.find(c => c.id === pocket.categoryId);
+                      const cardStyle = cat 
+                        ? { borderColor: cat.color, backgroundColor: cat.color + '09' }
+                        : {};
+
+                      return (
+                        <div key={pocket.id} className="bg-white border-2 border-ac-brown/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-ac-xs" style={cardStyle}>
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-xs shrink-0">{cat?.emoji || '🍃'}</span>
+                              <span className="font-extrabold text-[10px] text-ac-brown leading-tight truncate" title={pocket.name}>
+                                {pocket.name}
+                              </span>
+                            </div>
+                            <span className="text-[9px] font-black text-ac-brown-light/75 whitespace-nowrap">
+                              {Math.round(current).toLocaleString('fr-FR')} / {allocated.toLocaleString('fr-FR')} 🔔
+                            </span>
+                          </div>
+
+                          <div className="w-full h-2.5 bg-ac-cream border border-ac-brown/30 rounded-full overflow-hidden p-[1px]">
+                            <div 
+                              className={`h-full ${progressBg} rounded-full transition-all duration-500`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

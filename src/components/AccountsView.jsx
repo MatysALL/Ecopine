@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { db, useDb, calculateLivretInterests } from '../db';
+import { doc, writeBatch } from 'firebase/firestore';
+import { db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
   Coins, PiggyBank, HelpCircle, AlertTriangle, 
@@ -39,6 +41,61 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [csvError, setCsvError] = useState('');
 
   const { accountsData: accounts, transactions: allTransactions } = useDb();
+
+  // Drag & Drop state for Accounts
+  const [draggableAccountId, setDraggableAccountId] = useState(null);
+  const longPressTimer = useRef(null);
+
+  const sortedAccounts = useMemo(() => {
+    if (!accounts) return [];
+    return [...accounts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [accounts]);
+
+  // Drag & Drop handlers for Accounts
+  const handleAccountDragStart = (e, index) => {
+    e.dataTransfer.setData('text/plain', index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleAccountDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleAccountDrop = async (e, hoverIndex) => {
+    e.preventDefault();
+    const dragIndex = Number(e.dataTransfer.getData('text/plain'));
+    if (dragIndex === hoverIndex || isNaN(dragIndex)) return;
+
+    const reordered = [...sortedAccounts];
+    const [dragged] = reordered.splice(dragIndex, 1);
+    reordered.splice(hoverIndex, 0, dragged);
+
+    // Save order sequence in Firestore
+    const batch = writeBatch(firestoreDb);
+    reordered.forEach((acc, idx) => {
+      const ref = doc(firestoreDb, 'accounts', acc.id);
+      batch.update(ref, { order: idx });
+    });
+    
+    await batch.commit();
+    setDraggableAccountId(null);
+  };
+
+  const handleAccountDragEnd = () => {
+    setDraggableAccountId(null);
+  };
+
+  const handleStartLongPress = (id) => {
+    longPressTimer.current = setTimeout(() => {
+      setDraggableAccountId(id);
+    }, 500);
+  };
+
+  const handleCancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
 
   // Fetch transactions for the active account
   const activeAccount = accounts?.find(a => a.id === selectedAccountId);
@@ -791,40 +848,59 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {accounts.map((acc) => (
-                <div 
-                  key={acc.id}
-                  onClick={() => setSelectedAccountId(acc.id)}
-                  className="ac-card bg-[#FFFDF9] border-ac-brown p-5 cursor-pointer relative group overflow-hidden flex flex-col justify-between"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-extrabold text-sm text-ac-brown leading-tight flex items-center gap-1.5 flex-wrap">
-                        {acc.name}
-                        <span className="text-[8px] font-black uppercase tracking-wider bg-ac-cream-dark/50 border border-ac-brown/10 text-ac-brown-light px-2 py-0.5 rounded-full">
-                          {acc.type}
-                        </span>
-                      </h4>
-                      {acc.bankName && (
-                        <span className="text-[9px] font-bold text-ac-brown-light/80 block mt-1">
-                          🏦 {acc.bankName}
-                        </span>
-                      )}
+              {sortedAccounts.map((acc, index) => {
+                const isDragging = draggableAccountId === acc.id;
+                return (
+                  <div 
+                    key={acc.id}
+                    draggable={isDragging}
+                    onDragStart={(e) => handleAccountDragStart(e, index)}
+                    onDragOver={handleAccountDragOver}
+                    onDrop={(e) => handleAccountDrop(e, index)}
+                    onDragEnd={handleAccountDragEnd}
+                    onClick={() => setSelectedAccountId(acc.id)}
+                    className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 cursor-pointer relative group overflow-hidden flex flex-col justify-between transition-all ${
+                      isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-extrabold text-sm text-ac-brown leading-tight flex items-center gap-1.5 flex-wrap">
+                          {acc.name}
+                          <span className="text-[8px] font-black uppercase tracking-wider bg-ac-cream-dark/50 border border-ac-brown/10 text-ac-brown-light px-2 py-0.5 rounded-full">
+                            {acc.type}
+                          </span>
+                        </h4>
+                        {acc.bankName && (
+                          <span className="text-[9px] font-bold text-ac-brown-light/80 block mt-1">
+                            🏦 {acc.bankName}
+                          </span>
+                        )}
+                      </div>
+
+                      <div 
+                        onMouseDown={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
+                        onTouchStart={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
+                        onMouseUp={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
+                        onTouchEnd={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
+                        onMouseLeave={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-9 h-9 bg-ac-cream rounded-full border border-ac-brown/20 flex items-center justify-center shrink-0 group-hover:bg-ac-gold/10 transition-colors cursor-grab active:cursor-grabbing"
+                        title="Glisser-déposer (clic long sur la tirelire)"
+                      >
+                        <PiggyBank className="w-5 h-5 text-ac-gold" />
+                      </div>
                     </div>
 
-                    <div className="w-9 h-9 bg-ac-cream rounded-full border border-ac-brown/20 flex items-center justify-center shrink-0 group-hover:bg-ac-gold/10 transition-colors">
-                      <PiggyBank className="w-5 h-5 text-ac-gold" />
+                    <div className="mt-4 pt-3 border-t border-ac-brown/10 flex justify-between items-baseline">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-ac-brown-light/60">Solde Disponible</span>
+                      <span className="font-black text-base text-ac-brown">
+                        {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                      </span>
                     </div>
                   </div>
-
-                  <div className="mt-4 pt-3 border-t border-ac-brown/10 flex justify-between items-baseline">
-                    <span className="text-[10px] font-black uppercase tracking-wide text-ac-brown-light/60">Solde Disponible</span>
-                    <span className="font-black text-base text-ac-brown">
-                      {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -480,21 +480,40 @@ export function getAccountBalanceSync(account, transactions, targetDateStr = nul
 /**
  * Calculates the VISIBLE balance (Real Balance - Blocked Objective funds)
  */
-export function getNextRenewalDate(dateStr, frequency) {
+export function getNextRenewalDate(dateStr, frequency, renewalDay) {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return '';
+  const baseDate = new Date(dateStr);
+  if (isNaN(baseDate.getTime())) return '';
+
+  let date = new Date(baseDate);
+
   if (frequency === 'weekly') {
-    date.setDate(date.getDate() + 7);
-  } else if (frequency === 'biweekly') {
-    date.setDate(date.getDate() + 14);
+    // Adjust date to the selected day of the week in the current week (1 = Monday, ..., 7 = Sunday)
+    const currentDay = date.getDay() || 7; // Sunday is 7
+    const targetDay = renewalDay !== undefined && renewalDay !== null ? Number(renewalDay) : currentDay;
+    const diff = targetDay - currentDay;
+    date.setDate(date.getDate() + diff);
+
+    // If it's in the past or today, add 7 days
+    if (date.toISOString().split('T')[0] <= dateStr) {
+      date.setDate(date.getDate() + 7);
+    }
   } else if (frequency === 'monthly') {
-    date.setMonth(date.getMonth() + 1);
-  } else if (frequency === 'annual') {
-    date.setFullYear(date.getFullYear() + 1);
+    // Adjust date to the selected day of the month in the current month
+    const targetDay = renewalDay !== undefined && renewalDay !== null ? Number(renewalDay) : date.getDate();
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    date.setDate(Math.min(targetDay, lastDay));
+
+    // If it's in the past or today, move to next month
+    if (date.toISOString().split('T')[0] <= dateStr) {
+      date.setMonth(date.getMonth() + 1);
+      const nextLastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      date.setDate(Math.min(targetDay, nextLastDay));
+    }
   } else {
     return '';
   }
+
   return date.toISOString().split('T')[0];
 }
 
@@ -1082,17 +1101,13 @@ export const DbProvider = ({ children }) => {
       dashboardNote: ''
     });
     
-    // Create default categories
+    // Create default categories (pastel-colored)
     const defaultCategories = [
-      { name: 'Loisirs', isDefault: 1 },
-      { name: 'Nourriture', isDefault: 1 },
-      { name: 'Logement', isDefault: 1 },
-      { name: 'Transports', isDefault: 1 },
-      { name: 'Abonnements', isDefault: 1 },
-      { name: 'Cadeaux', isDefault: 1 },
-      { name: 'Santé', isDefault: 1 },
-      { name: 'Salaire', isDefault: 1 },
-      { name: 'Autre', isDefault: 1 }
+      { name: 'Alimentation', emoji: '🍎', color: '#FFB3B3' },
+      { name: 'Transport', emoji: '🚗', color: '#B3D9FF' },
+      { name: 'Loisirs', emoji: '🎈', color: '#B3FFB3' },
+      { name: 'Logement', emoji: '🏠', color: '#FFE0B3' },
+      { name: 'Santé', emoji: '💊', color: '#E0B3FF' }
     ];
     
     const batch = writeBatch(firestoreDb);
@@ -1133,6 +1148,36 @@ export const DbProvider = ({ children }) => {
     });
     return unsubscribeAuth;
   }, []);
+
+  // Auto-generate default categories if empty
+  useEffect(() => {
+    const isLoading = authLoading || dataLoading;
+    if (!currentUser || isLoading) return;
+
+    if (categories.length === 0) {
+      const defaultCategories = [
+        { name: 'Alimentation', emoji: '🍎', color: '#FFB3B3' },
+        { name: 'Transport', emoji: '🚗', color: '#B3D9FF' },
+        { name: 'Loisirs', emoji: '🎈', color: '#B3FFB3' },
+        { name: 'Logement', emoji: '🏠', color: '#FFE0B3' },
+        { name: 'Santé', emoji: '💊', color: '#E0B3FF' }
+      ];
+
+      const createDefaults = async () => {
+        const batch = writeBatch(firestoreDb);
+        defaultCategories.forEach(cat => {
+          const catRef = doc(collection(firestoreDb, 'categories'));
+          batch.set(catRef, {
+            ...cat,
+            userId: currentUser.uid
+          });
+        });
+        await batch.commit();
+      };
+
+      createDefaults().catch(err => console.error("Error creating default categories:", err));
+    }
+  }, [categories, currentUser, authLoading, dataLoading]);
 
   // Data Subscription (only when logged in)
   useEffect(() => {
@@ -1194,15 +1239,19 @@ export const DbProvider = ({ children }) => {
         if (pocket.renewalFrequency && pocket.renewalFrequency !== 'none' && pocket.nextRenewalDate) {
           if (pocket.nextRenewalDate <= todayStr) {
             let nextDate = pocket.nextRenewalDate;
+            let currentBal = Number(pocket.currentAmount) || 0;
+            const allocated = Number(pocket.allocatedAmount) || 0;
+
             while (nextDate && nextDate <= todayStr) {
-              const computed = getNextRenewalDate(nextDate, pocket.renewalFrequency);
+              const computed = getNextRenewalDate(nextDate, pocket.renewalFrequency, pocket.renewalDay);
               if (!computed || computed === nextDate) break;
               nextDate = computed;
+              currentBal = pocket.accumulate ? allocated + Math.max(0, currentBal) : allocated;
             }
 
             const ref = doc(firestoreDb, 'pockets', pocket.id);
             batch.update(ref, {
-              currentAmount: Number(pocket.allocatedAmount) || 0,
+              currentAmount: currentBal,
               nextRenewalDate: nextDate
             });
             hasUpdates = true;
@@ -1241,7 +1290,7 @@ export const DbProvider = ({ children }) => {
     return accounts.map(acc => {
       const balance = getAccountBalanceSync(acc, transactions);
       return { ...acc, balance, visibleBalance: balance };
-    });
+    }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [accounts, transactions]);
 
   // Derived state: favoriteAccountDetails

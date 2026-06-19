@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { db, useDb } from '../db';
+import { doc, writeBatch } from 'firebase/firestore';
+import { db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit2, Trash2, Gift, Coins, Sparkles, X, 
   Landmark 
@@ -24,6 +26,61 @@ export default function WishlistView() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
 
+  // Drag & Drop state for Wishes
+  const [draggableWishId, setDraggableWishId] = useState(null);
+  const longPressTimer = useRef(null);
+
+  const sortedWishes = useMemo(() => {
+    if (!wishes) return [];
+    return [...wishes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [wishes]);
+
+  // Drag & Drop handlers for Wishes
+  const handleDragStart = (e, index) => {
+    e.dataTransfer.setData('text/plain', index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e, hoverIndex) => {
+    e.preventDefault();
+    const dragIndex = Number(e.dataTransfer.getData('text/plain'));
+    if (dragIndex === hoverIndex || isNaN(dragIndex)) return;
+
+    const reordered = [...sortedWishes];
+    const [dragged] = reordered.splice(dragIndex, 1);
+    reordered.splice(hoverIndex, 0, dragged);
+
+    // Save order sequence in Firestore
+    const batch = writeBatch(firestoreDb);
+    reordered.forEach((wish, idx) => {
+      const ref = doc(firestoreDb, 'wishlist', wish.id);
+      batch.update(ref, { order: idx });
+    });
+    
+    await batch.commit();
+    setDraggableWishId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggableWishId(null);
+  };
+
+  const handleStartLongPress = (id) => {
+    longPressTimer.current = setTimeout(() => {
+      setDraggableWishId(id);
+    }, 500);
+  };
+
+  const handleCancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
   // Handlers for Wish Form
   const handleWishSubmit = async (e) => {
     e.preventDefault();
@@ -47,7 +104,10 @@ export default function WishlistView() {
         await db.wishlist.update(editingWish.id, wishData);
         setEditingWish(null);
       } else {
-        await db.wishlist.add(wishData);
+        await db.wishlist.add({
+          ...wishData,
+          order: sortedWishes.length
+        });
       }
 
       resetForm();
@@ -249,70 +309,88 @@ export default function WishlistView() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {wishes.map((wish) => (
-            <div 
-              key={wish.id} 
-              className="ac-card bg-[#FFFDF9] border-ac-brown p-5 flex flex-col justify-between group select-none relative"
-            >
-              {/* Gift tag ornament */}
-              <div className="absolute top-0 right-4 bg-ac-red border-l-2 border-r-2 border-b-2 border-ac-brown rounded-b-lg px-2 py-1 flex items-center justify-center">
-                <Gift className="w-3.5 h-3.5 text-white" />
-              </div>
-
-              <div className="space-y-3 pr-6">
-                <h4 className="font-black text-base text-ac-brown uppercase tracking-wide truncate">
-                  {wish.name}
-                </h4>
-                
-                {wish.description ? (
-                  <p className="text-xs font-semibold text-ac-brown-light italic line-clamp-2">
-                    "{wish.description}"
-                  </p>
-                ) : (
-                  <p className="text-xs font-semibold text-ac-brown-light/40 italic">
-                    Aucune description renseignée.
-                  </p>
-                )}
-
-                {/* Price Display */}
-                <div className="bg-ac-gold-light border-2 border-ac-gold rounded-2xl px-4 py-2 inline-flex items-center gap-1.5 shadow-ac-xs">
-                  <Coins className="w-4 h-4 text-ac-gold" />
-                  <span className="font-black text-ac-gold-dark text-sm">
-                    {wish.price.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons Group */}
-              <div className="mt-6 pt-4 border-t border-ac-brown/10 flex items-center justify-between">
-                {/* Edit & Delete */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEditWish(wish)}
-                    className="p-2 hover:bg-ac-cream rounded-xl text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
-                    title="Modifier ce souhait"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteWish(wish.id)}
-                    className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
-                    title="Supprimer ce souhait"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Purchase Button */}
-                <button
-                  onClick={() => openPurchaseModal(wish)}
-                  className="bg-ac-green text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer flex items-center gap-1.5"
+          {sortedWishes.map((wish, index) => {
+            const isDragging = draggableWishId === wish.id;
+            return (
+              <div 
+                key={wish.id} 
+                draggable={isDragging}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 flex flex-col justify-between group select-none relative transition-all ${
+                  isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
+                }`}
+              >
+                {/* Gift tag ornament (Drag handle via long press) */}
+                <div 
+                  onMouseDown={() => handleStartLongPress(wish.id)}
+                  onTouchStart={() => handleStartLongPress(wish.id)}
+                  onMouseUp={handleCancelLongPress}
+                  onTouchEnd={handleCancelLongPress}
+                  onMouseLeave={handleCancelLongPress}
+                  className="absolute top-0 right-4 bg-ac-red border-l-2 border-r-2 border-b-2 border-ac-brown rounded-b-lg px-2 py-1.5 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-ac-red-light transition-colors z-10 select-none"
+                  title="Glisser-déposer (clic long sur le cadeau)"
                 >
-                  <Sparkles className="w-3.5 h-3.5 fill-white" /> Acheter
-                </button>
+                  <Gift className="w-3.5 h-3.5 text-white" />
+                </div>
+
+                <div className="space-y-3 pr-6">
+                  <h4 className="font-black text-base text-ac-brown uppercase tracking-wide truncate">
+                    {wish.name}
+                  </h4>
+                  
+                  {wish.description ? (
+                    <p className="text-xs font-semibold text-ac-brown-light italic line-clamp-2">
+                      "{wish.description}"
+                    </p>
+                  ) : (
+                    <p className="text-xs font-semibold text-ac-brown-light/40 italic">
+                      Aucune description renseignée.
+                    </p>
+                  )}
+
+                  {/* Price Display */}
+                  <div className="bg-ac-gold-light border-2 border-ac-gold rounded-2xl px-4 py-2 inline-flex items-center gap-1.5 shadow-ac-xs">
+                    <Coins className="w-4 h-4 text-ac-gold" />
+                    <span className="font-black text-ac-gold-dark text-sm">
+                      {wish.price.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action Buttons Group */}
+                <div className="mt-6 pt-4 border-t border-ac-brown/10 flex items-center justify-between">
+                  {/* Edit & Delete */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditWish(wish)}
+                      className="p-2 hover:bg-ac-cream rounded-xl text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
+                      title="Modifier ce souhait"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteWish(wish.id)}
+                      className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                      title="Supprimer ce souhait"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Purchase Button */}
+                  <button
+                    onClick={() => openPurchaseModal(wish)}
+                    className="bg-ac-green text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 fill-white" /> Acheter
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
