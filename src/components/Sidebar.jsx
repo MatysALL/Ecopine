@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Leaf, PiggyBank, Calendar, Settings, Smile, Gift, LogOut } from 'lucide-react';
+import { Leaf, PiggyBank, Calendar, Settings, Smile, Gift, LogOut, Handshake } from 'lucide-react';
 import { useDb } from '../db';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
@@ -9,6 +9,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     { id: 'dashboard', label: 'Accueil', icon: Leaf, color: 'text-ac-green' },
     { id: 'accounts', label: 'Comptes', icon: PiggyBank, color: 'text-ac-gold' },
     { id: 'calendar', label: 'Calendrier', icon: Calendar, color: 'text-ac-sky' },
+    { id: 'debts', label: 'Dettes', icon: Handshake, color: 'text-ac-orange' },
     { id: 'wishlist', label: 'Souhaits', icon: Gift, color: 'text-ac-red' },
     { id: 'settings', label: 'Paramètres', icon: Settings, color: 'text-ac-brown-light' },
   ];
@@ -84,6 +85,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     { id: 'dashboard', label: 'Accueil', icon: Leaf, color: 'text-ac-green' },
     { id: 'accounts', label: 'Comptes', icon: PiggyBank, color: 'text-ac-gold' },
     { id: 'calendar', label: 'Calendrier', icon: Calendar, color: 'text-ac-sky' },
+    { id: 'debts', label: 'Dettes', icon: Handshake, color: 'text-ac-orange' },
     { id: 'wishlist', label: 'Souhaits', icon: Gift, color: 'text-ac-red' },
     { id: 'settings', label: 'Paramètres', icon: Settings, color: 'text-ac-brown-light' },
   ];
@@ -166,7 +168,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       </aside>
 
       {/* Mobile NookPhone Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-ac-cream border-t-4 border-ac-brown shadow-[0_-4px_10px_rgba(74,62,61,0.12)] flex justify-around items-center px-4 py-3 pb-safe-bottom z-40">
+      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-ac-cream border-t-4 border-ac-brown shadow-[0_-4px_10px_rgba(74,62,61,0.12)] flex justify-around items-center px-2 py-2 pb-safe-bottom z-40">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -174,14 +176,14 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-12 h-12 rounded-full border-3 border-ac-brown flex items-center justify-center transition-all duration-150 select-none ${
+              className={`w-10 h-10 rounded-full border-2 border-ac-brown flex items-center justify-center transition-all duration-150 select-none ${
                 isActive
-                  ? 'bg-ac-green text-white border-ac-brown shadow-none translate-y-1'
-                  : 'bg-white text-ac-brown border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none'
+                  ? 'bg-ac-green text-white border-ac-brown shadow-none translate-y-0.5'
+                  : 'bg-white text-ac-brown border-ac-brown shadow-ac-sm active:translate-y-0.5 active:shadow-none'
               }`}
               title={item.label}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-white' : item.color}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : item.color}`} />
             </button>
           );
         })}

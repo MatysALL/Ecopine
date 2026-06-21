@@ -990,6 +990,63 @@ export const db = {
       }
     }
   },
+  debts: {
+    add: async (data) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const docData = {
+        ...data,
+        userId: auth.currentUser.uid
+      };
+      if (db._activeBatch) {
+        const ref = doc(collection(firestoreDb, 'debts'));
+        db._activeBatch.set(ref, docData);
+        return ref.id;
+      }
+      const docRef = await addDoc(collection(firestoreDb, 'debts'), docData);
+      return docRef.id;
+    },
+    update: async (id, data) => {
+      const ref = doc(firestoreDb, 'debts', id);
+      if (db._activeBatch) {
+        db._activeBatch.update(ref, data);
+      } else {
+        await updateDoc(ref, data);
+      }
+    },
+    delete: async (id) => {
+      const ref = doc(firestoreDb, 'debts', id);
+      if (db._activeBatch) {
+        db._activeBatch.delete(ref);
+      } else {
+        await deleteDoc(ref);
+      }
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const q = query(collection(firestoreDb, 'debts'), where('userId', '==', auth.currentUser.uid));
+      const snap = await getDocs(q);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'debts', docSnap.id)));
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
+    },
+    bulkAdd: async (list) => {
+      if (!auth.currentUser) return;
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      list.forEach(item => {
+        const ref = doc(collection(firestoreDb, 'debts'));
+        const { id, ...rest } = item;
+        batch.set(ref, {
+          ...rest,
+          userId: auth.currentUser.uid
+        });
+      });
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
+    }
+  },
   categories: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
@@ -1083,6 +1140,7 @@ export const DbProvider = ({ children }) => {
   const [pockets, setPockets] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [debts, setDebts] = useState([]);
   
   // Single document state
   const [usersMetaDoc, setUsersMetaDoc] = useState(null);
@@ -1147,6 +1205,7 @@ export const DbProvider = ({ children }) => {
         setPockets([]);
         setWishlist([]);
         setCategories([]);
+        setDebts([]);
         setUsersMetaDoc(null);
       }
     });
@@ -1222,6 +1281,7 @@ export const DbProvider = ({ children }) => {
     unsubscribes.push(subscribeCollection('pockets', setPockets));
     unsubscribes.push(subscribeCollection('wishlist', setWishlist));
     unsubscribes.push(subscribeCollection('categories', setCategories));
+    unsubscribes.push(subscribeCollection('debts', setDebts));
 
     // Wait a brief moment to let snapshots populate before disabling loader
     const timer = setTimeout(() => {
@@ -1361,6 +1421,7 @@ export const DbProvider = ({ children }) => {
     pockets,
     wishlist,
     categories,
+    debts,
     accountsData,
     favoriteAccountDetails,
     globalLatestTransactions,

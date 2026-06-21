@@ -201,11 +201,12 @@ export default function Settings() {
     );
     if (!confirmWipe) return;
 
-    await db.transaction('rw', db.accounts, db.transactions, db.pockets, db.wishlist, db.categories, db.user_meta, async () => {
+    await db.transaction('rw', db.accounts, db.transactions, db.pockets, db.wishlist, db.debts, db.categories, db.user_meta, async () => {
       await db.accounts.clear();
       await db.transactions.clear();
       await db.pockets.clear();
       await db.wishlist.clear();
+      await db.debts.clear();
       await db.categories.clear();
       await db.user_meta.clear();
     });

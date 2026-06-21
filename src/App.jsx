@@ -8,6 +8,7 @@ import Settings from './components/Settings';
 import OnboardingModal from './components/OnboardingModal';
 import WishlistView from './components/WishlistView';
 import AuthView from './components/AuthView';
+import DebtsView from './components/DebtsView';
 
 export default function App() {
   const { isLoading, user, username, accounts } = useDb();
@@ -33,6 +34,8 @@ export default function App() {
         );
       case 'calendar':
         return <EconomicCalendar />;
+      case 'debts':
+        return <DebtsView />;
       case 'wishlist':
         return <WishlistView />;
       case 'settings':
