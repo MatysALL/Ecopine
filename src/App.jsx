@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useDb } from './db';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -14,6 +14,26 @@ export default function App() {
   const { isLoading, user, username, accounts } = useDb();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
+
+  // Sakura theme easter egg triggers only when the user's name is Léa (case and accent insensitive)
+  const isSakura = useMemo(() => {
+    if (!username) return false;
+    return username.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === 'lea';
+  }, [username]);
+
+  useEffect(() => {
+    if (isSakura) {
+      document.body.classList.add('theme-sakura');
+      document.body.classList.remove('theme-standard');
+    } else {
+      document.body.classList.remove('theme-sakura');
+      document.body.classList.add('theme-standard');
+    }
+    return () => {
+      document.body.classList.remove('theme-sakura');
+      document.body.classList.remove('theme-standard');
+    };
+  }, [isSakura]);
 
   // Navigate to accounts tab and focus on specific account details
   const handleViewAccountDetails = (accountId) => {
@@ -66,7 +86,7 @@ export default function App() {
   const needsOnboarding = accounts.length === 0;
 
   return (
-    <div className="flex bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30">
+    <div className={`flex bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30 ${isSakura ? 'theme-sakura' : 'theme-standard'}`}>
       {/* Sidebar Navigation */}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 

@@ -119,3 +119,126 @@ html, body {
   transform: translateY(4px);
   box-shadow: 0 0px 0 0 #4A3E3D;
 }
+
+/* --- SAKURA EASTER EGG THEME (v2.2.0) --- */
+.theme-sakura {
+  --color-ac-cream: #FFF0F5;
+  --color-ac-cream-dark: #FDF2F4;
+  --color-ac-green: #F9A8B9;
+  --color-ac-green-dark: #E68B9E;
+  --color-ac-green-light: #FFF0F5;
+  --color-ac-brown: #5C3A41;
+  --color-ac-brown-light: #8A5A65;
+  --color-white: #FFF9FA;
+
+  /* App Background override */
+  background-color: #FFF0F5 !important;
+  color: #5C3A41 !important;
+}
+
+/* Base body style for Sakura */
+body.theme-sakura {
+  background-color: #FFF0F5 !important;
+  color: #5C3A41 !important;
+}
+
+/* Cards & containers overrides */
+.theme-sakura .ac-card {
+  background-color: #FFF9FA !important;
+  border-color: #8A5A65 !important;
+  box-shadow: 0 8px 0 0 rgba(138, 90, 101, 0.15) !important;
+}
+.theme-sakura .ac-card:hover {
+  box-shadow: 0 10px 0 0 rgba(138, 90, 101, 0.2) !important;
+}
+
+/* Background overrides for general elements */
+.theme-sakura .bg-white {
+  background-color: #FFF9FA !important;
+}
+.theme-sakura .bg-\[\#FFFDF9\] {
+  background-color: #FFF9FA !important;
+}
+.theme-sakura .bg-\[\#FFFDF9\]\/60 {
+  background-color: rgba(255, 249, 250, 0.6) !important;
+}
+.theme-sakura .bg-ac-cream {
+  background-color: #FFF0F5 !important;
+}
+.theme-sakura .bg-ac-cream-dark {
+  background-color: #FDF2F4 !important;
+}
+.theme-sakura .bg-ac-green {
+  background-color: #F9A8B9 !important;
+  color: #5C3A41 !important;
+}
+.theme-sakura .bg-ac-green-dark {
+  background-color: #E68B9E !important;
+}
+.theme-sakura .bg-ac-green-light {
+  background-color: #FFF0F5 !important;
+}
+
+/* Buttons and text on green backgrounds (which are now pink bubblegum) */
+.theme-sakura .ac-btn {
+  border-color: #8A5A65 !important;
+  box-shadow: 0 4px 0 0 #8A5A65 !important;
+}
+.theme-sakura .ac-btn:active {
+  box-shadow: 0 0px 0 0 #8A5A65 !important;
+}
+.theme-sakura .bg-ac-green.text-white,
+.theme-sakura .bg-ac-green .text-white,
+.theme-sakura button.bg-ac-green,
+.theme-sakura .ac-btn.bg-ac-green,
+.theme-sakura button.bg-ac-green-dark {
+  color: #5C3A41 !important;
+}
+
+/* SVG icons within green/bubblegum buttons should also match the text color */
+.theme-sakura .bg-ac-green svg,
+.theme-sakura button.bg-ac-green svg,
+.theme-sakura .ac-btn.bg-ac-green svg,
+.theme-sakura button.bg-ac-green-dark svg {
+  color: #5C3A41 !important;
+  stroke: #5C3A41 !important;
+}
+
+/* Borders overrides */
+.theme-sakura .border-ac-brown {
+  border-color: #8A5A65 !important;
+}
+.theme-sakura .border-ac-brown\/10 {
+  border-color: rgba(138, 90, 101, 0.1) !important;
+}
+.theme-sakura .border-ac-brown\/15 {
+  border-color: rgba(138, 90, 101, 0.15) !important;
+}
+.theme-sakura .border-ac-brown\/20 {
+  border-color: rgba(138, 90, 101, 0.2) !important;
+}
+.theme-sakura .border-ac-brown\/30 {
+  border-color: rgba(138, 90, 101, 0.3) !important;
+}
+
+/* Custom background patterns */
+.theme-sakura .ac-dotted-bg {
+  background-image: radial-gradient(rgba(138, 90, 101, 0.15) 1.5px, transparent 1.5px) !important;
+}
+.theme-sakura .ac-leaf-pattern {
+  background-color: #F9A8B9 !important;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.2) 15%, transparent 16%) !important;
+}
+
+/* Webkit Scrollbars override for Sakura */
+.theme-sakura::-webkit-scrollbar-track {
+  background: #FFF0F5 !important;
+}
+.theme-sakura::-webkit-scrollbar-thumb {
+  background: #FDF2F4 !important;
+  border: 2px solid #FFF0F5 !important;
+}
+.theme-sakura::-webkit-scrollbar-thumb:hover {
+  background: #F9A8B9 !important;
+}
+
