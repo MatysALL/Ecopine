@@ -34,7 +34,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
 
     setIsAnimating(true);
 
-    // Swap text state halfway through animation (at 150ms)
+    // Swap text state halfway through animation (at 100ms)
     setTimeout(() => {
       if (phase === 'advices') {
         const unviewed = nookAdvices
@@ -61,12 +61,12 @@ export default function Sidebar({ activeTab, setActiveTab }) {
           setPhase('sold');
         }
       }
-    }, 150);
+    }, 100);
 
-    // End animation after 300ms
+    // End animation after 200ms
     setTimeout(() => {
       setIsAnimating(false);
-    }, 300);
+    }, 200);
   };
 
   const handleLogout = async () => {
@@ -83,6 +83,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
   const mobileNavItems = [
     { id: 'dashboard', label: 'Accueil', icon: Leaf, color: 'text-ac-green' },
     { id: 'accounts', label: 'Comptes', icon: PiggyBank, color: 'text-ac-gold' },
+    { id: 'calendar', label: 'Calendrier', icon: Calendar, color: 'text-ac-sky' },
     { id: 'wishlist', label: 'Souhaits', icon: Gift, color: 'text-ac-red' },
     { id: 'settings', label: 'Paramètres', icon: Settings, color: 'text-ac-brown-light' },
   ];
@@ -144,7 +145,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         ) : (
           <div 
             onClick={handleCardClick}
-            className={`bg-white rounded-2xl border-3 border-ac-brown p-4 shadow-ac-sm relative cursor-pointer select-none transition-all duration-300 transform ${
+            className={`bg-white rounded-2xl border-3 border-ac-brown p-4 shadow-ac-sm relative cursor-pointer select-none transition-all duration-200 transform ${
               isAnimating 
                 ? 'scale-90 -translate-y-2 opacity-50 rotate-3 z-0' 
                 : 'scale-100 translate-y-0 opacity-100 z-10 hover:scale-[1.03]'
@@ -184,15 +185,6 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             </button>
           );
         })}
-
-        {/* Mobile Disconnect Button */}
-        <button
-          onClick={handleLogout}
-          className="w-12 h-12 rounded-full border-3 border-ac-brown bg-white text-ac-red flex items-center justify-center shadow-ac-sm active:translate-y-1 active:shadow-none transition-all duration-150 select-none"
-          title="Déconnexion"
-        >
-          <LogOut className="w-5 h-5 text-ac-red" />
-        </button>
       </nav>
     </>
   );

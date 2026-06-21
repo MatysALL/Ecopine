@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useDb, expandRecurringTransactions, getProjectedBalanceSync, calculateLivretInterests } from '../db';
+import { useDb, expandRecurringTransactions } from '../db';
 import { 
   ChevronLeft, ChevronRight, Calendar, 
   Coins, Leaf, ArrowUpRight, ArrowDownRight, EyeOff, Sparkles, Smile
@@ -10,9 +10,7 @@ export default function EconomicCalendar() {
   const [selectedAccounts, setSelectedAccounts] = useState({});
   const [hoveredDay, setHoveredDay] = useState(null);
   const [hoveredData, setHoveredData] = useState([]);
-  const [hoveredProjectedBalance, setHoveredProjectedBalance] = useState(null);
   const [hoveredPosition, setHoveredPosition] = useState({ x: 0, y: 0 });
-  const [isProjectionMode, setIsProjectionMode] = useState(false); // Toggle: false = Transactions flow, true = Projected Balance
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -92,94 +90,7 @@ export default function EconomicCalendar() {
     });
   }
 
-  // Optimized fetching of balances for Mode 2 (Projected balance trajectory)
-  const calendarBalances = useMemo(() => {
-    if (activeAccountIds.length === 0 || !isProjectionMode || !accounts || !allTransactions) return {};
 
-    const balances = {};
-    const accountsList = accounts.filter(a => activeAccountIds.includes(a.id));
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    for (const cell of calendarCells) {
-      if (!cell.isCurrentMonth) continue;
-      const dateStr = cell.dateStr;
-
-      if (dateStr <= todayStr) {
-        // Historical balance calculation
-        let sum = 0;
-        for (const acc of accountsList) {
-          const accTxs = allTransactions.filter(t => {
-            const exeType = t.executionType || 'spontaneous';
-            const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
-            return t.accountId === acc.id && isEffective && t.date <= dateStr;
-          });
-
-          const sumTxs = accTxs.reduce((s, t) => {
-            const amt = Number(t.amount) || 0;
-            return s + (t.type === 'credit' ? amt : -amt);
-          }, 0);
-
-          let bal = Number(acc.initialBalance) + sumTxs;
-
-          const isLivret = acc.type && acc.type.toLowerCase() !== 'courant';
-          if (isLivret && Number(acc.rate) > 0) {
-            const interests = calculateLivretInterests(acc, allTransactions.filter(t => t.accountId === acc.id), dateStr);
-            bal += interests.capitalized;
-          }
-          sum += bal;
-        }
-        balances[dateStr] = sum;
-      } else {
-        // Future projected balance calculation
-        let sum = 0;
-        for (const acc of accountsList) {
-          const accTxs = allTransactions.filter(t => {
-            const exeType = t.executionType || 'spontaneous';
-            const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
-            return t.accountId === acc.id && isEffective && t.date <= todayStr;
-          });
-
-          const sumTxs = accTxs.reduce((s, t) => {
-            const amt = Number(t.amount) || 0;
-            return s + (t.type === 'credit' ? amt : -amt);
-          }, 0);
-
-          let bal = Number(acc.initialBalance) + sumTxs;
-
-          const isLivret = acc.type && acc.type.toLowerCase() !== 'courant';
-          if (isLivret && Number(acc.rate) > 0) {
-            const interests = calculateLivretInterests(acc, allTransactions.filter(t => t.accountId === acc.id), todayStr);
-            bal += interests.capitalized;
-          }
-          sum += bal;
-        }
-
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-        const tomorrowToTargetTxs = allTransactions.filter(t => {
-          const exeType = t.executionType || 'spontaneous';
-          if (exeType !== 'planned') return false;
-          if (t.isRecurring) {
-            return t.date <= dateStr && (!t.recurrenceEnd || t.recurrenceEnd >= tomorrowStr);
-          }
-          return t.date >= tomorrowStr && t.date <= dateStr;
-        });
-
-        const expanded = expandRecurringTransactions(tomorrowToTargetTxs, tomorrowStr, dateStr);
-
-        const futureSum = expanded.reduce((s, t) => {
-          const amt = Number(t.amount) || 0;
-          return s + (t.type === 'credit' ? amt : -amt);
-        }, 0);
-
-        balances[dateStr] = sum + futureSum;
-      }
-    }
-    return balances;
-  }, [selectedAccounts, currentDate, isProjectionMode, accounts, allTransactions, activeAccountIds, calendarCells]);
 
   const navigateMonth = (direction) => {
     const nextDate = new Date(currentDate);
@@ -197,7 +108,7 @@ export default function EconomicCalendar() {
   const handleDayHoverEnter = (e, cell) => {
     if (!cell.isCurrentMonth) return;
     
-    // In Mode 1 or 2, we list transactions on that date
+    // In Mode 1, we list transactions on that date
     const dayTxs = transactionsData
       ? transactionsData.filter(t => t.date === cell.dateStr)
       : [];
@@ -211,16 +122,11 @@ export default function EconomicCalendar() {
       x: rect.left + window.scrollX + rect.width / 2,
       y: rect.top + window.scrollY - 10
     });
-
-    // Solve balance for that day in the past or future
-    const bal = getProjectedBalanceSync(activeAccountIds, cell.dateStr, accounts, allTransactions);
-    setHoveredProjectedBalance(bal);
   };
 
   const handleDayHoverLeave = () => {
     setHoveredDay(null);
     setHoveredData([]);
-    setHoveredProjectedBalance(null);
   };
 
   const frenchDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -231,38 +137,16 @@ export default function EconomicCalendar() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm">
         <div>
           <h2 className="text-2xl font-black text-ac-brown flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-ac-sky animate-bounce" /> Le Calendrier Économique Double
+            <Calendar className="w-6 h-6 text-ac-sky animate-bounce" /> Le Calendrier Économique
           </h2>
           <p className="text-xs font-semibold text-ac-brown-light mt-0.5">
-            Bascule entre le suivi des flux quotidiens et les trajectoires de solde combiné.
+            Visualise ton flux quotidien de clochettes.
           </p>
-        </div>
-
-        {/* Projection Mode Switcher */}
-        <div className="flex items-center gap-3 bg-ac-sky-light border-2 border-ac-brown rounded-2xl px-4 py-2.5 shadow-ac-xs">
-          <span className={`text-xs font-black transition-colors ${!isProjectionMode ? 'text-ac-brown' : 'text-ac-brown-light/40'}`}>
-            Flux
-          </span>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isProjectionMode}
-              onChange={(e) => setIsProjectionMode(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-9 h-5 bg-ac-cream-dark peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-ac-brown after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-ac-sky border border-ac-brown"></div>
-          </label>
-          <span className={`text-xs font-black flex items-center gap-1 transition-colors ${isProjectionMode ? 'text-ac-sky font-extrabold' : 'text-ac-brown-light/40'}`}>
-            <Sparkles className="w-3.5 h-3.5 fill-ac-sky/20" /> Projections
-          </span>
         </div>
       </div>
 
       {/* Main Calendar Card */}
-      <div 
-        className="ac-card p-6 border-ac-brown relative transition-colors duration-500"
-        style={{ backgroundColor: isProjectionMode ? '#E1D9EC' : '#FFFFFF' }}
-      >
+      <div className="ac-card p-6 bg-white border-ac-brown relative">
         {/* Month Selector */}
         <div className="flex justify-between items-center mb-6">
           <button
@@ -305,17 +189,10 @@ export default function EconomicCalendar() {
             const expenseSum = dayTxs.filter(t => t.type === 'debit').reduce((s, t) => s + Number(t.amount), 0);
             const netFlow = incomeSum - expenseSum;
 
-            // Mode 2 balance calculation
-            const cellBalance = isProjectionMode && cell.isCurrentMonth && calendarBalances 
-              ? calendarBalances[cell.dateStr] 
-              : null;
-
             // Compute background styling
             let cellStyle = 'bg-white border-ac-brown';
             if (cell.isCurrentMonth) {
-              if (isProjectionMode) {
-                cellStyle = 'bg-[#FAFAF9] border-ac-brown hover:bg-ac-sky-light/10';
-              } else if (dayTxs.length > 0) {
+              if (dayTxs.length > 0) {
                 if (netFlow > 0) cellStyle = 'bg-[#EAF5E9] border-ac-green text-ac-green hover:bg-[#DFF0DC]';
                 else if (netFlow < 0) cellStyle = 'bg-[#FDF2F2] border-ac-red text-ac-red hover:bg-[#FCE8E8]';
                 else cellStyle = 'bg-ac-cream-dark/20 border-ac-brown/50 text-ac-brown-light hover:bg-ac-cream-dark/30';
@@ -346,21 +223,11 @@ export default function EconomicCalendar() {
                 </div>
 
                 {/* Render mode specific data inside cells */}
-                {cell.isCurrentMonth && (
+                {cell.isCurrentMonth && dayTxs.length > 0 && (
                   <div className="text-[10px] font-bold text-left mt-1">
-                    {!isProjectionMode ? (
-                      dayTxs.length > 0 && (
-                        <div className="font-extrabold">
-                          {netFlow > 0 ? `+${Math.round(netFlow)}` : Math.round(netFlow)} 🔔
-                        </div>
-                      )
-                    ) : (
-                      cellBalance !== null && cellBalance !== undefined && (
-                        <div className="font-extrabold text-ac-brown text-[9px] truncate">
-                          {Math.round(cellBalance).toLocaleString('fr-FR')} 🔔
-                        </div>
-                      )
-                    )}
+                    <div className="font-extrabold">
+                      {netFlow > 0 ? `+${Math.round(netFlow)}` : Math.round(netFlow)} 🔔
+                    </div>
                   </div>
                 )}
 
@@ -384,17 +251,7 @@ export default function EconomicCalendar() {
                       Détails du {new Date(hoveredDay).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </h4>
 
-                    {/* Mode 2 balance info (always display inside the tooltip) */}
-                    {hoveredProjectedBalance !== null && (
-                      <div className="mb-3 bg-ac-cream border-2 border-ac-brown/50 p-2 rounded-xl text-center">
-                        <span className="text-[8px] font-black text-ac-brown-light uppercase block">
-                          {hoveredDay <= new Date().toISOString().split('T')[0] ? 'Solde Historique Combiné' : 'Solde Prévisionnel Combiné'}
-                        </span>
-                        <span className="text-sm font-black text-ac-brown">
-                          {hoveredProjectedBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                        </span>
-                      </div>
-                    )}
+
 
                     {/* Transactions list */}
                     {hoveredData.length === 0 ? (

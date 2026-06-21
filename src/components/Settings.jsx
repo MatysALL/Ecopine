@@ -201,25 +201,13 @@ export default function Settings() {
     );
     if (!confirmWipe) return;
 
-    await db.transaction('rw', db.accounts, db.transactions, db.pockets, db.categories, db.user_meta, async () => {
+    await db.transaction('rw', db.accounts, db.transactions, db.pockets, db.wishlist, db.categories, db.user_meta, async () => {
       await db.accounts.clear();
       await db.transactions.clear();
       await db.pockets.clear();
+      await db.wishlist.clear();
       await db.categories.clear();
       await db.user_meta.clear();
-      
-      // Re-populate default categories
-      await db.categories.bulkAdd([
-        { name: 'Loisirs', isDefault: 1 },
-        { name: 'Nourriture', isDefault: 1 },
-        { name: 'Logement', isDefault: 1 },
-        { name: 'Transports', isDefault: 1 },
-        { name: 'Abonnements', isDefault: 1 },
-        { name: 'Cadeaux', isDefault: 1 },
-        { name: 'Santé', isDefault: 1 },
-        { name: 'Salaire', isDefault: 1 },
-        { name: 'Autre', isDefault: 1 }
-      ]);
     });
 
     alert("Application réinitialisée avec succès !");
@@ -315,9 +303,18 @@ export default function Settings() {
               </div>
 
               {user?.email && (
-                <div className="text-xs font-bold text-ac-brown-light bg-ac-cream-dark/20 px-4 py-2 rounded-2xl border border-ac-brown/10">
-                  <span className="block text-[9px] font-black uppercase text-ac-brown-light/65 mb-0.5">Adresse e-mail</span>
-                  <span className="text-ac-brown">{user.email}</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold text-ac-brown-light bg-ac-cream-dark/20 px-4 py-3 rounded-2xl border border-ac-brown/10">
+                  <div>
+                    <span className="block text-[9px] font-black uppercase text-ac-brown-light/65 mb-0.5">Adresse e-mail</span>
+                    <span className="text-ac-brown break-all">{user.email}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="bg-ac-red hover:bg-ac-red/90 text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px] cursor-pointer whitespace-nowrap self-start sm:self-center"
+                  >
+                    Se déconnecter
+                  </button>
                 </div>
               )}
 
@@ -343,14 +340,6 @@ export default function Settings() {
                   className="bg-ac-green text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer"
                 >
                   Enregistrer les modifications
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="bg-ac-red text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer"
-                >
-                  Se déconnecter
                 </button>
 
                 {saveSuccess && (

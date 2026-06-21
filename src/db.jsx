@@ -1101,7 +1101,7 @@ export const DbProvider = ({ children }) => {
       dashboardNote: ''
     });
     
-    // Create default categories (pastel-colored)
+    // Create default categories (pastel-colored) if none exist in Firestore
     const defaultCategories = [
       { name: 'Alimentation', emoji: '🍎', color: '#FFB3B3' },
       { name: 'Transport', emoji: '🚗', color: '#B3D9FF' },
@@ -1110,15 +1110,19 @@ export const DbProvider = ({ children }) => {
       { name: 'Santé', emoji: '💊', color: '#E0B3FF' }
     ];
     
-    const batch = writeBatch(firestoreDb);
-    defaultCategories.forEach(cat => {
-      const catRef = doc(collection(firestoreDb, 'categories'));
-      batch.set(catRef, {
-        ...cat,
-        userId: user.uid
+    const q = query(collection(firestoreDb, 'categories'), where('userId', '==', user.uid));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+      const batch = writeBatch(firestoreDb);
+      defaultCategories.forEach(cat => {
+        const catRef = doc(collection(firestoreDb, 'categories'));
+        batch.set(catRef, {
+          ...cat,
+          userId: user.uid
+        });
       });
-    });
-    await batch.commit();
+      await batch.commit();
+    }
 
     return user;
   };
@@ -1164,15 +1168,19 @@ export const DbProvider = ({ children }) => {
       ];
 
       const createDefaults = async () => {
-        const batch = writeBatch(firestoreDb);
-        defaultCategories.forEach(cat => {
-          const catRef = doc(collection(firestoreDb, 'categories'));
-          batch.set(catRef, {
-            ...cat,
-            userId: currentUser.uid
+        const q = query(collection(firestoreDb, 'categories'), where('userId', '==', currentUser.uid));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+          const batch = writeBatch(firestoreDb);
+          defaultCategories.forEach(cat => {
+            const catRef = doc(collection(firestoreDb, 'categories'));
+            batch.set(catRef, {
+              ...cat,
+              userId: currentUser.uid
+            });
           });
-        });
-        await batch.commit();
+          await batch.commit();
+        }
       };
 
       createDefaults().catch(err => console.error("Error creating default categories:", err));

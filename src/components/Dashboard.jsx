@@ -32,7 +32,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
 
     setIsAnimating(true);
 
-    // Swap text state halfway through animation (at 150ms)
+    // Swap text state halfway through animation (at 100ms)
     setTimeout(() => {
       if (phase === 'welcome') {
         setPhase('advices');
@@ -63,12 +63,12 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           setPhase('sold');
         }
       }
-    }, 150);
+    }, 100);
 
-    // End animation after 300ms
+    // End animation after 200ms
     setTimeout(() => {
       setIsAnimating(false);
-    }, 300);
+    }, 200);
   };
 
   if (!accountsData || accountsData.length === 0) {
@@ -111,7 +111,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       {/* 1. Bulle de bienvenue Tom Nook */}
       <div 
         onClick={handleBannerClick}
-        className={`flex flex-col md:flex-row gap-6 bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden items-center md:items-start shadow-ac-sm cursor-pointer transition-all duration-300 transform ${
+        className={`flex flex-col md:flex-row gap-6 bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden items-center md:items-start shadow-ac-sm cursor-pointer transition-all duration-200 transform ${
           isAnimating 
             ? 'scale-95 opacity-80' 
             : 'hover:scale-[1.01]'
