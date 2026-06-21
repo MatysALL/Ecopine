@@ -333,86 +333,88 @@ export default function Dashboard({ onViewAccountDetails, username }) {
               </div>
             )}
           </div>
-        </div>
 
-        {/* Right column: Wishlist Card & Global flow of transactions */}
-        <div className="space-y-8">
-          {/* Wishlist Card */}
-          <div className="ac-card p-6 bg-white border-ac-brown">
-            <h3 className="text-base font-black text-ac-brown mb-4 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
-              <Gift className="w-5 h-5 text-ac-red fill-ac-red/20" /> Mes Souhaits ({wishlist ? wishlist.length : 0})
-            </h3>
-            {!wishlist || wishlist.length === 0 ? (
-              <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
-                Aucun souhait en cours. 🍃
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {wishlist.slice(0, 2).map((wish) => (
-                  <div key={wish.id} className="p-3 bg-ac-cream rounded-2xl border-2 border-ac-brown flex justify-between items-center">
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-extrabold text-xs text-ac-brown truncate">{wish.name}</h4>
-                      {wish.description && (
-                        <p className="text-[10px] text-ac-brown-light truncate">{wish.description}</p>
-                      )}
-                    </div>
-                    <div className="text-right ml-3 shrink-0">
-                      <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs">
-                        {wish.price.toLocaleString('fr-FR')} 🔔
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Debts Card */}
-          <div className="ac-card p-6 bg-white border-ac-brown">
-            <h3 className="text-base font-black text-ac-brown mb-4 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
-              <Handshake className="w-5 h-5 text-ac-orange" /> Mes Dettes ({activeDebts.length})
-            </h3>
-            {activeDebts.length === 0 ? (
-              <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
-                Aucune dette en cours. Super ! 🍃
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {activeDebts.slice(0, 2).map((debt) => {
-                  const isToPay = debt.type === 'to_pay';
-                  return (
-                    <div 
-                      key={debt.id} 
-                      className={`p-3 rounded-2xl border-2 border-ac-brown flex justify-between items-center ${
-                        isToPay ? 'bg-ac-red-light/10' : 'bg-ac-green-light/20'
-                      }`}
-                    >
+          {/* Sub-grid for Wishes & Debts */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Wishlist Card */}
+            <div className="ac-card p-6 bg-white border-ac-brown">
+              <h3 className="text-base font-black text-ac-brown mb-4 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
+                <Gift className="w-5 h-5 text-ac-red fill-ac-red/20" /> Mes Souhaits ({wishlist ? wishlist.length : 0})
+              </h3>
+              {!wishlist || wishlist.length === 0 ? (
+                <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
+                  Aucun souhait en cours. 🍃
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {wishlist.slice(0, 2).map((wish) => (
+                    <div key={wish.id} className="p-3 bg-ac-cream rounded-2xl border-2 border-ac-brown flex justify-between items-center">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${
-                            isToPay ? 'bg-ac-red text-white border-ac-brown' : 'bg-ac-green text-white border-ac-brown'
-                          }`}>
-                            {isToPay ? 'Je dois' : 'On me doit'}
-                          </span>
-                          <h4 className="font-extrabold text-xs text-ac-brown truncate">{debt.person}</h4>
-                        </div>
-                        {debt.description && (
-                          <p className="text-[10px] text-ac-brown-light truncate mt-0.5">{debt.description}</p>
+                        <h4 className="font-extrabold text-xs text-ac-brown truncate">{wish.name}</h4>
+                        {wish.description && (
+                          <p className="text-[10px] text-ac-brown-light truncate">{wish.description}</p>
                         )}
                       </div>
                       <div className="text-right ml-3 shrink-0">
-                        <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs font-black">
-                          {debt.amount.toLocaleString('fr-FR')} 🔔
+                        <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs">
+                          {wish.price.toLocaleString('fr-FR')} 🔔
                         </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          {/* Transactions Flux */}
+            {/* Debts Card */}
+            <div className="ac-card p-6 bg-white border-ac-brown">
+              <h3 className="text-base font-black text-ac-brown mb-4 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
+                <Handshake className="w-5 h-5 text-ac-orange" /> Mes Dettes ({activeDebts.length})
+              </h3>
+              {activeDebts.length === 0 ? (
+                <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
+                  Aucune dette en cours. Super ! 🍃
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {activeDebts.slice(0, 2).map((debt) => {
+                    const isToPay = debt.type === 'to_pay';
+                    return (
+                      <div 
+                        key={debt.id} 
+                        className={`p-3 rounded-2xl border-2 border-ac-brown flex justify-between items-center ${
+                          isToPay ? 'bg-ac-red-light/10' : 'bg-ac-green-light/20'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                              isToPay ? 'bg-ac-red text-white border-ac-brown' : 'bg-ac-green text-white border-ac-brown'
+                            }`}>
+                              {isToPay ? 'Je dois' : 'On me doit'}
+                            </span>
+                            <h4 className="font-extrabold text-xs text-ac-brown truncate">{debt.person}</h4>
+                          </div>
+                          {debt.description && (
+                            <p className="text-[10px] text-ac-brown-light truncate mt-0.5">{debt.description}</p>
+                          )}
+                        </div>
+                        <div className="text-right ml-3 shrink-0">
+                          <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs font-black">
+                            {debt.amount.toLocaleString('fr-FR')} 🔔
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right column: Global flow of transactions (Stretched to full height) */}
+        <div className="lg:col-span-1 h-full flex flex-col">
           <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-full justify-between">
             <div>
               <h3 className="text-base font-black text-ac-brown mb-6 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
