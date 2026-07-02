@@ -4,11 +4,15 @@ import { doc, writeBatch } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit2, Trash2, Gift, Coins, Sparkles, X, 
-  Landmark 
+  Landmark, Mail
 } from 'lucide-react';
+import ShareModal from './ShareModal';
 
 export default function WishlistView() {
-  const { wishlist: wishes, accountsData: accounts } = useDb();
+  const { wishlist: wishes, accountsData: accounts, user } = useDb();
+
+  // Sharing popup state
+  const [sharingDoc, setSharingDoc] = useState(null); // { id, allowedUsers, creatorId }
 
   // UI state
   const [formOpen, setFormOpen] = useState(false);
@@ -362,8 +366,17 @@ export default function WishlistView() {
 
                 {/* Action Buttons Group */}
                 <div className="mt-6 pt-4 border-t border-ac-brown/10 flex items-center justify-between">
-                  {/* Edit & Delete */}
-                  <div className="flex gap-2">
+                  {/* Edit & Delete & Share */}
+                  <div className="flex gap-1.5">
+                    {(wish.creatorId === user?.uid || !wish.creatorId) && (
+                      <button
+                        onClick={() => setSharingDoc({ id: wish.id, allowedUsers: wish.allowedUsers || [], creatorId: wish.creatorId })}
+                        className="p-2 hover:bg-ac-sky-light/50 rounded-xl text-ac-brown-light hover:text-ac-sky border border-ac-brown/15 cursor-pointer transition-colors"
+                        title="Partager ce souhait"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleEditWish(wish)}
                       className="p-2 hover:bg-ac-cream rounded-xl text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
@@ -479,6 +492,18 @@ export default function WishlistView() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Share Modal Dialog */}
+      {sharingDoc && (
+        <ShareModal 
+          isOpen={!!sharingDoc}
+          onClose={() => setSharingDoc(null)}
+          docId={sharingDoc.id}
+          collectionName="wishlist"
+          allowedUsers={sharingDoc.allowedUsers}
+          creatorId={sharingDoc.creatorId}
+        />
       )}
     </div>
   );

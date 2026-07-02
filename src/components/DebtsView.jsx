@@ -1,9 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { db, useDb } from '../db';
-import { Plus, Trash2, Handshake, X, Coins, Sparkles } from 'lucide-react';
+import { doc, getDoc, getDocs, query, collection, where } from 'firebase/firestore';
+import { db as firestoreDb } from '../firebase';
+import { Plus, Trash2, Handshake, X, Coins, Sparkles, Mail } from 'lucide-react';
+import ShareModal from './ShareModal';
 
 export default function DebtsView() {
-  const { debts = [], accountsData: accounts = [] } = useDb();
+  const { debts = [], accountsData: accounts = [], user } = useDb();
+
+  // Sharing popup state
+  const [sharingDoc, setSharingDoc] = useState(null); // { id, allowedUsers, creatorId }
 
   // Form toggle
   const [formOpen, setFormOpen] = useState(false);
@@ -125,10 +131,47 @@ export default function DebtsView() {
         pocketId: null
       };
 
+      // Check shared debt & account details for mirror transaction
+      const isSharedDebt = (settlingDebt.allowedUsers || []).length > 1;
+      const isSharedAccount = (targetAccount.allowedUsers || []).length > 1;
+      const otherUid = isSharedDebt ? settlingDebt.allowedUsers.find(uid => uid !== user?.uid) : null;
+      let otherAccountId = null;
+
+      if (isSharedDebt && isSharedAccount && otherUid) {
+        const otherMetaRef = doc(firestoreDb, 'users_meta', otherUid);
+        const otherMetaSnap = await getDoc(otherMetaRef);
+        if (otherMetaSnap.exists()) {
+          otherAccountId = otherMetaSnap.data().favoriteAccountId;
+        }
+
+        if (!otherAccountId) {
+          const qAccs = query(collection(firestoreDb, 'accounts'), where('allowedUsers', 'array-contains', otherUid));
+          const snapAccs = await getDocs(qAccs);
+          if (!snapAccs.empty) {
+            otherAccountId = snapAccs.docs[0].id;
+          }
+        }
+      }
+
       // Run transactional update
       await db.transaction('rw', [db.transactions, db.debts], async () => {
         // Add transaction
         await db.transactions.add(newTx);
+
+        // Add mirror transaction if shared and other participant account is resolved
+        if (isSharedDebt && isSharedAccount && otherAccountId) {
+          const mirrorTx = {
+            accountId: otherAccountId,
+            name: isToPay ? `Encaissement (Miroir) : ${settlingDebt.person}` : `Remboursement (Miroir) : ${settlingDebt.person}`,
+            description: `Ajustement miroir pour dette/créance partagée : ${settlingDebt.description || settlingDebt.person}`,
+            amount: settlingDebt.amount,
+            type: isToPay ? 'credit' : 'debit',
+            date: todayStr,
+            pocketId: null
+          };
+          await db.transactions.add(mirrorTx);
+        }
+
         // Delete debt (resolved)
         await db.debts.delete(settlingDebt.id);
       });
@@ -308,6 +351,15 @@ export default function DebtsView() {
                     </span>
 
                     <div className="flex gap-1.5">
+                      {(debt.creatorId === user?.uid || !debt.creatorId) && (
+                        <button
+                          onClick={() => setSharingDoc({ id: debt.id, allowedUsers: debt.allowedUsers || [], creatorId: debt.creatorId })}
+                          className="p-1.5 bg-white hover:bg-ac-sky-light/50 rounded-lg text-ac-brown-light hover:text-ac-sky border border-ac-brown/15 cursor-pointer transition-colors"
+                          title="Partager cette dette"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => openSettleModal(debt)}
                         className="bg-ac-red hover:bg-ac-red/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
@@ -362,6 +414,15 @@ export default function DebtsView() {
                     </span>
 
                     <div className="flex gap-1.5">
+                      {(debt.creatorId === user?.uid || !debt.creatorId) && (
+                        <button
+                          onClick={() => setSharingDoc({ id: debt.id, allowedUsers: debt.allowedUsers || [], creatorId: debt.creatorId })}
+                          className="p-1.5 bg-white hover:bg-ac-sky-light/50 rounded-lg text-ac-brown-light hover:text-ac-sky border border-ac-brown/15 cursor-pointer transition-colors"
+                          title="Partager cette créance"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => openSettleModal(debt)}
                         className="bg-ac-green hover:bg-ac-green/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
@@ -473,6 +534,18 @@ export default function DebtsView() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Share Modal Dialog */}
+      {sharingDoc && (
+        <ShareModal 
+          isOpen={!!sharingDoc}
+          onClose={() => setSharingDoc(null)}
+          docId={sharingDoc.id}
+          collectionName="debts"
+          allowedUsers={sharingDoc.allowedUsers}
+          creatorId={sharingDoc.creatorId}
+        />
       )}
     </div>
   );

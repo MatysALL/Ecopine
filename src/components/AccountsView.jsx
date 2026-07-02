@@ -5,10 +5,11 @@ import { db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
   Coins, PiggyBank, HelpCircle, AlertTriangle, 
-  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X
+  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X, Mail
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import PocketManager from './PocketManager';
+import ShareModal from './ShareModal';
 
 export default function AccountsView({ selectedAccountId, setSelectedAccountId }) {
   // Account Form states
@@ -40,7 +41,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
 
-  const { accountsData: accounts, transactions: allTransactions } = useDb();
+  const { accountsData: accounts, transactions: allTransactions, user } = useDb();
+
+  // Sharing popup state
+  const [sharingDoc, setSharingDoc] = useState(null);
 
   // Drag & Drop state for Accounts
   const [draggableAccountId, setDraggableAccountId] = useState(null);
@@ -490,6 +494,17 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               <div>
                 <h2 className="text-2xl font-black text-ac-brown flex items-center gap-2">
                   {activeAccount.name}
+                  {(activeAccount.creatorId === user?.uid || !activeAccount.creatorId) && (
+                    <button
+                      onClick={() => {
+                        setSharingDoc({ id: activeAccount.id, allowedUsers: activeAccount.allowedUsers || [], creatorId: activeAccount.creatorId });
+                      }}
+                      className="bg-ac-cream hover:bg-ac-sky-light/50 border-2 border-ac-brown rounded-full p-1.5 transition-colors cursor-pointer text-ac-brown hover:text-ac-sky flex items-center justify-center"
+                      title="Partager ce compte"
+                    >
+                      <Mail className="w-4 h-4" />
+                    </button>
+                  )}
                   {activeAccount.bankName && (
                     <span className="text-xs font-black text-ac-brown-light bg-ac-cream px-2 py-0.5 rounded-md border border-ac-brown/15">
                       {activeAccount.bankName}
@@ -949,17 +964,31 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         )}
                       </div>
 
-                      <div 
-                        onMouseDown={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
-                        onTouchStart={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
-                        onMouseUp={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
-                        onTouchEnd={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
-                        onMouseLeave={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-9 h-9 bg-ac-cream rounded-full border border-ac-brown/20 flex items-center justify-center shrink-0 group-hover:bg-ac-gold/10 transition-colors cursor-grab active:cursor-grabbing"
-                        title="Glisser-déposer (clic long sur la tirelire)"
-                      >
-                        <PiggyBank className="w-5 h-5 text-ac-gold" />
+                      <div className="flex gap-1.5 shrink-0 items-center">
+                        {(acc.creatorId === user?.uid || !acc.creatorId) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSharingDoc({ id: acc.id, allowedUsers: acc.allowedUsers || [], creatorId: acc.creatorId });
+                            }}
+                            className="w-9 h-9 bg-ac-cream hover:bg-ac-sky-light/50 border border-ac-brown/20 hover:border-ac-sky/30 rounded-full flex items-center justify-center text-ac-brown hover:text-ac-sky transition-colors cursor-pointer"
+                            title="Partager ce compte"
+                          >
+                            <Mail className="w-4.5 h-4.5" />
+                          </button>
+                        )}
+                        <div 
+                          onMouseDown={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
+                          onTouchStart={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
+                          onMouseUp={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
+                          onTouchEnd={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
+                          onMouseLeave={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-9 h-9 bg-ac-cream rounded-full border border-ac-brown/20 flex items-center justify-center group-hover:bg-ac-gold/10 transition-colors cursor-grab active:cursor-grabbing"
+                          title="Glisser-déposer (clic long sur la tirelire)"
+                        >
+                          <PiggyBank className="w-5 h-5 text-ac-gold" />
+                        </div>
                       </div>
                     </div>
 
@@ -1231,6 +1260,18 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             </form>
           </div>
         </div>
+      )}
+
+      {/* Share Modal Dialog */}
+      {sharingDoc && (
+        <ShareModal 
+          isOpen={!!sharingDoc}
+          onClose={() => setSharingDoc(null)}
+          docId={sharingDoc.id}
+          collectionName="accounts"
+          allowedUsers={sharingDoc.allowedUsers}
+          creatorId={sharingDoc.creatorId}
+        />
       )}
     </div>
   );

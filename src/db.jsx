@@ -678,7 +678,8 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: auth.currentUser.uid
+        allowedUsers: [auth.currentUser.uid],
+        creatorId: auth.currentUser.uid
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'accounts'));
@@ -719,7 +720,7 @@ export const db = {
     },
     clear: async () => {
       if (!auth.currentUser) return;
-      const q = query(collection(firestoreDb, 'accounts'), where('userId', '==', auth.currentUser.uid));
+      const q = query(collection(firestoreDb, 'accounts'), where('allowedUsers', 'array-contains', auth.currentUser.uid));
       const snap = await getDocs(q);
       const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'accounts', docSnap.id)));
@@ -735,7 +736,8 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          userId: auth.currentUser.uid
+          allowedUsers: [auth.currentUser.uid],
+          creatorId: auth.currentUser.uid
         });
       });
       if (!db._activeBatch) {
@@ -938,7 +940,8 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: auth.currentUser.uid
+        allowedUsers: [auth.currentUser.uid],
+        creatorId: auth.currentUser.uid
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'wishlist'));
@@ -966,7 +969,7 @@ export const db = {
     },
     clear: async () => {
       if (!auth.currentUser) return;
-      const q = query(collection(firestoreDb, 'wishlist'), where('userId', '==', auth.currentUser.uid));
+      const q = query(collection(firestoreDb, 'wishlist'), where('allowedUsers', 'array-contains', auth.currentUser.uid));
       const snap = await getDocs(q);
       const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'wishlist', docSnap.id)));
@@ -982,7 +985,8 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          userId: auth.currentUser.uid
+          allowedUsers: [auth.currentUser.uid],
+          creatorId: auth.currentUser.uid
         });
       });
       if (!db._activeBatch) {
@@ -990,12 +994,77 @@ export const db = {
       }
     }
   },
+  friendships: {
+    sendRequest: async (email) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const targetEmail = email.trim().toLowerCase();
+      if (targetEmail === auth.currentUser.email.toLowerCase()) {
+        throw new Error("Tu ne peux pas t'envoyer une demande d'ami à toi-même !");
+      }
+
+      // 1. Find user by email in users_meta
+      const q = query(collection(firestoreDb, 'users_meta'), where('email', '==', targetEmail));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        throw new Error("Aucun habitant trouvé avec cet e-mail sur l'île.");
+      }
+
+      const friendDoc = snap.docs[0];
+      const friendData = friendDoc.data();
+      const friendId = friendDoc.id;
+
+      // 2. Check if a friendship already exists or is pending
+      const qExist1 = query(
+        collection(firestoreDb, 'friendships'),
+        where('senderId', '==', auth.currentUser.uid),
+        where('receiverId', '==', friendId)
+      );
+      const qExist2 = query(
+        collection(firestoreDb, 'friendships'),
+        where('senderId', '==', friendId),
+        where('receiverId', '==', auth.currentUser.uid)
+      );
+      const snapExist1 = await getDocs(qExist1);
+      const snapExist2 = await getDocs(qExist2);
+
+      if (!snapExist1.empty || !snapExist2.empty) {
+        throw new Error("Une demande d'ami existe déjà ou vous êtes déjà amis !");
+      }
+
+      // 3. Fetch current user meta to get their username
+      const myMetaDoc = await getDoc(doc(firestoreDb, 'users_meta', auth.currentUser.uid));
+      const myName = myMetaDoc.exists() ? (myMetaDoc.data().username || 'Habitant') : 'Habitant';
+
+      // 4. Add friendship request
+      const docData = {
+        senderId: auth.currentUser.uid,
+        senderEmail: auth.currentUser.email.toLowerCase(),
+        senderName: myName,
+        receiverId: friendId,
+        receiverEmail: targetEmail,
+        receiverName: friendData.username || 'Habitant',
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      await addDoc(collection(firestoreDb, 'friendships'), docData);
+    },
+    acceptRequest: async (id) => {
+      const ref = doc(firestoreDb, 'friendships', id);
+      await updateDoc(ref, { status: 'accepted' });
+    },
+    delete: async (id) => {
+      const ref = doc(firestoreDb, 'friendships', id);
+      await deleteDoc(ref);
+    }
+  },
   debts: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: auth.currentUser.uid
+        allowedUsers: [auth.currentUser.uid],
+        creatorId: auth.currentUser.uid
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'debts'));
@@ -1023,7 +1092,7 @@ export const db = {
     },
     clear: async () => {
       if (!auth.currentUser) return;
-      const q = query(collection(firestoreDb, 'debts'), where('userId', '==', auth.currentUser.uid));
+      const q = query(collection(firestoreDb, 'debts'), where('allowedUsers', 'array-contains', auth.currentUser.uid));
       const snap = await getDocs(q);
       const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'debts', docSnap.id)));
@@ -1039,7 +1108,8 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          userId: auth.currentUser.uid
+          allowedUsers: [auth.currentUser.uid],
+          creatorId: auth.currentUser.uid
         });
       });
       if (!db._activeBatch) {
@@ -1141,6 +1211,7 @@ export const DbProvider = ({ children }) => {
   const [wishlist, setWishlist] = useState([]);
   const [categories, setCategories] = useState([]);
   const [debts, setDebts] = useState([]);
+  const [friendships, setFriendships] = useState([]);
   
   // Single document state
   const [usersMetaDoc, setUsersMetaDoc] = useState(null);
@@ -1155,6 +1226,7 @@ export const DbProvider = ({ children }) => {
     const metaRef = doc(firestoreDb, 'users_meta', user.uid);
     await setDoc(metaRef, {
       username: firstname.trim(),
+      email: email.trim().toLowerCase(),
       favoriteAccountId: null,
       dashboardNote: ''
     });
@@ -1206,6 +1278,7 @@ export const DbProvider = ({ children }) => {
         setWishlist([]);
         setCategories([]);
         setDebts([]);
+        setFriendships([]);
         setUsersMetaDoc(null);
       }
     });
@@ -1246,6 +1319,44 @@ export const DbProvider = ({ children }) => {
     }
   }, [categories, currentUser, authLoading, dataLoading]);
 
+  // Transparent migration for legacy records
+  useEffect(() => {
+    if (!currentUser) return;
+    const runMigration = async () => {
+      try {
+        const collectionsToMigrate = ['accounts', 'wishlist', 'debts'];
+        for (const colName of collectionsToMigrate) {
+          const q = query(
+            collection(firestoreDb, colName), 
+            where('userId', '==', currentUser.uid)
+          );
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const batch = writeBatch(firestoreDb);
+            let migrationCount = 0;
+            snap.docs.forEach(docSnap => {
+              const data = docSnap.data();
+              if (!data.allowedUsers) {
+                batch.update(doc(firestoreDb, colName, docSnap.id), {
+                  allowedUsers: [currentUser.uid],
+                  creatorId: currentUser.uid
+                });
+                migrationCount++;
+              }
+            });
+            if (migrationCount > 0) {
+              await batch.commit();
+              console.log(`[V3.0.0 Migration] Migrated ${migrationCount} docs in ${colName}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Migration error:", error);
+      }
+    };
+    runMigration();
+  }, [currentUser]);
+
   // Data Subscription (only when logged in)
   useEffect(() => {
     if (!currentUser) return;
@@ -1257,16 +1368,26 @@ export const DbProvider = ({ children }) => {
     const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
     const unsubMeta = onSnapshot(metaRef, (docSnap) => {
       if (docSnap.exists()) {
-        setUsersMetaDoc(docSnap.data());
+        const data = docSnap.data();
+        setUsersMetaDoc(data);
+        if (!data.email && currentUser.email) {
+          updateDoc(metaRef, { email: currentUser.email.toLowerCase() }).catch(err => console.error(err));
+        }
       } else {
+        setDoc(metaRef, {
+          username: currentUser.displayName || 'Habitant',
+          email: currentUser.email.toLowerCase(),
+          favoriteAccountId: null,
+          dashboardNote: ''
+        }).catch(err => console.error(err));
         setUsersMetaDoc(null);
       }
     });
     unsubscribes.push(unsubMeta);
 
-    // Helper for snapshot listeners
-    const subscribeCollection = (colName, setList) => {
-      const q = query(collection(firestoreDb, colName), where('userId', '==', currentUser.uid));
+    // Helpers for snapshot listeners containing allowedUsers
+    const subscribeCollectionShared = (colName, setList) => {
+      const q = query(collection(firestoreDb, colName), where('allowedUsers', 'array-contains', currentUser.uid));
       return onSnapshot(q, (snapshot) => {
         const list = snapshot.docs.map(d => ({
           id: d.id,
@@ -1276,23 +1397,126 @@ export const DbProvider = ({ children }) => {
       });
     };
 
-    unsubscribes.push(subscribeCollection('accounts', setAccounts));
-    unsubscribes.push(subscribeCollection('transactions', setTransactions));
-    unsubscribes.push(subscribeCollection('pockets', setPockets));
-    unsubscribes.push(subscribeCollection('wishlist', setWishlist));
-    unsubscribes.push(subscribeCollection('categories', setCategories));
-    unsubscribes.push(subscribeCollection('debts', setDebts));
+    unsubscribes.push(subscribeCollectionShared('accounts', setAccounts));
+    unsubscribes.push(subscribeCollectionShared('wishlist', setWishlist));
+    unsubscribes.push(subscribeCollectionShared('debts', setDebts));
+    unsubscribes.push(onSnapshot(query(collection(firestoreDb, 'categories'), where('userId', '==', currentUser.uid)), (snapshot) => {
+      setCategories(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }));
+
+    // Friendships Subscriptions (both senderId and receiverId)
+    const qFriendshipsSender = query(collection(firestoreDb, 'friendships'), where('senderId', '==', currentUser.uid));
+    const qFriendshipsReceiver = query(collection(firestoreDb, 'friendships'), where('receiverId', '==', currentUser.uid));
+    
+    const friendshipsMap = {};
+    const updateFriendshipsState = () => {
+      setFriendships(Object.values(friendshipsMap));
+    };
+
+    const unsubSenders = onSnapshot(qFriendshipsSender, (snapshot) => {
+      snapshot.docs.forEach(docSnap => {
+        friendshipsMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      });
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'removed') {
+          delete friendshipsMap[change.doc.id];
+        }
+      });
+      updateFriendshipsState();
+    });
+    unsubscribes.push(unsubSenders);
+
+    const unsubReceivers = onSnapshot(qFriendshipsReceiver, (snapshot) => {
+      snapshot.docs.forEach(docSnap => {
+        friendshipsMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      });
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'removed') {
+          delete friendshipsMap[change.doc.id];
+        }
+      });
+      updateFriendshipsState();
+    });
+    unsubscribes.push(unsubReceivers);
 
     // Wait a brief moment to let snapshots populate before disabling loader
     const timer = setTimeout(() => {
       setDataLoading(false);
-    }, 800);
+    }, 850);
 
     return () => {
       unsubscribes.forEach(unsub => unsub());
       clearTimeout(timer);
     };
   }, [currentUser]);
+
+  // Reactive subscription for transactions and pockets (based on authorized accounts)
+  useEffect(() => {
+    if (!currentUser) {
+      setTransactions([]);
+      setPockets([]);
+      return;
+    }
+    
+    const accountIds = accounts.map(a => a.id);
+    if (accountIds.length === 0) {
+      setTransactions([]);
+      setPockets([]);
+      return;
+    }
+
+    // Chunk size 30 for 'in' operator limits in Firestore (safest batching)
+    const chunks = [];
+    for (let i = 0; i < accountIds.length; i += 30) {
+      chunks.push(accountIds.slice(i, i + 30));
+    }
+
+    const unsubscribes = [];
+    const transactionsMap = {};
+    const pocketsMap = {};
+
+    const updateTransactionsState = () => {
+      setTransactions(Object.values(transactionsMap));
+    };
+
+    const updatePocketsState = () => {
+      setPockets(Object.values(pocketsMap));
+    };
+
+    chunks.forEach(chunk => {
+      const qTx = query(collection(firestoreDb, 'transactions'), where('accountId', 'in', chunk));
+      const unsubTx = onSnapshot(qTx, (snapshot) => {
+        snapshot.docs.forEach(docSnap => {
+          transactionsMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+        });
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'removed') {
+            delete transactionsMap[change.doc.id];
+          }
+        });
+        updateTransactionsState();
+      });
+      unsubscribes.push(unsubTx);
+
+      const qPocket = query(collection(firestoreDb, 'pockets'), where('accountId', 'in', chunk));
+      const unsubPocket = onSnapshot(qPocket, (snapshot) => {
+        snapshot.docs.forEach(docSnap => {
+          pocketsMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+        });
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'removed') {
+            delete pocketsMap[change.doc.id];
+          }
+        });
+        updatePocketsState();
+      });
+      unsubscribes.push(unsubPocket);
+    });
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [accounts, currentUser]);
 
   // Pockets auto-renewal effect
   useEffect(() => {
@@ -1422,6 +1646,7 @@ export const DbProvider = ({ children }) => {
     wishlist,
     categories,
     debts,
+    friendships,
     accountsData,
     favoriteAccountDetails,
     globalLatestTransactions,

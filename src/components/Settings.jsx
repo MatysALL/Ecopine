@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, useDb } from '../db';
 import { 
   Download, Upload, Trash2, ShieldAlert, CheckCircle, AlertCircle, 
-  User, Tag, Plus, FileSpreadsheet 
+  User, Users, Tag, Plus, FileSpreadsheet 
 } from 'lucide-react';
 
 export default function Settings() {
@@ -26,8 +26,58 @@ export default function Settings() {
     transactions: allTransactions,
     pockets: pocketsList,
     user,
+    friendships = [],
     logOutUser
   } = useDb();
+
+  // Friendship states
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+
+  const handleSendInvite = async (e) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) return;
+    
+    setIsInviting(true);
+    try {
+      await db.friendships.sendRequest(inviteEmail.trim());
+      setInviteEmail('');
+      alert("Demande d'ami envoyée avec succès !");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Erreur lors de l'envoi de la demande d'ami.");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleAcceptInvite = async (friendshipId) => {
+    try {
+      await db.friendships.acceptRequest(friendshipId);
+    } catch (err) {
+      console.error(err);
+      alert("Impossible d'accepter l'invitation.");
+    }
+  };
+
+  const handleRejectOrDeleteFriendship = async (friendshipId, isFriend) => {
+    const msg = isFriend 
+      ? "Es-tu sûr de vouloir retirer cet habitant de tes amis ? Tous ses partages seront révoqués."
+      : "Es-tu sûr de vouloir annuler ou rejeter cette demande d'amitié ?";
+    if (window.confirm(msg)) {
+      try {
+        await db.friendships.delete(friendshipId);
+      } catch (err) {
+        console.error(err);
+        alert("Une erreur s'est produite.");
+      }
+    }
+  };
+
+  // Filter requests
+  const receivedRequests = friendships.filter(f => f.status === 'pending' && f.receiverId === user?.uid);
+  const sentRequests = friendships.filter(f => f.status === 'pending' && f.senderId === user?.uid);
+  const acceptedFriends = friendships.filter(f => f.status === 'accepted');
 
   // Initial load of metadata
   useEffect(() => {
@@ -437,6 +487,139 @@ export default function Settings() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Registre des Habitants (Amitiés) */}
+      <div className="ac-card p-6 bg-white border-ac-brown space-y-6">
+        <h3 className="text-lg font-black text-ac-brown flex items-center gap-2 border-b border-ac-brown/10 pb-2">
+          <Users className="w-5 h-5 text-ac-green" /> Registre des Habitants (Amitiés)
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Form to invite */}
+          <div className="space-y-4">
+            <h4 className="font-extrabold text-sm text-ac-brown flex items-center gap-1"> Nouvel Habitant</h4>
+            <p className="text-[11px] font-semibold text-ac-brown-light leading-relaxed">
+              Saisis l'e-mail d'un autre habitant d'Ecopine pour lui envoyer une demande d'ami. Une fois acceptée, vous pourrez partager vos comptes, souhaits et dettes !
+            </p>
+            <form onSubmit={handleSendInvite} className="space-y-3">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Ex: villageois@ecopine.fr"
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
+                required
+              />
+              <button
+                type="submit"
+                disabled={isInviting}
+                className="w-full bg-ac-green text-white font-extrabold text-xs py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer disabled:opacity-60"
+              >
+                <Plus className="w-3.5 h-3.5 text-white" /> {isInviting ? "Envoi..." : "Envoyer la demande"}
+              </button>
+            </form>
+          </div>
+
+          {/* Pending invites */}
+          <div className="space-y-4 md:border-l md:border-ac-brown/10 md:pl-6">
+            <h4 className="font-extrabold text-sm text-ac-brown">Demandes d'ami</h4>
+            
+            {/* Demandes reçues */}
+            <div className="space-y-3">
+              <span className="block text-[10px] font-black uppercase text-ac-brown-light tracking-wide">Demandes Reçues</span>
+              {receivedRequests.length === 0 ? (
+                <p className="text-xs text-ac-brown-light/60 italic">Aucune demande reçue...</p>
+              ) : (
+                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                  {receivedRequests.map(req => (
+                    <div key={req.id} className="p-3 bg-ac-cream border-2 border-ac-brown/15 rounded-2xl flex flex-col gap-2">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-extrabold text-ac-brown">🍃 {req.senderName}</span>
+                        <span className="text-[9px] text-ac-brown-light">{req.senderEmail}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAcceptInvite(req.id)}
+                          className="flex-1 bg-ac-green text-white font-extrabold text-[10px] py-1.5 rounded-xl border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1 cursor-pointer hover:translate-y-[0.5px]"
+                        >
+                          Accepter
+                        </button>
+                        <button
+                          onClick={() => handleRejectOrDeleteFriendship(req.id, false)}
+                          className="px-2 bg-white text-ac-red font-extrabold text-[10px] py-1.5 rounded-xl border-2 border-ac-brown shadow-ac-sm flex items-center justify-center cursor-pointer hover:bg-ac-red-light"
+                        >
+                          Refuser
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Demandes envoyées */}
+            <div className="space-y-3 pt-2">
+              <span className="block text-[10px] font-black uppercase text-ac-brown-light tracking-wide">Demandes Envoyées</span>
+              {sentRequests.length === 0 ? (
+                <p className="text-xs text-ac-brown-light/60 italic">Aucune demande envoyée...</p>
+              ) : (
+                <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                  {sentRequests.map(req => (
+                    <div key={req.id} className="p-2.5 bg-white border border-ac-brown/10 rounded-xl flex items-center justify-between">
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="text-xs font-extrabold text-ac-brown truncate">🍃 {req.receiverName}</span>
+                        <span className="text-[9px] text-ac-brown-light truncate">{req.receiverEmail}</span>
+                      </div>
+                      <button
+                        onClick={() => handleRejectOrDeleteFriendship(req.id, false)}
+                        className="bg-white hover:bg-ac-red-light text-ac-brown-light hover:text-ac-red p-1 rounded border border-ac-brown/10 cursor-pointer"
+                        title="Annuler la demande"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Accepted friends list */}
+          <div className="space-y-4 md:border-l md:border-ac-brown/10 md:pl-6">
+            <h4 className="font-extrabold text-sm text-ac-brown">Amis de l'île ({acceptedFriends.length})</h4>
+            {acceptedFriends.length === 0 ? (
+              <div className="text-center py-6 bg-ac-cream/55 border border-dashed border-ac-brown/15 rounded-2xl">
+                <p className="text-xs font-bold text-ac-brown-light">Tu n'as pas encore d'amis.</p>
+                <p className="text-[10px] text-ac-brown-light/80 mt-0.5">Envoie une demande ci-dessus ! ✈️</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {acceptedFriends.map(friend => {
+                  const isSender = friend.senderId === user.uid;
+                  const friendName = isSender ? friend.receiverName : friend.senderName;
+                  const friendEmail = isSender ? friend.receiverEmail : friend.senderEmail;
+                  
+                  return (
+                    <div key={friend.id} className="p-3 bg-white border-2 border-ac-brown rounded-2xl flex items-center justify-between shadow-ac-xs">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-black text-ac-brown">🍃 {friendName}</span>
+                        <span className="text-[9px] text-ac-brown-light">{friendEmail}</span>
+                      </div>
+                      <button
+                        onClick={() => handleRejectOrDeleteFriendship(friend.id, true)}
+                        className="bg-white hover:bg-ac-red-light border border-ac-brown/20 hover:border-ac-red/20 text-ac-brown-light hover:text-ac-red p-1.5 rounded-lg cursor-pointer transition-colors"
+                        title="Retirer des amis"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
