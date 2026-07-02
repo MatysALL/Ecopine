@@ -2,14 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { db, useDb } from '../db';
 import { doc, getDoc, getDocs, query, collection, where } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
-import { Plus, Trash2, Handshake, X, Coins, Sparkles, Mail } from 'lucide-react';
+import { Plus, Trash2, Handshake, X, Coins, Sparkles, Mail, Edit2 } from 'lucide-react';
 import ShareModal from './ShareModal';
 
 export default function DebtsView() {
-  const { debts = [], accountsData: accounts = [], user } = useDb();
+  const { debts = [], accountsData: accounts = [], user, acceptedFriends } = useDb();
 
   // Sharing popup state
   const [sharingDoc, setSharingDoc] = useState(null); // { id, allowedUsers, creatorId }
+
+  // Editing debt state
+  const [editingDebt, setEditingDebt] = useState(null);
+
+  // Associated friend ID state
+  const [associatedFriendId, setAssociatedFriendId] = useState('');
 
   // Form toggle
   const [formOpen, setFormOpen] = useState(false);
@@ -54,14 +60,31 @@ export default function DebtsView() {
 
     setIsSubmitting(true);
     try {
-      await db.debts.add({
+      const selectedFriend = acceptedFriends?.find(f => f.uid === associatedFriendId);
+
+      const debtData = {
         type: debtType,
         person: debtPerson.trim(),
         amount: amt,
         description: debtDescription.trim(),
         status: 'pending',
-        date: new Date().toISOString().split('T')[0]
-      });
+        associatedFriendId: associatedFriendId || null,
+        associatedFriendName: selectedFriend ? selectedFriend.name : null,
+        allowedUsers: associatedFriendId ? [user.uid, associatedFriendId] : [user.uid]
+      };
+
+      if (editingDebt) {
+        await db.debts.update(editingDebt.id, {
+          ...debtData,
+          status: editingDebt.status,
+          date: editingDebt.date
+        });
+      } else {
+        await db.debts.add({
+          ...debtData,
+          date: new Date().toISOString().split('T')[0]
+        });
+      }
 
       resetForm();
     } catch (err) {
@@ -72,12 +95,24 @@ export default function DebtsView() {
     }
   };
 
+  const handleEditDebt = (debt) => {
+    setEditingDebt(debt);
+    setDebtType(debt.type);
+    setDebtPerson(debt.person);
+    setDebtAmount(debt.amount.toString());
+    setDebtDescription(debt.description || '');
+    setAssociatedFriendId(debt.associatedFriendId || '');
+    setFormOpen(true);
+  };
+
   const resetForm = () => {
     setDebtPerson('');
     setDebtAmount('');
     setDebtDescription('');
     setDebtType('to_pay');
+    setAssociatedFriendId('');
     setFormOpen(false);
+    setEditingDebt(null);
   };
 
   // Delete directly
@@ -294,6 +329,36 @@ export default function DebtsView() {
             />
           </div>
 
+          {acceptedFriends && acceptedFriends.length > 0 && (
+            <div>
+              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">
+                Attribuer à un ami (optionnel)
+              </label>
+              <select
+                value={associatedFriendId}
+                onChange={(e) => {
+                  const friendId = e.target.value;
+                  setAssociatedFriendId(friendId);
+                  const selectedFriend = acceptedFriends.find(f => f.uid === friendId);
+                  if (selectedFriend) {
+                    setDebtPerson(selectedFriend.name);
+                  }
+                }}
+                className="w-full h-11 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+              >
+                <option value="">Aucun (Dette personnelle)</option>
+                {acceptedFriends.map(friend => (
+                  <option key={friend.uid} value={friend.uid}>
+                    🍃 {friend.name} ({friend.email})
+                  </option>
+                ))}
+              </select>
+              <p className="text-[9px] text-ac-brown-light/60 mt-1">
+                La dette s’affichera automatiquement dans le registre de cet ami pour collaboration.
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -360,6 +425,15 @@ export default function DebtsView() {
                           <Mail className="w-3.5 h-3.5" />
                         </button>
                       )}
+                      {(debt.creatorId === user?.uid || !debt.creatorId) && (
+                        <button
+                          onClick={() => handleEditDebt(debt)}
+                          className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
+                          title="Modifier cette dette"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => openSettleModal(debt)}
                         className="bg-ac-red hover:bg-ac-red/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
@@ -421,6 +495,15 @@ export default function DebtsView() {
                           title="Partager cette créance"
                         >
                           <Mail className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {(debt.creatorId === user?.uid || !debt.creatorId) && (
+                        <button
+                          onClick={() => handleEditDebt(debt)}
+                          className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
+                          title="Modifier cette créance"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                       <button

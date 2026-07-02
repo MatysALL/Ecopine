@@ -9,10 +9,13 @@ import {
 import ShareModal from './ShareModal';
 
 export default function WishlistView() {
-  const { wishlist: wishes, accountsData: accounts, user } = useDb();
+  const { wishlist: wishes, accountsData: accounts, user, acceptedFriends } = useDb();
 
   // Sharing popup state
   const [sharingDoc, setSharingDoc] = useState(null); // { id, allowedUsers, creatorId }
+
+  // Sharing checkboxes state
+  const [sharedFriendUids, setSharedFriendUids] = useState([]);
 
   // UI state
   const [formOpen, setFormOpen] = useState(false);
@@ -101,7 +104,8 @@ export default function WishlistView() {
       const wishData = {
         name: wishName.trim(),
         price: priceValue,
-        description: wishDescription.trim()
+        description: wishDescription.trim(),
+        allowedUsers: [user.uid, ...sharedFriendUids]
       };
 
       if (editingWish) {
@@ -128,6 +132,7 @@ export default function WishlistView() {
     setWishName(wish.name);
     setWishPrice(wish.price.toString());
     setWishDescription(wish.description || '');
+    setSharedFriendUids(wish.allowedUsers ? wish.allowedUsers.filter(uid => uid !== user?.uid) : []);
     setFormOpen(true);
   };
 
@@ -143,6 +148,7 @@ export default function WishlistView() {
     setWishDescription('');
     setFormOpen(false);
     setEditingWish(null);
+    setSharedFriendUids([]);
   };
 
   // Handlers for Purchase flow
@@ -281,6 +287,39 @@ export default function WishlistView() {
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none"
             />
           </div>
+
+          {acceptedFriends && acceptedFriends.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black uppercase text-ac-brown-light">Partager ce souhait avec un habitant</label>
+              <div className="flex flex-wrap gap-2 p-3 bg-ac-cream border-2 border-ac-brown rounded-2xl max-h-32 overflow-y-auto">
+                {acceptedFriends.map(friend => {
+                  const isChecked = sharedFriendUids.includes(friend.uid);
+                  return (
+                    <label 
+                      key={friend.uid} 
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border border-ac-brown/20 cursor-pointer select-none text-xs font-bold transition-all ${
+                        isChecked ? 'bg-ac-green/15 border-ac-green text-ac-green shadow-ac-xs' : 'bg-white hover:bg-ac-cream-dark border-ac-brown/15'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSharedFriendUids([...sharedFriendUids, friend.uid]);
+                          } else {
+                            setSharedFriendUids(sharedFriendUids.filter(uid => uid !== friend.uid));
+                          }
+                        }}
+                        className="hidden"
+                      />
+                      <span>🍃 {friend.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button

@@ -678,7 +678,7 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        allowedUsers: [auth.currentUser.uid],
+        allowedUsers: data.allowedUsers || [auth.currentUser.uid],
         creatorId: auth.currentUser.uid
       };
       if (db._activeBatch) {
@@ -940,7 +940,7 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        allowedUsers: [auth.currentUser.uid],
+        allowedUsers: data.allowedUsers || [auth.currentUser.uid],
         creatorId: auth.currentUser.uid
       };
       if (db._activeBatch) {
@@ -1063,7 +1063,7 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        allowedUsers: [auth.currentUser.uid],
+        allowedUsers: data.allowedUsers || [auth.currentUser.uid],
         creatorId: auth.currentUser.uid
       };
       if (db._activeBatch) {
@@ -1635,6 +1635,21 @@ export const DbProvider = ({ children }) => {
       .slice(0, 5);
   }, [transactions]);
 
+  // Derived state: acceptedFriends (friends with status === 'accepted')
+  const acceptedFriends = useMemo(() => {
+    if (!friendships || !currentUser) return [];
+    return friendships
+      .filter(f => f.status === 'accepted')
+      .map(f => {
+        const isSender = f.senderId === currentUser.uid;
+        return {
+          uid: isSender ? f.receiverId : f.senderId,
+          email: isSender ? f.receiverEmail : f.senderEmail,
+          name: isSender ? f.receiverName : f.senderName
+        };
+      });
+  }, [friendships, currentUser]);
+
   const value = {
     isLoading: authLoading || dataLoading,
     user: currentUser,
@@ -1647,6 +1662,7 @@ export const DbProvider = ({ children }) => {
     categories,
     debts,
     friendships,
+    acceptedFriends,
     accountsData,
     favoriteAccountDetails,
     globalLatestTransactions,

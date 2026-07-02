@@ -41,10 +41,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
 
-  const { accountsData: accounts, transactions: allTransactions, user } = useDb();
+  const { accountsData: accounts, transactions: allTransactions, user, acceptedFriends } = useDb();
 
   // Sharing popup state
   const [sharingDoc, setSharingDoc] = useState(null);
+
+  // Sharing checkboxes state
+  const [sharedFriendUids, setSharedFriendUids] = useState([]);
 
   // Drag & Drop state for Accounts
   const [draggableAccountId, setDraggableAccountId] = useState(null);
@@ -139,7 +142,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         description: accDescription.trim(),
         rib: accRib.trim(),
         initialBalance: isNaN(initial) ? 0 : initial,
-        rate: isNaN(rate) ? 0 : rate
+        rate: isNaN(rate) ? 0 : rate,
+        allowedUsers: [user.uid, ...sharedFriendUids]
       };
 
       if (editingAccount) {
@@ -171,6 +175,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccRib('');
     setAccInitial('');
     setAccRate('');
+    setSharedFriendUids([]);
   };
 
   const handleTransferSubmit = async (e) => {
@@ -257,6 +262,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccRib(acc.rib || '');
     setAccInitial(acc.initialBalance.toString());
     setAccRate(acc.rate ? acc.rate.toString() : '');
+    setSharedFriendUids(acc.allowedUsers ? acc.allowedUsers.filter(uid => uid !== user?.uid) : []);
     setAccountFormOpen(true);
   };
 
@@ -1233,6 +1239,41 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                 />
               </div>
+
+              {acceptedFriends && acceptedFriends.length > 0 && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-black uppercase text-ac-brown-light">
+                    Partager ce compte avec un habitant
+                  </label>
+                  <div className="flex flex-wrap gap-2.5 p-3.5 bg-ac-cream border-2 border-ac-brown rounded-2xl max-h-32 overflow-y-auto">
+                    {acceptedFriends.map(friend => {
+                      const isChecked = sharedFriendUids.includes(friend.uid);
+                      return (
+                        <label 
+                          key={friend.uid} 
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border border-ac-brown/20 cursor-pointer select-none text-xs font-bold transition-all ${
+                            isChecked ? 'bg-ac-green/15 border-ac-green text-ac-green shadow-ac-xs animate-bounce-in' : 'bg-[#FFFDF9] hover:bg-ac-cream-dark border-ac-brown/15'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSharedFriendUids([...sharedFriendUids, friend.uid]);
+                              } else {
+                                setSharedFriendUids(sharedFriendUids.filter(uid => uid !== friend.uid));
+                              }
+                            }}
+                            className="hidden"
+                          />
+                          <span>🍃 {friend.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-4 pt-4 border-t border-ac-brown/10">
                 <button
