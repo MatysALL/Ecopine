@@ -320,7 +320,9 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                     <div>
                       <h4 className="font-extrabold text-xs text-ac-brown">{acc.name}</h4>
                       <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-white border border-ac-brown/20 text-ac-brown-light mt-1 inline-block">
-                        {acc.type} {acc.rate > 0 ? `(${acc.rate}%)` : ''}
+                        {acc.sharedWithNames && acc.sharedWithNames.length > 0 
+                          ? `Partagé avec ${acc.sharedWithNames.join(', ')}` 
+                          : acc.type} {acc.rate > 0 ? `(${acc.rate}%)` : ''}
                       </span>
                     </div>
                     <div className="text-right">

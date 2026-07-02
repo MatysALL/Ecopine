@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Edit2, Sparkles, Coins, Clock, AlertCircle, X, Layers, Tag
 } from 'lucide-react';
 
-export default function PocketManager({ accountId }) {
+export default function PocketManager({ accountId, role }) {
   const { pockets: allPockets, categories } = useDb();
   
   // UI states
@@ -251,12 +251,14 @@ export default function PocketManager({ accountId }) {
             Alloué : <strong>{totalAllocated.toLocaleString('fr-FR')} 🔔</strong> | Restant : <strong>{totalCurrent.toLocaleString('fr-FR')} 🔔</strong>
           </p>
         </div>
-        <button
-          onClick={() => { resetForm(); setFormOpen(true); }}
-          className="bg-ac-green hover:bg-ac-green/90 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm flex items-center gap-1 cursor-pointer shrink-0 transition-transform active:translate-y-0.5"
-        >
-          <Plus className="w-4 h-4" /> Créer une poche
-        </button>
+        {role !== 'viewer' && (
+          <button
+            onClick={() => { resetForm(); setFormOpen(true); }}
+            className="bg-ac-green hover:bg-ac-green/90 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm flex items-center gap-1 cursor-pointer shrink-0 transition-transform active:translate-y-0.5"
+          >
+            <Plus className="w-4 h-4" /> Créer une poche
+          </button>
+        )}
       </div>
 
       {/* Form Modal / Area */}
@@ -442,7 +444,7 @@ export default function PocketManager({ accountId }) {
             return (
               <div 
                 key={pocket.id} 
-                draggable={isDragging}
+                draggable={role !== 'viewer' && isDragging}
                 onDragStart={(e) => handleDragStart(e, index)}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
@@ -457,13 +459,15 @@ export default function PocketManager({ accountId }) {
                   <div className="flex items-center gap-3">
                     {/* Draggable Icon handle */}
                     <div 
-                      onMouseDown={() => handleStartLongPress(pocket.id)}
-                      onTouchStart={() => handleStartLongPress(pocket.id)}
+                      onMouseDown={role !== 'viewer' ? () => handleStartLongPress(pocket.id) : undefined}
+                      onTouchStart={role !== 'viewer' ? () => handleStartLongPress(pocket.id) : undefined}
                       onMouseUp={handleCancelLongPress}
                       onTouchEnd={handleCancelLongPress}
                       onMouseLeave={handleCancelLongPress}
-                      className="w-10 h-10 bg-white/80 rounded-full border border-ac-brown/15 flex items-center justify-center cursor-grab shrink-0 select-none shadow-ac-xs active:cursor-grabbing hover:bg-ac-cream transition-colors"
-                      title="Glisser-déposer (clic long)"
+                      className={`w-10 h-10 bg-white/80 rounded-full border border-ac-brown/15 flex items-center justify-center shrink-0 select-none shadow-ac-xs transition-colors ${
+                        role !== 'viewer' ? 'cursor-grab active:cursor-grabbing hover:bg-ac-cream' : ''
+                      }`}
+                      title={role !== 'viewer' ? "Glisser-déposer (clic long)" : undefined}
                     >
                       <span className="text-lg">{cat?.emoji || '🍃'}</span>
                     </div>
@@ -495,30 +499,32 @@ export default function PocketManager({ accountId }) {
                   </div>
                   
                   {/* Actions */}
-                  <div className="flex gap-1 shrink-0 items-center">
-                    {/* Quick Debit Button */}
-                    <button
-                      onClick={() => openDebitModal(pocket)}
-                      className="p-1.5 bg-ac-red/10 hover:bg-ac-red/20 rounded-xl text-ac-red border border-ac-red/20 cursor-pointer font-black text-xs h-7 w-7 flex items-center justify-center transition-all"
-                      title="Déduire de l'argent de la poche"
-                    >
-                      -
-                    </button>
-                    <button
-                      onClick={() => handleEdit(pocket)}
-                      className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/15 cursor-pointer"
-                      title="Modifier la poche"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(pocket.id)}
-                      className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-red/15 cursor-pointer"
-                      title="Supprimer la poche"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {role !== 'viewer' && (
+                    <div className="flex gap-1 shrink-0 items-center">
+                      {/* Quick Debit Button */}
+                      <button
+                        onClick={() => openDebitModal(pocket)}
+                        className="p-1.5 bg-ac-red/10 hover:bg-ac-red/20 rounded-xl text-ac-red border border-ac-red/20 cursor-pointer font-black text-xs h-7 w-7 flex items-center justify-center transition-all"
+                        title="Déduire de l'argent de la poche"
+                      >
+                        -
+                      </button>
+                      <button
+                        onClick={() => handleEdit(pocket)}
+                        className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/15 cursor-pointer"
+                        title="Modifier la poche"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(pocket.id)}
+                        className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-red/15 cursor-pointer"
+                        title="Supprimer la poche"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Progress bar and numeric indicators */}

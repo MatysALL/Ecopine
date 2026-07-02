@@ -41,13 +41,16 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
 
-  const { accountsData: accounts, transactions: allTransactions, user, acceptedFriends } = useDb();
+  const { accountsData: accounts, transactions: allTransactions, user, acceptedFriends, username } = useDb();
 
   // Sharing popup state
   const [sharingDoc, setSharingDoc] = useState(null);
 
   // Sharing checkboxes state
   const [sharedFriendUids, setSharedFriendUids] = useState([]);
+
+  // Sharing roles state
+  const [formUserRoles, setFormUserRoles] = useState({});
 
   // Drag & Drop state for Accounts
   const [draggableAccountId, setDraggableAccountId] = useState(null);
@@ -125,6 +128,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     return calculateLivretInterests(activeAccount, transactions, todayStr);
   }, [activeAccount, transactions]);
 
+  // Current active account user role
+  const myRole = useMemo(() => {
+    if (!activeAccount) return 'owner';
+    return activeAccount.userRoles?.[user?.uid] || 'owner';
+  }, [activeAccount, user]);
+
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
     e.preventDefault();
@@ -135,6 +144,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       const initial = parseFloat(accInitial);
       const rate = accRate ? parseFloat(accRate) : 0;
 
+      const ownerId = editingAccount ? (editingAccount.ownerId || editingAccount.creatorId || user.uid) : user.uid;
+
       const data = {
         name: accName.trim(),
         type: accType,
@@ -143,8 +154,34 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         rib: accRib.trim(),
         initialBalance: isNaN(initial) ? 0 : initial,
         rate: isNaN(rate) ? 0 : rate,
-        allowedUsers: [user.uid, ...sharedFriendUids]
       };
+
+      if (editingAccount && editingAccount.ownerId !== user.uid) {
+        // Safe merge for editors
+        data.allowedUsers = editingAccount.allowedUsers;
+        data.ownerId = ownerId;
+        data.userRoles = editingAccount.userRoles || { [ownerId]: 'owner', [user.uid]: 'editor' };
+        data.sharedWithNames = editingAccount.sharedWithNames || [];
+      } else {
+        // Owner logic
+        const roles = { [ownerId]: 'owner' };
+        const sharedNames = [];
+        const updatedAllowedUsers = [ownerId];
+
+        sharedFriendUids.forEach(uid => {
+          const friend = acceptedFriends?.find(f => f.uid === uid);
+          if (friend) {
+            roles[uid] = formUserRoles[uid] || 'editor';
+            sharedNames.push(friend.name);
+            updatedAllowedUsers.push(uid);
+          }
+        });
+
+        data.allowedUsers = updatedAllowedUsers;
+        data.ownerId = ownerId;
+        data.userRoles = roles;
+        data.sharedWithNames = sharedNames;
+      }
 
       if (editingAccount) {
         await db.accounts.update(editingAccount.id, data);
@@ -176,6 +213,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccInitial('');
     setAccRate('');
     setSharedFriendUids([]);
+    setFormUserRoles({});
   };
 
   const handleTransferSubmit = async (e) => {
@@ -262,7 +300,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccRib(acc.rib || '');
     setAccInitial(acc.initialBalance.toString());
     setAccRate(acc.rate ? acc.rate.toString() : '');
-    setSharedFriendUids(acc.allowedUsers ? acc.allowedUsers.filter(uid => uid !== user?.uid) : []);
+    const accountOwner = acc.ownerId || acc.creatorId || user?.uid;
+    setSharedFriendUids(acc.allowedUsers ? acc.allowedUsers.filter(uid => uid !== accountOwner) : []);
+    setFormUserRoles(acc.userRoles || {});
     setAccountFormOpen(true);
   };
 
@@ -274,6 +314,35 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
     await db.accounts.delete(accId);
     setSelectedAccountId(null);
+  };
+
+  const handleLeaveAccount = async (acc) => {
+    const confirmLeave = window.confirm("Es-tu sûr de vouloir quitter ce compte partagé ?");
+    if (!confirmLeave) return;
+
+    try {
+      const myUsername = username || 'Habitant';
+      const updatedAllowedUsers = (acc.allowedUsers || []).filter(uid => uid !== user?.uid);
+      
+      const updatedUserRoles = { ...(acc.userRoles || {}) };
+      delete updatedUserRoles[user?.uid];
+
+      const updatedSharedWithNames = (acc.sharedWithNames || []).filter(
+        name => name.toLowerCase() !== myUsername.toLowerCase()
+      );
+
+      await db.accounts.update(acc.id, {
+        allowedUsers: updatedAllowedUsers,
+        userRoles: updatedUserRoles,
+        sharedWithNames: updatedSharedWithNames
+      });
+
+      setSelectedAccountId(null);
+      alert("Vous avez quitté le compte.");
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la sortie du compte.");
+    }
   };
 
   const handleAddTransactionFromBudget = (budgetId) => {
@@ -518,8 +587,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   )}
                 </h2>
                 <div className="flex flex-wrap gap-2 items-center text-xs font-bold text-ac-brown-light mt-1">
-                  <span className="bg-ac-gold-light border border-ac-gold/30 text-ac-gold-dark px-2.5 py-0.5 rounded-full">
-                    {activeAccount.type}
+                  <span className="bg-ac-gold-light border border-ac-gold/30 text-ac-gold-dark px-2.5 py-0.5 rounded-full font-black uppercase text-[9px]">
+                    {activeAccount.sharedWithNames && activeAccount.sharedWithNames.length > 0 
+                      ? `Partagé avec ${activeAccount.sharedWithNames.join(', ')}` 
+                      : activeAccount.type}
                   </span>
                   {activeAccount.rate > 0 && (
                     <span className="bg-ac-green-light border border-ac-green/20 text-ac-green px-2.5 py-0.5 rounded-full">
@@ -593,22 +664,34 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
           {/* Account Edit/Delete Controls */}
           <div className="flex gap-3">
-            <button
-              onClick={() => handleEditAccount(activeAccount)}
-              className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
-            >
-              <Edit className="w-4 h-4" /> Modifier le Compte
-            </button>
-            <button
-              onClick={() => handleDeleteAccount(activeAccount.id)}
-              className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" /> Supprimer le Compte
-            </button>
+            {myRole !== 'viewer' && (
+              <button
+                onClick={() => handleEditAccount(activeAccount)}
+                className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
+              >
+                <Edit className="w-4 h-4" /> Modifier le Compte
+              </button>
+            )}
+            {(myRole === 'owner' || activeAccount.ownerId === user?.uid) ? (
+              <button
+                onClick={() => handleDeleteAccount(activeAccount.id)}
+                className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" /> Supprimer le Compte
+              </button>
+            ) : (
+              <button
+                onClick={() => handleLeaveAccount(activeAccount)}
+                className="bg-ac-red/10 hover:bg-ac-red/20 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
+                title="Quitter ce compte partagé"
+              >
+                <X className="w-4 h-4" /> Quitter le compte
+              </button>
+            )}
           </div>
 
           {/* Nested Pocket Section */}
-          <PocketManager accountId={activeAccount.id} />
+          <PocketManager accountId={activeAccount.id} role={myRole} />
 
           {/* Transactions CRUD Card */}
           <div className="ac-card p-6 bg-white border-ac-brown">
@@ -628,91 +711,95 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 >
                   <FileSpreadsheet className="w-4 h-4" /> Exporter en CSV
                 </button>
-                <button
-                  onClick={() => {
-                    setEditingTransaction(null);
-                    setTxModalOpen(true);
-                  }}
-                  className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Nouvelle Transaction
-                </button>
+                {myRole !== 'viewer' && (
+                  <button
+                    onClick={() => {
+                      setEditingTransaction(null);
+                      setTxModalOpen(true);
+                    }}
+                    className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Nouvelle Transaction
+                  </button>
+                )}
               </div>
             </div>
 
             {/* CSV Synchro zone */}
-            <div className="mb-6">
-              <h4 className="text-xs font-black uppercase text-ac-brown-light mb-2 flex items-center gap-1">
-                <FileSpreadsheet className="w-3.5 h-3.5" /> Importation relevé bancaire (CSV)
-              </h4>
-              <div 
-                onDragEnter={handleDrag}
-                onDragOver={handleDrag}
-                onDragLeave={handleDrag}
-                onDrop={handleDrop}
-                className={`border-3 border-dashed rounded-2xl p-6 text-center transition-colors flex flex-col items-center justify-center cursor-pointer select-none ${
-                  isDragActive 
-                    ? 'border-ac-green bg-ac-green-light/40' 
-                    : 'border-ac-brown/20 bg-ac-cream/20 hover:bg-ac-cream/40'
-                }`}
-              >
-                <Upload className="w-8 h-8 text-ac-brown-light mb-2" />
-                <p className="text-xs font-bold text-ac-brown">
-                  Dépose ton fichier CSV bancaire ici ou <label className="text-ac-green underline cursor-pointer">recherche un fichier<input type="file" accept=".csv" className="hidden" onChange={handleFileInput} /></label>
-                </p>
-                <p className="text-[10px] text-ac-brown-light mt-1">
-                  Les colonnes Date, Description et Montant seront détectées automatiquement.
-                </p>
-              </div>
-
-              {csvError && (
-                <div className="mt-2 text-xs font-bold text-ac-red bg-ac-red-light px-3 py-2 rounded-xl border border-ac-red/25 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" /> {csvError}
+            {myRole !== 'viewer' && (
+              <div className="mb-6">
+                <h4 className="text-xs font-black uppercase text-ac-brown-light mb-2 flex items-center gap-1">
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Importation relevé bancaire (CSV)
+                </h4>
+                <div 
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={`border-3 border-dashed rounded-2xl p-6 text-center transition-colors flex flex-col items-center justify-center cursor-pointer select-none ${
+                    isDragActive 
+                      ? 'border-ac-green bg-ac-green-light/40' 
+                      : 'border-ac-brown/20 bg-ac-cream/20 hover:bg-ac-cream/40'
+                  }`}
+                >
+                  <Upload className="w-8 h-8 text-ac-brown-light mb-2" />
+                  <p className="text-xs font-bold text-ac-brown">
+                    Dépose ton fichier CSV bancaire ici ou <label className="text-ac-green underline cursor-pointer">recherche un fichier<input type="file" accept=".csv" className="hidden" onChange={handleFileInput} /></label>
+                  </p>
+                  <p className="text-[10px] text-ac-brown-light mt-1">
+                    Les colonnes Date, Description et Montant seront détectées automatiquement.
+                  </p>
                 </div>
-              )}
 
-              {/* CSV Preview panel */}
-              {csvPreviewTxs && (
-                <div className="mt-4 bg-ac-cream-light/60 border-2 border-ac-brown rounded-2xl p-4 animate-bounce-in space-y-4">
-                  <h5 className="font-extrabold text-xs text-ac-brown flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-ac-gold" /> Aperçu de l'importation ({csvPreviewTxs.length} transactions détectées)
-                  </h5>
-                  <div className="max-h-60 overflow-y-auto border border-ac-brown/10 rounded-xl divide-y divide-ac-brown/10 bg-white">
-                    {csvPreviewTxs.slice(0, 10).map((tx, idx) => (
-                      <div key={idx} className="p-3 text-xs flex justify-between items-center">
-                        <div>
-                          <p className="font-extrabold text-ac-brown">{tx.name}</p>
-                          <span className="text-[10px] font-bold text-ac-brown-light">{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
+                {csvError && (
+                  <div className="mt-2 text-xs font-bold text-ac-red bg-ac-red-light px-3 py-2 rounded-xl border border-ac-red/25 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> {csvError}
+                  </div>
+                )}
+
+                {/* CSV Preview panel */}
+                {csvPreviewTxs && (
+                  <div className="mt-4 bg-ac-cream-light/60 border-2 border-ac-brown rounded-2xl p-4 animate-bounce-in space-y-4">
+                    <h5 className="font-extrabold text-xs text-ac-brown flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-ac-gold" /> Aperçu de l'importation ({csvPreviewTxs.length} transactions détectées)
+                    </h5>
+                    <div className="max-h-60 overflow-y-auto border border-ac-brown/10 rounded-xl divide-y divide-ac-brown/10 bg-white">
+                      {csvPreviewTxs.slice(0, 10).map((tx, idx) => (
+                        <div key={idx} className="p-3 text-xs flex justify-between items-center">
+                          <div>
+                            <p className="font-extrabold text-ac-brown">{tx.name}</p>
+                            <span className="text-[10px] font-bold text-ac-brown-light">{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                          <span className={`font-black ${tx.type === 'credit' ? 'text-ac-green' : 'text-ac-brown'}`}>
+                            {tx.type === 'credit' ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
+                          </span>
                         </div>
-                        <span className={`font-black ${tx.type === 'credit' ? 'text-ac-green' : 'text-ac-brown'}`}>
-                          {tx.type === 'credit' ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
-                        </span>
-                      </div>
-                    ))}
-                    {csvPreviewTxs.length > 10 && (
-                      <div className="p-2 text-center text-[10px] font-bold text-ac-brown-light italic">
-                        Et {csvPreviewTxs.length - 10} autres transactions...
-                      </div>
-                    )}
-                  </div>
+                      ))}
+                      {csvPreviewTxs.length > 10 && (
+                        <div className="p-2 text-center text-[10px] font-bold text-ac-brown-light italic">
+                          Et {csvPreviewTxs.length - 10} autres transactions...
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="flex gap-2 justify-end">
-                    <button 
-                      onClick={() => setCsvPreviewTxs(null)}
-                      className="bg-white hover:bg-ac-cream border border-ac-brown text-ac-brown font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer"
-                    >
-                      Annuler
-                    </button>
-                    <button 
-                      onClick={handleConfirmCSVImport}
-                      className="bg-ac-green text-white font-extrabold text-xs px-3 py-1.5 rounded-xl border border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
-                    >
-                      <CheckCircle className="w-4 h-4" /> Importer
-                    </button>
+                    <div className="flex gap-2 justify-end">
+                      <button 
+                        onClick={() => setCsvPreviewTxs(null)}
+                        className="bg-white hover:bg-ac-cream border border-ac-brown text-ac-brown font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer"
+                      >
+                        Annuler
+                      </button>
+                      <button 
+                        onClick={handleConfirmCSVImport}
+                        className="bg-ac-green text-white font-extrabold text-xs px-3 py-1.5 rounded-xl border border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+                      >
+                        <CheckCircle className="w-4 h-4" /> Importer
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {/* Transactions List */}
             {transactions === undefined ? (
@@ -781,25 +868,27 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                               </span>
                             </td>
                             <td className="py-3.5 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  onClick={() => {
-                                    setEditingTransaction(tx);
-                                    setTxModalOpen(true);
-                                  }}
-                                  className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/25 cursor-pointer"
-                                  title="Modifier"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteTransaction(tx.id)}
-                                  className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-brown/25 cursor-pointer"
-                                  title="Supprimer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                              {myRole !== 'viewer' && (
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setEditingTransaction(tx);
+                                      setTxModalOpen(true);
+                                    }}
+                                    className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/25 cursor-pointer"
+                                    title="Modifier"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteTransaction(tx.id)}
+                                    className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-brown/25 cursor-pointer"
+                                    title="Supprimer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );
@@ -854,23 +943,25 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         </div>
 
                         {/* Actions for mobile (tactile-friendly) */}
-                        <div className="flex justify-end gap-3 mt-2 pt-2 border-t border-ac-brown/10">
-                          <button
-                            onClick={() => {
-                              setEditingTransaction(tx);
-                              setTxModalOpen(true);
-                            }}
-                            className="h-12 px-4 bg-white hover:bg-ac-cream text-ac-brown rounded-xl border-2 border-ac-brown shadow-ac-sm cursor-pointer flex items-center justify-center gap-1.5 font-bold text-xs"
-                          >
-                            <Edit className="w-3.5 h-3.5" /> Modifier
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTransaction(tx.id)}
-                            className="h-12 px-4 bg-white hover:bg-ac-red-light text-ac-red rounded-xl border-2 border-ac-brown shadow-ac-sm cursor-pointer flex items-center justify-center gap-1.5 font-bold text-xs"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Supprimer
-                          </button>
-                        </div>
+                        {myRole !== 'viewer' && (
+                          <div className="flex justify-end gap-3 mt-2 pt-2 border-t border-ac-brown/10">
+                            <button
+                              onClick={() => {
+                                setEditingTransaction(tx);
+                                setTxModalOpen(true);
+                              }}
+                              className="h-12 px-4 bg-white hover:bg-ac-cream text-ac-brown rounded-xl border-2 border-ac-brown shadow-ac-sm cursor-pointer flex items-center justify-center gap-1.5 font-bold text-xs"
+                            >
+                              <Edit className="w-3.5 h-3.5" /> Modifier
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTransaction(tx.id)}
+                              className="h-12 px-4 bg-white hover:bg-ac-red-light text-ac-red rounded-xl border-2 border-ac-brown shadow-ac-sm cursor-pointer flex items-center justify-center gap-1.5 font-bold text-xs"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -960,7 +1051,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         <h4 className="font-extrabold text-sm text-ac-brown leading-tight flex items-center gap-1.5 flex-wrap">
                           {acc.name}
                           <span className="text-[8px] font-black uppercase tracking-wider bg-ac-cream-dark/50 border border-ac-brown/10 text-ac-brown-light px-2 py-0.5 rounded-full">
-                            {acc.type}
+                            {acc.sharedWithNames && acc.sharedWithNames.length > 0 
+                              ? `Partagé avec ${acc.sharedWithNames.join(', ')}` 
+                              : acc.type}
                           </span>
                         </h4>
                         {acc.bankName && (
@@ -1240,35 +1333,58 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 />
               </div>
 
-              {acceptedFriends && acceptedFriends.length > 0 && (
+              {acceptedFriends && acceptedFriends.length > 0 && (!editingAccount || editingAccount.ownerId === user?.uid) && (
                 <div className="space-y-2">
                   <label className="block text-xs font-black uppercase text-ac-brown-light">
                     Partager ce compte avec un habitant
                   </label>
-                  <div className="flex flex-wrap gap-2.5 p-3.5 bg-ac-cream border-2 border-ac-brown rounded-2xl max-h-32 overflow-y-auto">
+                  <div className="flex flex-col gap-2.5 p-3.5 bg-ac-cream border-2 border-ac-brown rounded-2xl max-h-48 overflow-y-auto">
                     {acceptedFriends.map(friend => {
                       const isChecked = sharedFriendUids.includes(friend.uid);
+                      const currentRole = formUserRoles[friend.uid] || 'editor';
                       return (
-                        <label 
+                        <div 
                           key={friend.uid} 
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border border-ac-brown/20 cursor-pointer select-none text-xs font-bold transition-all ${
-                            isChecked ? 'bg-ac-green/15 border-ac-green text-ac-green shadow-ac-xs animate-bounce-in' : 'bg-[#FFFDF9] hover:bg-ac-cream-dark border-ac-brown/15'
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 py-2 rounded-xl border border-ac-brown/20 transition-all ${
+                            isChecked ? 'bg-[#FFFDF9] border-ac-green shadow-ac-xs animate-bounce-in' : 'bg-[#FFFDF9] opacity-75'
                           }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSharedFriendUids([...sharedFriendUids, friend.uid]);
-                              } else {
-                                setSharedFriendUids(sharedFriendUids.filter(uid => uid !== friend.uid));
-                              }
-                            }}
-                            className="hidden"
-                          />
-                          <span>🍃 {friend.name}</span>
-                        </label>
+                          <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold w-full sm:w-auto">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSharedFriendUids([...sharedFriendUids, friend.uid]);
+                                  if (!formUserRoles[friend.uid]) {
+                                    setFormUserRoles(prev => ({ ...prev, [friend.uid]: 'editor' }));
+                                  }
+                                } else {
+                                  setSharedFriendUids(sharedFriendUids.filter(uid => uid !== friend.uid));
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-2 border-ac-brown bg-ac-cream text-ac-green focus:ring-0 focus:outline-none cursor-pointer"
+                            />
+                            <span>🍃 {friend.name} ({friend.email})</span>
+                          </label>
+
+                          {isChecked && (
+                            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                              <span className="text-[9px] font-black uppercase text-ac-brown-light">Rôle :</span>
+                              <select
+                                value={currentRole}
+                                onChange={(e) => {
+                                  const newRole = e.target.value;
+                                  setFormUserRoles(prev => ({ ...prev, [friend.uid]: newRole }));
+                                }}
+                                className="bg-ac-cream border border-ac-brown rounded-lg px-2 py-1 text-[11px] font-bold text-ac-brown focus:outline-none cursor-pointer"
+                              >
+                                <option value="editor">Éditeur</option>
+                                <option value="viewer">Spectateur</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
