@@ -6,16 +6,15 @@ import {
   Plus, Edit2, Trash2, Gift, Coins, Sparkles, X, 
   Landmark, Mail
 } from 'lucide-react';
-import ShareModal from './ShareModal';
+import InlineShareSelector from './InlineShareSelector';
+import AvatarStackPopover from './AvatarStackPopover';
 
 export default function WishlistView() {
   const { wishlist: wishes, accountsData: accounts, user, acceptedFriends } = useDb();
 
-  // Sharing popup state
-  const [sharingDoc, setSharingDoc] = useState(null); // { id, allowedUsers, creatorId }
-
   // Sharing checkboxes state
   const [sharedFriendUids, setSharedFriendUids] = useState([]);
+  const [formUserRoles, setFormUserRoles] = useState({});
 
   // UI state
   const [formOpen, setFormOpen] = useState(false);
@@ -105,7 +104,8 @@ export default function WishlistView() {
         name: wishName.trim(),
         price: priceValue,
         description: wishDescription.trim(),
-        allowedUsers: [user.uid, ...sharedFriendUids]
+        allowedUsers: [user.uid, ...sharedFriendUids],
+        userRoles: { [user.uid]: 'owner', ...formUserRoles }
       };
 
       if (editingWish) {
@@ -133,6 +133,7 @@ export default function WishlistView() {
     setWishPrice(wish.price.toString());
     setWishDescription(wish.description || '');
     setSharedFriendUids(wish.allowedUsers ? wish.allowedUsers.filter(uid => uid !== user?.uid) : []);
+    setFormUserRoles(wish.userRoles || {});
     setFormOpen(true);
   };
 
@@ -149,6 +150,7 @@ export default function WishlistView() {
     setFormOpen(false);
     setEditingWish(null);
     setSharedFriendUids([]);
+    setFormUserRoles({});
   };
 
   // Handlers for Purchase flow
@@ -288,38 +290,15 @@ export default function WishlistView() {
             />
           </div>
 
-          {acceptedFriends && acceptedFriends.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-black uppercase text-ac-brown-light">Partager ce souhait avec un habitant</label>
-              <div className="flex flex-wrap gap-2 p-3 bg-ac-cream border-2 border-ac-brown rounded-2xl max-h-32 overflow-y-auto">
-                {acceptedFriends.map(friend => {
-                  const isChecked = sharedFriendUids.includes(friend.uid);
-                  return (
-                    <label 
-                      key={friend.uid} 
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border border-ac-brown/20 cursor-pointer select-none text-xs font-bold transition-all ${
-                        isChecked ? 'bg-ac-green/15 border-ac-green text-ac-green shadow-ac-xs' : 'bg-white hover:bg-ac-cream-dark border-ac-brown/15'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSharedFriendUids([...sharedFriendUids, friend.uid]);
-                          } else {
-                            setSharedFriendUids(sharedFriendUids.filter(uid => uid !== friend.uid));
-                          }
-                        }}
-                        className="hidden"
-                      />
-                      <span>🍃 {friend.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <InlineShareSelector
+            allowedUsers={sharedFriendUids}
+            userRoles={formUserRoles}
+            onChange={(newAllowed, newUserRoles) => {
+              setSharedFriendUids(newAllowed);
+              setFormUserRoles(newUserRoles);
+            }}
+            ownerId={editingWish?.creatorId || user?.uid}
+          />
 
           <div className="flex justify-end gap-3 pt-2">
             <button
@@ -407,15 +386,13 @@ export default function WishlistView() {
                 <div className="mt-6 pt-4 border-t border-ac-brown/10 flex items-center justify-between">
                   {/* Edit & Delete & Share */}
                   <div className="flex gap-1.5">
-                    {(wish.creatorId === user?.uid || !wish.creatorId) && (
-                      <button
-                        onClick={() => setSharingDoc({ id: wish.id, allowedUsers: wish.allowedUsers || [], creatorId: wish.creatorId })}
-                        className="p-2 hover:bg-ac-sky-light/50 rounded-xl text-ac-brown-light hover:text-ac-sky border border-ac-brown/15 cursor-pointer transition-colors"
-                        title="Partager ce souhait"
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <AvatarStackPopover
+                      allowedUsers={wish.allowedUsers || []}
+                      userRoles={wish.userRoles || {}}
+                      ownerId={wish.creatorId || wish.userId}
+                      docId={wish.id}
+                      collectionName="wishlist"
+                    />
                     <button
                       onClick={() => handleEditWish(wish)}
                       className="p-2 hover:bg-ac-cream rounded-xl text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
@@ -533,17 +510,7 @@ export default function WishlistView() {
         </div>
       )}
 
-      {/* Share Modal Dialog */}
-      {sharingDoc && (
-        <ShareModal 
-          isOpen={!!sharingDoc}
-          onClose={() => setSharingDoc(null)}
-          docId={sharingDoc.id}
-          collectionName="wishlist"
-          allowedUsers={sharingDoc.allowedUsers}
-          creatorId={sharingDoc.creatorId}
-        />
-      )}
+
     </div>
   );
 }

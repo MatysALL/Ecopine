@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import PocketManager from './PocketManager';
-import ShareModal from './ShareModal';
+import InlineShareSelector from './InlineShareSelector';
+import AvatarStackPopover from './AvatarStackPopover';
 
 export default function AccountsView({ selectedAccountId, setSelectedAccountId }) {
   // Account Form states
@@ -569,17 +570,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               <div>
                 <h2 className="text-2xl font-black text-ac-brown flex items-center gap-2">
                   {activeAccount.name}
-                  {(activeAccount.creatorId === user?.uid || !activeAccount.creatorId) && (
-                    <button
-                      onClick={() => {
-                        setSharingDoc({ id: activeAccount.id, allowedUsers: activeAccount.allowedUsers || [], creatorId: activeAccount.creatorId });
-                      }}
-                      className="bg-ac-cream hover:bg-ac-sky-light/50 border-2 border-ac-brown rounded-full p-1.5 transition-colors cursor-pointer text-ac-brown hover:text-ac-sky flex items-center justify-center"
-                      title="Partager ce compte"
-                    >
-                      <Mail className="w-4 h-4" />
-                    </button>
-                  )}
+                  <AvatarStackPopover
+                    allowedUsers={activeAccount.allowedUsers || []}
+                    userRoles={activeAccount.userRoles || {}}
+                    ownerId={activeAccount.creatorId || activeAccount.ownerId}
+                    docId={activeAccount.id}
+                    collectionName="accounts"
+                    size="md"
+                  />
                   {activeAccount.bankName && (
                     <span className="text-xs font-black text-ac-brown-light bg-ac-cream px-2 py-0.5 rounded-md border border-ac-brown/15">
                       {activeAccount.bankName}
@@ -1064,18 +1062,16 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       </div>
 
                       <div className="flex gap-1.5 shrink-0 items-center">
-                        {(acc.creatorId === user?.uid || !acc.creatorId) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSharingDoc({ id: acc.id, allowedUsers: acc.allowedUsers || [], creatorId: acc.creatorId });
-                            }}
-                            className="w-9 h-9 bg-ac-cream hover:bg-ac-sky-light/50 border border-ac-brown/20 hover:border-ac-sky/30 rounded-full flex items-center justify-center text-ac-brown hover:text-ac-sky transition-colors cursor-pointer"
-                            title="Partager ce compte"
-                          >
-                            <Mail className="w-4.5 h-4.5" />
-                          </button>
-                        )}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <AvatarStackPopover
+                            allowedUsers={acc.allowedUsers || []}
+                            userRoles={acc.userRoles || {}}
+                            ownerId={acc.creatorId || acc.ownerId}
+                            docId={acc.id}
+                            collectionName="accounts"
+                            size="sm"
+                          />
+                        </div>
                         <div 
                           onMouseDown={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
                           onTouchStart={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
@@ -1333,62 +1329,16 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 />
               </div>
 
-              {acceptedFriends && acceptedFriends.length > 0 && (!editingAccount || editingAccount.ownerId === user?.uid) && (
-                <div className="space-y-2">
-                  <label className="block text-xs font-black uppercase text-ac-brown-light">
-                    Partager ce compte avec un habitant
-                  </label>
-                  <div className="flex flex-col gap-2.5 p-3.5 bg-ac-cream border-2 border-ac-brown rounded-2xl max-h-48 overflow-y-auto">
-                    {acceptedFriends.map(friend => {
-                      const isChecked = sharedFriendUids.includes(friend.uid);
-                      const currentRole = formUserRoles[friend.uid] || 'editor';
-                      return (
-                        <div 
-                          key={friend.uid} 
-                          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 py-2 rounded-xl border border-ac-brown/20 transition-all ${
-                            isChecked ? 'bg-[#FFFDF9] border-ac-green shadow-ac-xs animate-bounce-in' : 'bg-[#FFFDF9] opacity-75'
-                          }`}
-                        >
-                          <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold w-full sm:w-auto">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSharedFriendUids([...sharedFriendUids, friend.uid]);
-                                  if (!formUserRoles[friend.uid]) {
-                                    setFormUserRoles(prev => ({ ...prev, [friend.uid]: 'editor' }));
-                                  }
-                                } else {
-                                  setSharedFriendUids(sharedFriendUids.filter(uid => uid !== friend.uid));
-                                }
-                              }}
-                              className="w-4 h-4 rounded border-2 border-ac-brown bg-ac-cream text-ac-green focus:ring-0 focus:outline-none cursor-pointer"
-                            />
-                            <span>🍃 {friend.name} ({friend.email})</span>
-                          </label>
-
-                          {isChecked && (
-                            <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                              <span className="text-[9px] font-black uppercase text-ac-brown-light">Rôle :</span>
-                              <select
-                                value={currentRole}
-                                onChange={(e) => {
-                                  const newRole = e.target.value;
-                                  setFormUserRoles(prev => ({ ...prev, [friend.uid]: newRole }));
-                                }}
-                                className="bg-ac-cream border border-ac-brown rounded-lg px-2 py-1 text-[11px] font-bold text-ac-brown focus:outline-none cursor-pointer"
-                              >
-                                <option value="editor">Éditeur</option>
-                                <option value="viewer">Spectateur</option>
-                              </select>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              {(!editingAccount || editingAccount.ownerId === user?.uid || editingAccount.creatorId === user?.uid) && (
+                <InlineShareSelector
+                  allowedUsers={sharedFriendUids}
+                  userRoles={formUserRoles}
+                  onChange={(newAllowed, newUserRoles) => {
+                    setSharedFriendUids(newAllowed);
+                    setFormUserRoles(newUserRoles);
+                  }}
+                  ownerId={editingAccount?.ownerId || user?.uid}
+                />
               )}
 
               <div className="flex gap-4 pt-4 border-t border-ac-brown/10">
@@ -1419,17 +1369,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         </div>
       )}
 
-      {/* Share Modal Dialog */}
-      {sharingDoc && (
-        <ShareModal 
-          isOpen={!!sharingDoc}
-          onClose={() => setSharingDoc(null)}
-          docId={sharingDoc.id}
-          collectionName="accounts"
-          allowedUsers={sharingDoc.allowedUsers}
-          creatorId={sharingDoc.creatorId}
-        />
-      )}
+
     </div>
   );
 }

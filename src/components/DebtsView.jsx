@@ -3,13 +3,15 @@ import { db, useDb } from '../db';
 import { doc, getDoc, getDocs, query, collection, where } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 import { Plus, Trash2, Handshake, X, Coins, Sparkles, Mail, Edit2 } from 'lucide-react';
-import ShareModal from './ShareModal';
+import InlineShareSelector from './InlineShareSelector';
+import AvatarStackPopover from './AvatarStackPopover';
 
 export default function DebtsView() {
   const { debts = [], accountsData: accounts = [], user, acceptedFriends } = useDb();
 
-  // Sharing popup state
-  const [sharingDoc, setSharingDoc] = useState(null); // { id, allowedUsers, creatorId }
+  // Sharing state
+  const [sharedFriendUids, setSharedFriendUids] = useState([]);
+  const [formUserRoles, setFormUserRoles] = useState({});
 
   // Editing debt state
   const [editingDebt, setEditingDebt] = useState(null);
@@ -60,7 +62,8 @@ export default function DebtsView() {
 
     setIsSubmitting(true);
     try {
-      const selectedFriend = acceptedFriends?.find(f => f.uid === associatedFriendId);
+      const primaryFriendId = associatedFriendId || (sharedFriendUids.length > 0 ? sharedFriendUids[0] : null);
+      const selectedFriend = acceptedFriends?.find(f => f.uid === primaryFriendId);
 
       const debtData = {
         type: debtType,
@@ -68,9 +71,10 @@ export default function DebtsView() {
         amount: amt,
         description: debtDescription.trim(),
         status: 'pending',
-        associatedFriendId: associatedFriendId || null,
+        associatedFriendId: primaryFriendId,
         associatedFriendName: selectedFriend ? selectedFriend.name : null,
-        allowedUsers: associatedFriendId ? [user.uid, associatedFriendId] : [user.uid]
+        allowedUsers: Array.from(new Set([user.uid, ...sharedFriendUids])),
+        userRoles: { [user.uid]: 'owner', ...formUserRoles }
       };
 
       if (editingDebt) {
@@ -102,6 +106,8 @@ export default function DebtsView() {
     setDebtAmount(debt.amount.toString());
     setDebtDescription(debt.description || '');
     setAssociatedFriendId(debt.associatedFriendId || '');
+    setSharedFriendUids(debt.allowedUsers ? debt.allowedUsers.filter(uid => uid !== user?.uid) : []);
+    setFormUserRoles(debt.userRoles || {});
     setFormOpen(true);
   };
 
@@ -109,10 +115,11 @@ export default function DebtsView() {
     setDebtPerson('');
     setDebtAmount('');
     setDebtDescription('');
-    setDebtType('to_pay');
     setAssociatedFriendId('');
-    setFormOpen(false);
+    setSharedFriendUids([]);
+    setFormUserRoles({});
     setEditingDebt(null);
+    setFormOpen(false);
   };
 
   // Delete directly
@@ -329,35 +336,22 @@ export default function DebtsView() {
             />
           </div>
 
-          {acceptedFriends && acceptedFriends.length > 0 && (
-            <div>
-              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">
-                Attribuer à un ami (optionnel)
-              </label>
-              <select
-                value={associatedFriendId}
-                onChange={(e) => {
-                  const friendId = e.target.value;
-                  setAssociatedFriendId(friendId);
-                  const selectedFriend = acceptedFriends.find(f => f.uid === friendId);
-                  if (selectedFriend) {
-                    setDebtPerson(selectedFriend.name);
-                  }
-                }}
-                className="w-full h-11 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
-              >
-                <option value="">Aucun (Dette personnelle)</option>
-                {acceptedFriends.map(friend => (
-                  <option key={friend.uid} value={friend.uid}>
-                    🍃 {friend.name} ({friend.email})
-                  </option>
-                ))}
-              </select>
-              <p className="text-[9px] text-ac-brown-light/60 mt-1">
-                La dette s’affichera automatiquement dans le registre de cet ami pour collaboration.
-              </p>
-            </div>
-          )}
+          <InlineShareSelector
+            allowedUsers={sharedFriendUids}
+            userRoles={formUserRoles}
+            onChange={(newAllowed, newUserRoles) => {
+              setSharedFriendUids(newAllowed);
+              setFormUserRoles(newUserRoles);
+            }}
+            onSelectFriend={(friend) => {
+              if (friend && friend.name) {
+                setDebtPerson(friend.name);
+                setAssociatedFriendId(friend.uid);
+              }
+            }}
+            ownerId={editingDebt?.creatorId || user?.uid}
+            title="Passeport Habitants — Attribuer & Partager la Dette"
+          />
 
           <div className="flex justify-end gap-3 pt-2">
             <button
@@ -416,15 +410,13 @@ export default function DebtsView() {
                     </span>
 
                     <div className="flex gap-1.5">
-                      {(debt.creatorId === user?.uid || !debt.creatorId) && (
-                        <button
-                          onClick={() => setSharingDoc({ id: debt.id, allowedUsers: debt.allowedUsers || [], creatorId: debt.creatorId })}
-                          className="p-1.5 bg-white hover:bg-ac-sky-light/50 rounded-lg text-ac-brown-light hover:text-ac-sky border border-ac-brown/15 cursor-pointer transition-colors"
-                          title="Partager cette dette"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <AvatarStackPopover
+                        allowedUsers={debt.allowedUsers || []}
+                        userRoles={debt.userRoles || {}}
+                        ownerId={debt.creatorId || debt.userId}
+                        docId={debt.id}
+                        collectionName="debts"
+                      />
                       {(debt.creatorId === user?.uid || !debt.creatorId) && (
                         <button
                           onClick={() => handleEditDebt(debt)}
@@ -488,15 +480,13 @@ export default function DebtsView() {
                     </span>
 
                     <div className="flex gap-1.5">
-                      {(debt.creatorId === user?.uid || !debt.creatorId) && (
-                        <button
-                          onClick={() => setSharingDoc({ id: debt.id, allowedUsers: debt.allowedUsers || [], creatorId: debt.creatorId })}
-                          className="p-1.5 bg-white hover:bg-ac-sky-light/50 rounded-lg text-ac-brown-light hover:text-ac-sky border border-ac-brown/15 cursor-pointer transition-colors"
-                          title="Partager cette créance"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <AvatarStackPopover
+                        allowedUsers={debt.allowedUsers || []}
+                        userRoles={debt.userRoles || {}}
+                        ownerId={debt.creatorId || debt.userId}
+                        docId={debt.id}
+                        collectionName="debts"
+                      />
                       {(debt.creatorId === user?.uid || !debt.creatorId) && (
                         <button
                           onClick={() => handleEditDebt(debt)}
@@ -619,17 +609,7 @@ export default function DebtsView() {
         </div>
       )}
 
-      {/* Share Modal Dialog */}
-      {sharingDoc && (
-        <ShareModal 
-          isOpen={!!sharingDoc}
-          onClose={() => setSharingDoc(null)}
-          docId={sharingDoc.id}
-          collectionName="debts"
-          allowedUsers={sharingDoc.allowedUsers}
-          creatorId={sharingDoc.creatorId}
-        />
-      )}
+
     </div>
   );
 }
