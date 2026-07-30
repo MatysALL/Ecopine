@@ -172,7 +172,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           {favoriteAccountDetails ? (
             <div 
               onClick={() => onViewAccountDetails(favoriteAccountDetails.account.id)}
-              className="ac-card bg-ac-gold-light p-8 cursor-pointer relative overflow-hidden group select-none border-ac-brown hover:scale-[1.01] transition-all"
+              className="ac-card bg-ac-gold-light p-8 cursor-pointer relative overflow-visible group select-none border-ac-brown hover:scale-[1.01] transition-all"
             >
               <div className="flex justify-between items-start">
                 <div>

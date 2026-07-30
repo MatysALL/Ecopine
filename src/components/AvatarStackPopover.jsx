@@ -12,12 +12,17 @@ export default function AvatarStackPopover({
   docId,
   collectionName,
   onUpdate,
-  size = 'sm'
+  size = 'sm',
+  position = 'bottom'
 }) {
   const { acceptedFriends = [], user } = useDb();
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const popoverRef = useRef(null);
+
+  const positionClass = position === 'top' 
+    ? 'bottom-full mb-2 right-0' 
+    : 'top-full mt-2 right-0';
 
   const effectiveOwnerId = ownerId || allowedUsers[0] || user?.uid;
 
@@ -147,7 +152,7 @@ export default function AvatarStackPopover({
 
       {/* Instant Floating Mini-Popover */}
       {isOpen && (
-        <div className="absolute right-0 bottom-full mb-2 z-50 w-72 bg-[#FFFDF9] border-3 border-ac-brown rounded-2xl p-3.5 shadow-ac-md animate-bounce-in">
+        <div className={`absolute ${positionClass} z-[100] w-72 bg-[#FFFDF9] border-3 border-ac-brown rounded-2xl p-3.5 shadow-ac-md animate-bounce-in`}>
           {/* Header */}
           <div className="flex items-center justify-between pb-2 border-b border-ac-brown/10 mb-2">
             <div className="flex items-center gap-1.5 text-xs font-black text-ac-brown">

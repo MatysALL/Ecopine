@@ -1040,7 +1040,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     onDrop={(e) => handleAccountDrop(e, index)}
                     onDragEnd={handleAccountDragEnd}
                     onClick={() => setSelectedAccountId(acc.id)}
-                    className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 cursor-pointer relative group overflow-hidden flex flex-col justify-between transition-all ${
+                    className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
                       isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                     }`}
                   >
