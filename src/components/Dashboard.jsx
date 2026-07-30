@@ -27,6 +27,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   const [yellowClickCount, setYellowClickCount] = useState(0);
   const [distressClickCount, setDistressClickCount] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
 
   const handleBannerClick = () => {
     if (isAnimating || phase === 'sold') return;
@@ -322,37 +323,43 @@ export default function Dashboard({ onViewAccountDetails, username }) {
               </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {otherAccounts.map((acc) => (
-                  <div 
-                    key={acc.id}
-                    onClick={() => onViewAccountDetails(acc.id)}
-                    className="p-4 bg-ac-cream-dark/40 hover:bg-ac-cream-dark/80 transition-colors border-2 border-ac-brown rounded-2xl cursor-pointer flex justify-between items-center group"
-                  >
-                    <div>
-                      <h4 className="font-extrabold text-xs text-ac-brown">{acc.name}</h4>
-                      <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-white border border-ac-brown/20 text-ac-brown-light mt-1 inline-block">
-                        {acc.sharedWithNames && acc.sharedWithNames.length > 0 
-                          ? `Partagé avec ${acc.sharedWithNames.join(', ')}` 
-                          : acc.type} {acc.rate > 0 ? `(${acc.rate}%)` : ''}
-                      </span>
-                    </div>
-                    <div className="text-right flex items-center gap-2">
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <AvatarStackPopover
-                          allowedUsers={acc.allowedUsers || []}
-                          userRoles={acc.userRoles || {}}
-                          ownerId={acc.creatorId || acc.ownerId}
-                          docId={acc.id}
-                          collectionName="accounts"
-                          size="sm"
-                        />
+                {otherAccounts.map((acc) => {
+                  const isPopoverOpen = openPopoverAccountId === acc.id;
+                  return (
+                    <div 
+                      key={acc.id}
+                      onClick={() => onViewAccountDetails(acc.id)}
+                      className={`p-4 bg-ac-cream-dark/40 hover:bg-ac-cream-dark/80 transition-colors border-2 border-ac-brown rounded-2xl cursor-pointer flex justify-between items-center group relative ${
+                        isPopoverOpen ? 'z-30' : 'z-0'
+                      }`}
+                    >
+                      <div>
+                        <h4 className="font-extrabold text-xs text-ac-brown">{acc.name}</h4>
+                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-white border border-ac-brown/20 text-ac-brown-light mt-1 inline-block">
+                          {acc.sharedWithNames && acc.sharedWithNames.length > 0 
+                            ? `Partagé avec ${acc.sharedWithNames.join(', ')}` 
+                            : acc.type} {acc.rate > 0 ? `(${acc.rate}%)` : ''}
+                        </span>
                       </div>
-                      <span className="font-black text-sm text-ac-brown block">
-                        {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
-                      </span>
+                      <div className="text-right flex items-center gap-2">
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <AvatarStackPopover
+                            allowedUsers={acc.allowedUsers || []}
+                            userRoles={acc.userRoles || {}}
+                            ownerId={acc.creatorId || acc.ownerId}
+                            docId={acc.id}
+                            collectionName="accounts"
+                            size="sm"
+                            onOpenChange={(open) => setOpenPopoverAccountId(open ? acc.id : null)}
+                          />
+                        </div>
+                        <span className="font-black text-sm text-ac-brown block">
+                          {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

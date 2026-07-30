@@ -13,7 +13,8 @@ export default function AvatarStackPopover({
   collectionName,
   onUpdate,
   size = 'sm',
-  position = 'bottom'
+  position = 'bottom',
+  onOpenChange
 }) {
   const { acceptedFriends = [], user } = useDb();
   const [isOpen, setIsOpen] = useState(false);
@@ -32,6 +33,13 @@ export default function AvatarStackPopover({
   function friendUid(f) {
     return f.uid;
   }
+
+  // Notify parent component of open state changes
+  useEffect(() => {
+    if (onOpenChange) {
+      onOpenChange(isOpen);
+    }
+  }, [isOpen, onOpenChange]);
 
   // Handle click outside to close popover
   useEffect(() => {
@@ -106,7 +114,7 @@ export default function AvatarStackPopover({
   const plusSizeClass = size === 'md' ? 'w-8 h-8 text-sm' : 'w-6 h-6 text-xs';
 
   return (
-    <div className="relative inline-block select-none" ref={popoverRef}>
+    <div className={`relative inline-block select-none ${isOpen ? 'z-40' : 'z-0'}`} ref={popoverRef}>
       {/* Avatar Stack Trigger */}
       <div 
         onClick={() => setIsOpen(!isOpen)}

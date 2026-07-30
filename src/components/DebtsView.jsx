@@ -12,6 +12,7 @@ export default function DebtsView() {
   // Sharing state
   const [sharedFriendUids, setSharedFriendUids] = useState([]);
   const [formUserRoles, setFormUserRoles] = useState({});
+  const [openPopoverDebtId, setOpenPopoverDebtId] = useState(null);
 
   // Editing debt state
   const [editingDebt, setEditingDebt] = useState(null);
@@ -390,33 +391,38 @@ export default function DebtsView() {
             </p>
           ) : (
             <div className="space-y-4">
-              {payables.map((debt) => (
-                <div key={debt.id} className="p-4 bg-ac-red-light/10 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs">
-                  <div className="space-y-1">
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="font-extrabold text-sm text-ac-brown">{debt.person}</span>
-                      <span className="text-[9px] font-bold text-ac-brown-light">({new Date(debt.date).toLocaleDateString('fr-FR')})</span>
+              {payables.map((debt) => {
+                const isPopoverOpen = openPopoverDebtId === debt.id;
+                return (
+                  <div key={debt.id} className={`p-4 bg-ac-red-light/10 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible ${
+                    isPopoverOpen ? 'z-30' : 'z-0'
+                  }`}>
+                    <div className="space-y-1">
+                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-sm text-ac-brown">{debt.person}</span>
+                        <span className="text-[9px] font-bold text-ac-brown-light">({new Date(debt.date).toLocaleDateString('fr-FR')})</span>
+                      </div>
+                      {debt.description ? (
+                        <p className="text-xs text-ac-brown-light leading-relaxed">"{debt.description}"</p>
+                      ) : (
+                        <p className="text-xs text-ac-brown-light/45 italic leading-relaxed">Aucun détail.</p>
+                      )}
                     </div>
-                    {debt.description ? (
-                      <p className="text-xs text-ac-brown-light leading-relaxed">"{debt.description}"</p>
-                    ) : (
-                      <p className="text-xs text-ac-brown-light/45 italic leading-relaxed">Aucun détail.</p>
-                    )}
-                  </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-ac-brown/10 sm:border-t-0 pt-3 sm:pt-0 shrink-0">
-                    <span className="font-black text-ac-red text-sm bg-white border border-ac-brown/25 px-2.5 py-1 rounded-full shadow-ac-xs">
-                      -{debt.amount.toLocaleString('fr-FR')} 🔔
-                    </span>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-ac-brown/10 sm:border-t-0 pt-3 sm:pt-0 shrink-0">
+                      <span className="font-black text-ac-red text-sm bg-white border border-ac-brown/25 px-2.5 py-1 rounded-full shadow-ac-xs">
+                        -{debt.amount.toLocaleString('fr-FR')} 🔔
+                      </span>
 
-                    <div className="flex gap-1.5">
-                      <AvatarStackPopover
-                        allowedUsers={debt.allowedUsers || []}
-                        userRoles={debt.userRoles || {}}
-                        ownerId={debt.creatorId || debt.userId}
-                        docId={debt.id}
-                        collectionName="debts"
-                      />
+                      <div className="flex gap-1.5">
+                        <AvatarStackPopover
+                          allowedUsers={debt.allowedUsers || []}
+                          userRoles={debt.userRoles || {}}
+                          ownerId={debt.creatorId || debt.userId}
+                          docId={debt.id}
+                          collectionName="debts"
+                          onOpenChange={(open) => setOpenPopoverDebtId(open ? debt.id : null)}
+                        />
                       {(debt.creatorId === user?.uid || !debt.creatorId) && (
                         <button
                           onClick={() => handleEditDebt(debt)}
@@ -443,7 +449,8 @@ export default function DebtsView() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           )}
         </div>
@@ -460,33 +467,38 @@ export default function DebtsView() {
             </p>
           ) : (
             <div className="space-y-4">
-              {receivables.map((debt) => (
-                <div key={debt.id} className="p-4 bg-ac-green-light/20 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs">
-                  <div className="space-y-1">
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="font-extrabold text-sm text-ac-brown">{debt.person}</span>
-                      <span className="text-[9px] font-bold text-ac-brown-light">({new Date(debt.date).toLocaleDateString('fr-FR')})</span>
+              {receivables.map((debt) => {
+                const isPopoverOpen = openPopoverDebtId === debt.id;
+                return (
+                  <div key={debt.id} className={`p-4 bg-ac-green-light/20 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible ${
+                    isPopoverOpen ? 'z-30' : 'z-0'
+                  }`}>
+                    <div className="space-y-1">
+                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-sm text-ac-brown">{debt.person}</span>
+                        <span className="text-[9px] font-bold text-ac-brown-light">({new Date(debt.date).toLocaleDateString('fr-FR')})</span>
+                      </div>
+                      {debt.description ? (
+                        <p className="text-xs text-ac-brown-light leading-relaxed">"{debt.description}"</p>
+                      ) : (
+                        <p className="text-xs text-ac-brown-light/45 italic leading-relaxed">Aucun détail.</p>
+                      )}
                     </div>
-                    {debt.description ? (
-                      <p className="text-xs text-ac-brown-light leading-relaxed">"{debt.description}"</p>
-                    ) : (
-                      <p className="text-xs text-ac-brown-light/45 italic leading-relaxed">Aucun détail.</p>
-                    )}
-                  </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-ac-brown/10 sm:border-t-0 pt-3 sm:pt-0 shrink-0">
-                    <span className="font-black text-ac-green text-sm bg-white border border-ac-brown/25 px-2.5 py-1 rounded-full shadow-ac-xs">
-                      +{debt.amount.toLocaleString('fr-FR')} 🔔
-                    </span>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-ac-brown/10 sm:border-t-0 pt-3 sm:pt-0 shrink-0">
+                      <span className="font-black text-ac-green text-sm bg-white border border-ac-brown/25 px-2.5 py-1 rounded-full shadow-ac-xs">
+                        +{debt.amount.toLocaleString('fr-FR')} 🔔
+                      </span>
 
-                    <div className="flex gap-1.5">
-                      <AvatarStackPopover
-                        allowedUsers={debt.allowedUsers || []}
-                        userRoles={debt.userRoles || {}}
-                        ownerId={debt.creatorId || debt.userId}
-                        docId={debt.id}
-                        collectionName="debts"
-                      />
+                      <div className="flex gap-1.5">
+                        <AvatarStackPopover
+                          allowedUsers={debt.allowedUsers || []}
+                          userRoles={debt.userRoles || {}}
+                          ownerId={debt.creatorId || debt.userId}
+                          docId={debt.id}
+                          collectionName="debts"
+                          onOpenChange={(open) => setOpenPopoverDebtId(open ? debt.id : null)}
+                        />
                       {(debt.creatorId === user?.uid || !debt.creatorId) && (
                         <button
                           onClick={() => handleEditDebt(debt)}
@@ -513,7 +525,8 @@ export default function DebtsView() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           )}
         </div>

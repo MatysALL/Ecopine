@@ -19,6 +19,7 @@ export default function WishlistView() {
   // UI state
   const [formOpen, setFormOpen] = useState(false);
   const [editingWish, setEditingWish] = useState(null);
+  const [openPopoverWishId, setOpenPopoverWishId] = useState(null);
   
   // Form fields
   const [wishName, setWishName] = useState('');
@@ -333,6 +334,7 @@ export default function WishlistView() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedWishes.map((wish, index) => {
             const isDragging = draggableWishId === wish.id;
+            const isPopoverOpen = openPopoverWishId === wish.id;
             return (
               <div 
                 key={wish.id} 
@@ -341,7 +343,9 @@ export default function WishlistView() {
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 flex flex-col justify-between group select-none relative transition-all ${
+                className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 flex flex-col justify-between group select-none relative transition-all overflow-visible ${
+                  isPopoverOpen ? 'z-30' : 'z-0'
+                } ${
                   isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                 }`}
               >
@@ -392,6 +396,7 @@ export default function WishlistView() {
                       ownerId={wish.creatorId || wish.userId}
                       docId={wish.id}
                       collectionName="wishlist"
+                      onOpenChange={(open) => setOpenPopoverWishId(open ? wish.id : null)}
                     />
                     <button
                       onClick={() => handleEditWish(wish)}

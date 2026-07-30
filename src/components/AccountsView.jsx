@@ -52,6 +52,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   // Sharing roles state
   const [formUserRoles, setFormUserRoles] = useState({});
+  const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
 
   // Drag & Drop state for Accounts
   const [draggableAccountId, setDraggableAccountId] = useState(null);
@@ -1031,6 +1032,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {sortedAccounts.map((acc, index) => {
                 const isDragging = draggableAccountId === acc.id;
+                const isPopoverOpen = openPopoverAccountId === acc.id;
                 return (
                   <div 
                     key={acc.id}
@@ -1041,6 +1043,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     onDragEnd={handleAccountDragEnd}
                     onClick={() => setSelectedAccountId(acc.id)}
                     className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
+                      isPopoverOpen ? 'z-30' : 'z-0'
+                    } ${
                       isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                     }`}
                   >
@@ -1070,6 +1074,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                             docId={acc.id}
                             collectionName="accounts"
                             size="sm"
+                            onOpenChange={(open) => setOpenPopoverAccountId(open ? acc.id : null)}
                           />
                         </div>
                         <div 
