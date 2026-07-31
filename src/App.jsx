@@ -11,29 +11,31 @@ import AuthView from './components/AuthView';
 import DebtsView from './components/DebtsView';
 
 export default function App() {
-  const { isLoading, user, username, accounts, userMeta } = useDb();
+  const { isLoading, user, username, accounts, userMeta, activeTheme } = useDb();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
 
-  // Sakura theme easter egg triggers only when the user's name is Léa (case and accent insensitive)
-  const isSakura = useMemo(() => {
-    if (!username) return false;
-    return username.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === 'lea';
-  }, [username]);
+  const activeThemeClass = useMemo(() => {
+    const map = {
+      'default': 'theme-default',
+      'red': 'theme-red',
+      'blue': 'theme-blue',
+      'yellow': 'theme-yellow',
+      'NEON_MULTICOLOR': 'theme-neon',
+      'DARK_BLUE_PURPLE': 'theme-wayfs',
+      'SAKURA_PINK_PURPLE': 'theme-sakura'
+    };
+    return map[activeTheme] || 'theme-default';
+  }, [activeTheme]);
 
   useEffect(() => {
-    if (isSakura) {
-      document.body.classList.add('theme-sakura');
-      document.body.classList.remove('theme-standard');
-    } else {
-      document.body.classList.remove('theme-sakura');
-      document.body.classList.add('theme-standard');
-    }
+    const themeClasses = ['theme-default', 'theme-red', 'theme-blue', 'theme-yellow', 'theme-neon', 'theme-wayfs', 'theme-sakura'];
+    themeClasses.forEach(c => document.body.classList.remove(c));
+    document.body.classList.add(activeThemeClass);
     return () => {
-      document.body.classList.remove('theme-sakura');
-      document.body.classList.remove('theme-standard');
+      themeClasses.forEach(c => document.body.classList.remove(c));
     };
-  }, [isSakura]);
+  }, [activeThemeClass]);
 
   // Navigate to accounts tab and focus on specific account details
   const handleViewAccountDetails = (accountId) => {
@@ -97,7 +99,7 @@ export default function App() {
   };
 
   return (
-    <div className={`flex flex-col md:flex-row bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30 ${isSakura ? 'theme-sakura' : 'theme-standard'}`}>
+    <div className={`flex flex-col md:flex-row bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30 transition-colors duration-300 ${activeThemeClass}`}>
       {/* Mobile Top Header (only on mobile screens) */}
       {user && !needsOnboarding && (
         <header className="md:hidden flex justify-between items-center bg-ac-cream-dark border-b-3 border-ac-brown px-4 py-3 sticky top-0 z-30 select-none w-full">

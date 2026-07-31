@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, useDb } from '../db';
 import { 
   Download, Upload, Trash2, ShieldAlert, CheckCircle, AlertCircle, 
-  User, Users, Tag, Plus, FileSpreadsheet 
+  User, Users, Tag, Plus, FileSpreadsheet, Palette 
 } from 'lucide-react';
 
 export default function Settings() {
@@ -14,6 +14,7 @@ export default function Settings() {
   const [photoURL, setPhotoURL] = useState('');
   const [favAccountId, setFavAccountId] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [themePreference, setThemePreference] = useState('default');
 
   // Custom Category states
   const [newCatName, setNewCatName] = useState('');
@@ -95,11 +96,22 @@ export default function Settings() {
       const nameMeta = userMeta.find(m => m.key === 'username');
       const favMeta = userMeta.find(m => m.key === 'favorite_account_id');
       const photoMeta = userMeta.find(m => m.key === 'photoURL');
+      const themeMeta = userMeta.find(m => m.key === 'theme_preference');
       setUsername(nameMeta?.value || '');
       setFavAccountId(favMeta?.value || '');
       setPhotoURL(photoMeta?.value || user?.photoURL || '/pfp-ac.jpg');
+      setThemePreference(themeMeta?.value || 'default');
     }
   }, [userMeta, user]);
+
+  const handleThemeChange = async (theme) => {
+    setThemePreference(theme);
+    try {
+      await db.user_meta.put({ key: 'theme_preference', value: theme });
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde du thème :", err);
+    }
+  };
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
@@ -107,6 +119,7 @@ export default function Settings() {
       await db.user_meta.put({ key: 'username', value: username.trim() });
       await db.user_meta.put({ key: 'favorite_account_id', value: favAccountId });
       await db.user_meta.put({ key: 'photoURL', value: (photoURL || '/pfp-ac.jpg').trim() });
+      await db.user_meta.put({ key: 'theme_preference', value: themePreference });
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -441,8 +454,103 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Categories Editor Card */}
+        {/* Thème de l'île Card */}
         <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
+          <div>
+            <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-4">
+              <Palette className="w-5 h-5 text-ac-green" /> Thème de l'île
+            </h3>
+            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-6">
+              Choisis ton ambiance pastel favorite. Le thème s'applique instantanément et est synchronisé sur ton profil.
+            </p>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Option 1: Default */}
+              <button
+                type="button"
+                onClick={() => handleThemeChange('default')}
+                className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 border-ac-brown transition-all cursor-pointer text-left w-full aspect-square bg-[#F4F1EA] hover:scale-102 hover:shadow-ac-xs ${
+                  themePreference === 'default' ? 'ring-4 ring-ac-green scale-102' : 'opacity-85'
+                }`}
+              >
+                <div className="w-full">
+                  <span className="block text-xs font-black text-[#4A3E3D]">Standard</span>
+                  <span className="block text-[9px] font-bold text-[#7D6C6A] leading-tight">Crème & Boisé</span>
+                </div>
+                {/* Previews */}
+                <div className="flex gap-1.5 mt-3 self-end">
+                  <div className="w-4 h-4 rounded-full border border-[#4A3E3D] bg-[#F4F1EA]" title="Fond"></div>
+                  <div className="w-4 h-4 rounded-full border border-[#4A3E3D] bg-[#78B159]" title="Bouton"></div>
+                  <div className="w-4 h-4 rounded-full border border-[#4A3E3D] bg-[#4A3E3D]" title="Texte"></div>
+                </div>
+              </button>
+
+              {/* Option 2: Red */}
+              <button
+                type="button"
+                onClick={() => handleThemeChange('red')}
+                className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 border-[#8A4F58] transition-all cursor-pointer text-left w-full aspect-square bg-[#FFF0F2] hover:scale-102 hover:shadow-ac-xs ${
+                  themePreference === 'red' ? 'ring-4 ring-[#FF8B94] scale-102' : 'opacity-85'
+                }`}
+              >
+                <div className="w-full">
+                  <span className="block text-xs font-black text-[#5C2E35]">Rouge Pastel</span>
+                  <span className="block text-[9px] font-bold text-[#8A4F58] leading-tight">Fraise & Blush</span>
+                </div>
+                {/* Previews */}
+                <div className="flex gap-1.5 mt-3 self-end">
+                  <div className="w-4 h-4 rounded-full border border-[#8A4F58] bg-[#FFF0F2]" title="Fond"></div>
+                  <div className="w-4 h-4 rounded-full border border-[#8A4F58] bg-[#FF8B94]" title="Bouton"></div>
+                  <div className="w-4 h-4 rounded-full border border-[#8A4F58] bg-[#5C2E35]" title="Texte"></div>
+                </div>
+              </button>
+
+              {/* Option 3: Blue */}
+              <button
+                type="button"
+                onClick={() => handleThemeChange('blue')}
+                className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 border-[#4B5E70] transition-all cursor-pointer text-left w-full aspect-square bg-[#EDF6FA] hover:scale-102 hover:shadow-ac-xs ${
+                  themePreference === 'blue' ? 'ring-4 ring-[#92C7E8] scale-102' : 'opacity-85'
+                }`}
+              >
+                <div className="w-full">
+                  <span className="block text-xs font-black text-[#1E2D3B]">Bleu Pastel</span>
+                  <span className="block text-[9px] font-bold text-[#4B5E70] leading-tight">Ciel & Glace</span>
+                </div>
+                {/* Previews */}
+                <div className="flex gap-1.5 mt-3 self-end">
+                  <div className="w-4 h-4 rounded-full border border-[#4B5E70] bg-[#EDF6FA]" title="Fond"></div>
+                  <div className="w-4 h-4 rounded-full border border-[#4B5E70] bg-[#92C7E8]" title="Bouton"></div>
+                  <div className="w-4 h-4 rounded-full border border-[#4B5E70] bg-[#1E2D3B]" title="Texte"></div>
+                </div>
+              </button>
+
+              {/* Option 4: Yellow */}
+              <button
+                type="button"
+                onClick={() => handleThemeChange('yellow')}
+                className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 border-[#785D4A] transition-all cursor-pointer text-left w-full aspect-square bg-[#FFF9E6] hover:scale-102 hover:shadow-ac-xs ${
+                  themePreference === 'yellow' ? 'ring-4 ring-[#F7DB99] scale-102' : 'opacity-85'
+                }`}
+              >
+                <div className="w-full">
+                  <span className="block text-xs font-black text-[#4A3525]">Jaune Pastel</span>
+                  <span className="block text-[9px] font-bold text-[#785D4A] leading-tight">Beurre & Miel</span>
+                </div>
+                {/* Previews */}
+                <div className="flex gap-1.5 mt-3 self-end">
+                  <div className="w-4 h-4 rounded-full border border-[#785D4A] bg-[#FFF9E6]" title="Fond"></div>
+                  <div className="w-4 h-4 rounded-full border border-[#785D4A] bg-[#F7DB99]" title="Bouton"></div>
+                  <div className="w-4 h-4 rounded-full border border-[#785D4A] bg-[#4A3525]" title="Texte"></div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Categories Editor Card (Moved outside top grid to be full-width) */}
+      <div className="ac-card p-6 bg-white border-ac-brown">
           <div>
             <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-4">
               <Tag className="w-5 h-5 text-ac-gold" /> Gestion des Catégories
@@ -527,9 +635,8 @@ export default function Settings() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Registre des Habitants (Amitiés) */}
+        {/* Registre des Habitants (Amitiés) */}
       <div className="ac-card p-6 bg-white border-ac-brown space-y-6">
         <h3 className="text-lg font-black text-ac-brown flex items-center gap-2 border-b border-ac-brown/10 pb-2">
           <Users className="w-5 h-5 text-ac-green" /> Registre des Habitants (Amitiés)

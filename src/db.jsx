@@ -627,7 +627,8 @@ export const db = {
         'username': 'username',
         'favorite_account_id': 'favoriteAccountId',
         'dashboard_note': 'dashboardNote',
-        'photoURL': 'photoURL'
+        'photoURL': 'photoURL',
+        'theme_preference': 'themePreference'
       };
       const field = fieldMap[key];
       if (field) {
@@ -647,6 +648,7 @@ export const db = {
         if (key === 'favorite_account_id') return { key: 'favorite_account_id', value: data.favoriteAccountId };
         if (key === 'dashboard_note') return { key: 'dashboard_note', value: data.dashboardNote };
         if (key === 'photoURL') return { key: 'photoURL', value: data.photoURL };
+        if (key === 'theme_preference') return { key: 'theme_preference', value: data.themePreference || 'default' };
       }
       return null;
     },
@@ -668,6 +670,7 @@ export const db = {
         if (m.key === 'favorite_account_id') fields.favoriteAccountId = m.value;
         if (m.key === 'dashboard_note') fields.dashboardNote = m.value;
         if (m.key === 'photoURL') fields.photoURL = m.value;
+        if (m.key === 'theme_preference') fields.themePreference = m.value;
       });
       if (db._activeBatch) {
         db._activeBatch.set(ref, fields, { merge: true });
@@ -1203,6 +1206,39 @@ export const useDb = () => {
   return context;
 };
 
+/**
+ * Calculates the active theme based on user profile preferences and category list,
+ * strictly applying the following priority:
+ * 1. Priority 1 (Easter Egg 3): Category name exactly "waif" (case-insensitive) -> "NEON_MULTICOLOR"
+ * 2. Priority 2 (Easter Egg 2): User's username is exactly "Wayfs" (case-insensitive) -> "DARK_BLUE_PURPLE"
+ * 3. Priority 3 (Easter Egg 1): User's username is "Léa" or "Lea" (case-insensitive) -> "SAKURA_PINK_PURPLE"
+ * 4. Priority 4: Manual choice themePreference ('default', 'red', 'blue', 'yellow')
+ */
+export function getActiveTheme(userProfile, categories) {
+  // Priority 1: Category named "waif"
+  const hasWaifCategory = categories?.some(
+    cat => cat.name?.toLowerCase().trim() === 'waif'
+  );
+  if (hasWaifCategory) {
+    return 'NEON_MULTICOLOR';
+  }
+
+  // Priority 2: Inhabitant name "Wayfs"
+  const username = userProfile?.username || '';
+  if (username.toLowerCase().trim() === 'wayfs') {
+    return 'DARK_BLUE_PURPLE';
+  }
+
+  // Priority 3: Inhabitant name "Léa" or "Lea"
+  const normalizedUsername = username.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (normalizedUsername === 'lea') {
+    return 'SAKURA_PINK_PURPLE';
+  }
+
+  // Priority 4: Manual theme preference
+  return userProfile?.themePreference || 'default';
+}
+
 export const DbProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -1221,6 +1257,11 @@ export const DbProvider = ({ children }) => {
   const [dataLoading, setDataLoading] = useState(false);
   const [allUsersMeta, setAllUsersMeta] = useState([]);
 
+  // Calculate the active theme dynamically
+  const activeTheme = useMemo(() => {
+    return getActiveTheme(usersMetaDoc, categories);
+  }, [usersMetaDoc, categories]);
+
   // Sign up and create user profile & default categories
   const signUpUser = async (email, password, firstname) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -1233,7 +1274,8 @@ export const DbProvider = ({ children }) => {
       email: email.trim().toLowerCase(),
       favoriteAccountId: null,
       dashboardNote: '',
-      photoURL: '/pfp-ac.jpg'
+      photoURL: '/pfp-ac.jpg',
+      themePreference: 'default'
     });
     
     // Create default categories (pastel-colored) if none exist in Firestore
@@ -1391,7 +1433,8 @@ export const DbProvider = ({ children }) => {
           email: currentUser.email.toLowerCase(),
           favoriteAccountId: null,
           dashboardNote: '',
-          photoURL: currentUser.photoURL || '/pfp-ac.jpg'
+          photoURL: currentUser.photoURL || '/pfp-ac.jpg',
+          themePreference: 'default'
         }).catch(err => console.error(err));
         setUsersMetaDoc(null);
       }
@@ -1594,6 +1637,9 @@ export const DbProvider = ({ children }) => {
       if (usersMetaDoc.photoURL !== undefined) {
         list.push({ key: 'photoURL', value: usersMetaDoc.photoURL });
       }
+      if (usersMetaDoc.themePreference !== undefined) {
+        list.push({ key: 'theme_preference', value: usersMetaDoc.themePreference });
+      }
     }
     return list;
   }, [usersMetaDoc]);
@@ -1694,7 +1740,9 @@ export const DbProvider = ({ children }) => {
     signUpUser,
     logInUser,
     logOutUser,
-    allUsersMeta
+    allUsersMeta,
+    activeTheme,
+    getActiveTheme
   };
 
   return (
