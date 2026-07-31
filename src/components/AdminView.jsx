@@ -77,7 +77,15 @@ export default function AdminView() {
     }
   };
 
+  const isTargetAdmin = (user) => user?.email === 'matysallanet@gmail.com' || user?.role === 'admin';
+
   const handleResetUser = async (uid, username) => {
+    const targetUser = allUsersMeta.find(u => u.uid === uid);
+    if (isTargetAdmin(targetUser)) {
+      alert("Impossible de réinitialiser ou supprimer un compte administrateur !");
+      return;
+    }
+
     if (!window.confirm(`Es-tu sûr de vouloir RÉINITIALISER le compte de ${username} ? Cela supprimera toutes ses transactions, poches, dettes et souhaits associés.`)) return;
 
     try {
@@ -104,6 +112,12 @@ export default function AdminView() {
   };
 
   const handleDeleteUser = async (uid, username) => {
+    const targetUser = allUsersMeta.find(u => u.uid === uid);
+    if (isTargetAdmin(targetUser)) {
+      alert("Impossible de réinitialiser ou supprimer un compte administrateur !");
+      return;
+    }
+
     if (!window.confirm(`⚠️ ATTENTION ⚠️\nEs-tu sûr de vouloir SUPPRIMER DÉFINITIVEMENT ${username} ? Cela supprimera toutes ses données dans la base (y compris ses comptes, catégories, amitiés et son profil de la mairie).`)) return;
 
     try {
@@ -428,18 +442,26 @@ export default function AdminView() {
                     <td className="p-3 text-xs font-mono opacity-85 text-ac-brown select-all break-all">{u.uid}</td>
                     <td className="p-3">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handleResetUser(u.uid, u.username)}
-                          className="px-2.5 py-1 rounded-xl bg-ac-orange text-white border-2 border-ac-brown font-extrabold text-[10px] shadow-ac-xs hover:translate-y-[-1px] active:translate-y-0.5 cursor-pointer flex items-center gap-1"
-                        >
-                          <RefreshCw className="w-3 h-3" /> Réinitialiser
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(u.uid, u.username)}
-                          className="px-2.5 py-1 rounded-xl bg-ac-red text-white border-2 border-ac-brown font-extrabold text-[10px] shadow-ac-xs hover:translate-y-[-1px] active:translate-y-0.5 cursor-pointer flex items-center gap-1"
-                        >
-                          <Trash2 className="w-3 h-3" /> Supprimer
-                        </button>
+                        {isTargetAdmin(u) ? (
+                          <span className="text-[10px] font-black text-ac-green bg-ac-green-light border border-ac-green/30 px-3 py-1.5 rounded-full flex items-center justify-center gap-1 shadow-ac-xs">
+                            🛡️ Compte Protégé (Admin)
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleResetUser(u.uid, u.username)}
+                              className="px-2.5 py-1 rounded-xl bg-ac-orange text-white border-2 border-ac-brown font-extrabold text-[10px] shadow-ac-xs hover:translate-y-[-1px] active:translate-y-0.5 cursor-pointer flex items-center gap-1"
+                            >
+                              <RefreshCw className="w-3 h-3" /> Réinitialiser
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u.uid, u.username)}
+                              className="px-2.5 py-1 rounded-xl bg-ac-red text-white border-2 border-ac-brown font-extrabold text-[10px] shadow-ac-xs hover:translate-y-[-1px] active:translate-y-0.5 cursor-pointer flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" /> Supprimer
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
