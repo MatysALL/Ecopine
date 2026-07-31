@@ -1752,9 +1752,10 @@ export const DbProvider = ({ children }) => {
         const friendUid = isSender ? f.receiverId : f.senderId;
         const meta = allUsersMeta.find(m => m.uid === friendUid);
         return {
+          id: f.id,
           uid: friendUid,
           email: isSender ? f.receiverEmail : f.senderEmail,
-          name: meta?.username || (isSender ? f.receiverName : f.senderName),
+          name: meta?.username || (isSender ? f.receiverName : f.senderName) || (isSender ? f.receiverEmail : f.senderEmail) || 'Habitant',
           photoURL: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg'
         };
       });

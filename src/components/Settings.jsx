@@ -40,7 +40,8 @@ export default function Settings() {
     friendships = [],
     logOutUser,
     unlockedThemes,
-    activeTheme
+    activeTheme,
+    acceptedFriends
   } = useDb();
 
   // Friendship states
@@ -90,7 +91,6 @@ export default function Settings() {
   // Filter requests
   const receivedRequests = friendships.filter(f => f.status === 'pending' && f.receiverId === user?.uid);
   const sentRequests = friendships.filter(f => f.status === 'pending' && f.senderId === user?.uid);
-  const acceptedFriends = friendships.filter(f => f.status === 'accepted');
 
   // Initial load of metadata
   useEffect(() => {
@@ -718,15 +718,20 @@ export default function Settings() {
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {acceptedFriends.map(friend => {
-                  const isSender = friend.senderId === user.uid;
-                  const friendName = isSender ? friend.receiverName : friend.senderName;
-                  const friendEmail = isSender ? friend.receiverEmail : friend.senderEmail;
-                  
                   return (
                     <div key={friend.id} className="p-3 bg-white border-2 border-ac-brown rounded-2xl flex items-center justify-between shadow-ac-xs">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-black text-ac-brown">🍃 {friendName}</span>
-                        <span className="text-[9px] text-ac-brown-light">{friendEmail}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center border border-ac-brown/15 shrink-0 bg-ac-cream-dark">
+                          {friend.photoURL ? (
+                            <img src={friend.photoURL} alt={friend.name} className="w-full h-full object-cover object-center block" />
+                          ) : (
+                            <span className="text-xs font-black text-ac-brown">🍃</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black text-ac-brown">🍃 {friend.name}</span>
+                          <span className="text-[9px] text-ac-brown-light">{friend.email}</span>
+                        </div>
                       </div>
                       <button
                         onClick={() => handleRejectOrDeleteFriendship(friend.id, true)}
