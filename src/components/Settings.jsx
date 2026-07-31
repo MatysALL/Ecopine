@@ -20,6 +20,15 @@ export default function Settings() {
   const [newCatEmoji, setNewCatEmoji] = useState('🍎');
   const [newCatColor, setNewCatColor] = useState('#FFB3B3');
 
+  const predefinedAvatars = [
+    '/pfp-ac.jpg',
+    '/pfp-ankha.jpg',
+    '/pfp-clochette.jpg',
+    '/pfp-marie.jpg',
+    '/pfp-thibou.jpg',
+    '/pfp-tom-nook.jpg'
+  ];
+
   const { 
     userMeta, 
     accountsData: accountsList, 
@@ -88,7 +97,7 @@ export default function Settings() {
       const photoMeta = userMeta.find(m => m.key === 'photoURL');
       setUsername(nameMeta?.value || '');
       setFavAccountId(favMeta?.value || '');
-      setPhotoURL(photoMeta?.value || user?.photoURL || '');
+      setPhotoURL(photoMeta?.value || user?.photoURL || '/pfp-ac.jpg');
     }
   }, [userMeta, user]);
 
@@ -97,7 +106,7 @@ export default function Settings() {
     try {
       await db.user_meta.put({ key: 'username', value: username.trim() });
       await db.user_meta.put({ key: 'favorite_account_id', value: favAccountId });
-      await db.user_meta.put({ key: 'photoURL', value: photoURL.trim() });
+      await db.user_meta.put({ key: 'photoURL', value: (photoURL || '/pfp-ac.jpg').trim() });
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -358,14 +367,28 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Photo de profil (URL / Avatar)</label>
-                <input
-                  type="url"
-                  value={photoURL}
-                  onChange={(e) => setPhotoURL(e.target.value)}
-                  placeholder="Ex: https://image.png"
-                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
-                />
+                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-2">Choisis ton Avatar d'Habitant</label>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                  {predefinedAvatars.map(pfp => {
+                    const isSelected = photoURL === pfp || (!photoURL && pfp === '/pfp-ac.jpg');
+                    return (
+                      <button
+                        key={pfp}
+                        type="button"
+                        onClick={() => setPhotoURL(pfp)}
+                        className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#5C3A41] shrink-0 bg-white transition-all cursor-pointer ${
+                          isSelected ? 'ring-4 ring-[#7C9E59] scale-105' : 'hover:scale-105 opacity-85 hover:opacity-100'
+                        }`}
+                      >
+                        <img 
+                          src={pfp} 
+                          alt="Avatar Option" 
+                          className="w-full h-full object-cover object-center block" 
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {user?.email && (

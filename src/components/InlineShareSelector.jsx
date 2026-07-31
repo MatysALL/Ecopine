@@ -121,18 +121,20 @@ export default function InlineShareSelector({
               {/* Avatar Bubble Container */}
               <div className="relative">
                 {friend.photoURL ? (
-                  <img
-                    src={friend.photoURL}
-                    alt={friend.name}
-                    className={`w-14 h-14 rounded-full object-cover shadow-ac-xs transition-all duration-200 group-hover:scale-105 active:scale-95 border-3 ${
-                      isSelected
-                        ? 'ring-4 ring-ac-green ring-offset-2 border-ac-green shadow-[0_0_12px_rgba(74,222,128,0.5)]'
-                        : 'border-transparent opacity-70 group-hover:opacity-100 hover:border-ac-brown'
-                    }`}
-                  />
+                  <div className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center border-3 shrink-0 shadow-ac-xs transition-all duration-200 group-hover:scale-105 active:scale-95 ${
+                    isSelected
+                      ? 'ring-4 ring-ac-green ring-offset-2 border-ac-green shadow-[0_0_12px_rgba(74,222,128,0.5)]'
+                      : 'border-transparent opacity-70 group-hover:opacity-100 hover:border-ac-brown'
+                  }`}>
+                    <img
+                      src={friend.photoURL}
+                      alt={friend.name}
+                      className="w-full h-full object-cover object-center block"
+                    />
+                  </div>
                 ) : (
                   <div
-                    className={`w-14 h-14 rounded-full flex items-center justify-center font-black text-base shadow-ac-xs transition-all duration-200 group-hover:scale-105 active:scale-95 border-3 ${pastelStyle} ${
+                    className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center font-black text-base shadow-ac-xs transition-all duration-200 group-hover:scale-105 active:scale-95 border-3 shrink-0 ${pastelStyle} ${
                       isSelected
                         ? 'ring-4 ring-ac-green ring-offset-2 border-ac-green shadow-[0_0_12px_rgba(74,222,128,0.5)]'
                         : 'opacity-70 group-hover:opacity-100 hover:border-ac-brown'

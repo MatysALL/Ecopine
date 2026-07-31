@@ -26,14 +26,14 @@ export default function AvatarStackPopover({
     if (uid === user?.uid) {
       return {
         name: user?.displayName || "Propriétaire",
-        photoURL: user?.photoURL || allUsersMeta.find(m => m.uid === uid)?.photoURL || null
+        photoURL: allUsersMeta.find(m => m.uid === uid)?.photoURL || user?.photoURL || '/pfp-ac.jpg'
       };
     }
     const meta = allUsersMeta.find(m => m.uid === uid);
     const friend = acceptedFriends.find(f => f.uid === uid);
     return {
       name: meta?.username || friend?.name || "Habitant",
-      photoURL: meta?.photoURL || meta?.avatarUrl || friend?.photoURL || null
+      photoURL: meta?.photoURL || meta?.avatarUrl || friend?.photoURL || '/pfp-ac.jpg'
     };
   };
 
@@ -118,15 +118,19 @@ export default function AvatarStackPopover({
         {allowedUsers.length > 1 && (() => {
           const ownerProfile = getUserProfile(effectiveOwnerId);
           return ownerProfile.photoURL ? (
-            <img 
-              src={ownerProfile.photoURL} 
-              alt={ownerProfile.name}
-              className={`rounded-full object-cover border-white shadow-ac-xs ${avatarSizeClass}`}
+            <div 
+              className={`rounded-full overflow-hidden flex items-center justify-center border-2 border-white shadow-ac-xs shrink-0 ${avatarSizeClass}`}
               title={`Propriétaire : ${ownerProfile.name} 🍃`}
-            />
+            >
+              <img 
+                src={ownerProfile.photoURL} 
+                alt={ownerProfile.name}
+                className="w-full h-full object-cover object-center block"
+              />
+            </div>
           ) : (
             <div 
-              className={`rounded-full bg-ac-brown text-white font-black flex items-center justify-center border-white shadow-ac-xs ${avatarSizeClass}`}
+              className={`rounded-full overflow-hidden flex items-center justify-center bg-ac-brown text-white font-black border-2 border-white shadow-ac-xs shrink-0 ${avatarSizeClass}`}
               title={`Propriétaire : ${ownerProfile.name} 🍃`}
             >
               🍃
@@ -139,17 +143,21 @@ export default function AvatarStackPopover({
           const profile = getUserProfile(friend.uid);
           const pastelStyle = getPastelColor(friend.uid);
           return profile.photoURL ? (
-            <img
+            <div
               key={friend.uid}
-              src={profile.photoURL}
-              alt={profile.name}
-              className={`rounded-full object-cover border-white shadow-ac-xs ${avatarSizeClass}`}
+              className={`rounded-full overflow-hidden flex items-center justify-center border-2 border-white shadow-ac-xs shrink-0 ${avatarSizeClass}`}
               title={`${profile.name} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
-            />
+            >
+              <img
+                src={profile.photoURL}
+                alt={profile.name}
+                className="w-full h-full object-cover object-center block"
+              />
+            </div>
           ) : (
             <div
               key={friend.uid}
-              className={`rounded-full flex items-center justify-center font-black border-white shadow-ac-xs ${pastelStyle} ${avatarSizeClass}`}
+              className={`rounded-full overflow-hidden flex items-center justify-center font-black border-2 border-white shadow-ac-xs shrink-0 ${pastelStyle} ${avatarSizeClass}`}
               title={`${profile.name} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
             >
               {getInitial(profile.name)}
@@ -223,13 +231,15 @@ export default function AvatarStackPopover({
                     >
                       <div className="flex items-center gap-3.5">
                         {profile.photoURL ? (
-                          <img 
-                            src={profile.photoURL} 
-                            alt={profile.name}
-                            className="w-8 h-8 rounded-full border border-ac-brown/15 object-cover"
-                          />
+                          <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center border border-ac-brown/15 shrink-0">
+                            <img 
+                              src={profile.photoURL} 
+                              alt={profile.name}
+                              className="w-full h-full object-cover object-center block"
+                            />
+                          </div>
                         ) : (
-                          <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-black ${pastelStyle}`}>
+                          <div className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black border border-ac-brown/15 shrink-0 ${pastelStyle}`}>
                             {getInitial(profile.name)}
                           </div>
                         )}

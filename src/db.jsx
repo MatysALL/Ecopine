@@ -1232,7 +1232,8 @@ export const DbProvider = ({ children }) => {
       username: firstname.trim(),
       email: email.trim().toLowerCase(),
       favoriteAccountId: null,
-      dashboardNote: ''
+      dashboardNote: '',
+      photoURL: '/pfp-ac.jpg'
     });
     
     // Create default categories (pastel-colored) if none exist in Firestore
@@ -1378,8 +1379,8 @@ export const DbProvider = ({ children }) => {
         if (!data.email && currentUser.email) {
           updates.email = currentUser.email.toLowerCase();
         }
-        if (!data.photoURL && currentUser.photoURL) {
-          updates.photoURL = currentUser.photoURL;
+        if (!data.photoURL) {
+          updates.photoURL = currentUser.photoURL || '/pfp-ac.jpg';
         }
         if (Object.keys(updates).length > 0) {
           updateDoc(metaRef, updates).catch(err => console.error(err));
@@ -1390,7 +1391,7 @@ export const DbProvider = ({ children }) => {
           email: currentUser.email.toLowerCase(),
           favoriteAccountId: null,
           dashboardNote: '',
-          photoURL: currentUser.photoURL || ''
+          photoURL: currentUser.photoURL || '/pfp-ac.jpg'
         }).catch(err => console.error(err));
         setUsersMetaDoc(null);
       }
@@ -1669,7 +1670,7 @@ export const DbProvider = ({ children }) => {
           uid: friendUid,
           email: isSender ? f.receiverEmail : f.senderEmail,
           name: meta?.username || (isSender ? f.receiverName : f.senderName),
-          photoURL: meta?.photoURL || meta?.avatarUrl || null
+          photoURL: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg'
         };
       });
   }, [friendships, currentUser, allUsersMeta]);

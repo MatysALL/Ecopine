@@ -102,9 +102,9 @@ export default function App() {
       {user && !needsOnboarding && (
         <header className="md:hidden flex justify-between items-center bg-ac-cream-dark border-b-3 border-ac-brown px-4 py-3 sticky top-0 z-30 select-none w-full">
           <span className="text-lg font-black tracking-tight text-ac-brown flex items-center gap-1">🍃 Ecopine</span>
-          <div className="w-10 h-10 rounded-full border-2 border-[#5C3A41] overflow-hidden bg-ac-green flex items-center justify-center text-white text-xs font-black shadow-ac-xs">
+          <div className="w-10 h-10 rounded-full border-2 border-[#5C3A41] overflow-hidden bg-ac-green flex items-center justify-center text-white text-xs font-black shadow-ac-xs shrink-0">
             {photoURL ? (
-              <img src={photoURL} alt="Profil" className="w-full h-full object-cover" />
+              <img src={photoURL} alt="Profil" className="w-full h-full object-cover object-center block" />
             ) : (
               <span>{getInitial(username || user?.displayName)}</span>
             )}

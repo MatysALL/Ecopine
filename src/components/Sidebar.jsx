@@ -106,13 +106,15 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         {/* Brand & Logo */}
         <div className="flex flex-col items-center">
           {photoURL ? (
-            <img 
-              src={photoURL} 
-              alt="Profil" 
-              className="w-12 h-12 rounded-full border-2 border-[#5C3A41] object-cover shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer animate-fade-in" 
-            />
+            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#5C3A41] shrink-0 shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer animate-fade-in">
+              <img 
+                src={photoURL} 
+                alt="Profil" 
+                className="w-full h-full object-cover object-center block" 
+              />
+            </div>
           ) : (
-            <div className="w-12 h-12 bg-ac-green rounded-full flex items-center justify-center border-2 border-[#5C3A41] shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer text-white font-black text-sm">
+            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#5C3A41] shrink-0 bg-ac-green shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer text-white font-black text-sm">
               {getInitial(username || user?.displayName)}
             </div>
           )}
