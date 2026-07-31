@@ -629,7 +629,8 @@ export const db = {
         'dashboard_note': 'dashboardNote',
         'photoURL': 'photoURL',
         'theme_preference': 'themePreference',
-        'unlocked_themes': 'unlockedThemes'
+        'unlocked_themes': 'unlockedThemes',
+        'tutorial_progress': 'tutorialProgress'
       };
       const field = fieldMap[key];
       if (field) {
@@ -651,6 +652,7 @@ export const db = {
         if (key === 'photoURL') return { key: 'photoURL', value: data.photoURL };
         if (key === 'theme_preference') return { key: 'theme_preference', value: data.themePreference || 'default' };
         if (key === 'unlocked_themes') return { key: 'unlocked_themes', value: data.unlockedThemes || ['default', 'red', 'blue', 'yellow'] };
+        if (key === 'tutorial_progress') return { key: 'tutorial_progress', value: data.tutorialProgress || { isCompleted: false, steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false } } };
       }
       return null;
     },
@@ -674,6 +676,7 @@ export const db = {
         if (m.key === 'photoURL') fields.photoURL = m.value;
         if (m.key === 'theme_preference') fields.themePreference = m.value;
         if (m.key === 'unlocked_themes') fields.unlockedThemes = m.value;
+        if (m.key === 'tutorial_progress') fields.tutorialProgress = m.value;
       });
       if (db._activeBatch) {
         db._activeBatch.set(ref, fields, { merge: true });
@@ -1311,7 +1314,18 @@ export const DbProvider = ({ children }) => {
       photoURL: '/pfp-ac.jpg',
       themePreference: 'default',
       unlockedThemes: ['default', 'red', 'blue', 'yellow'],
-      role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member'
+      role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
+      tutorialProgress: {
+        isCompleted: false,
+        steps: {
+          accounts: false,
+          calendar: false,
+          debts: false,
+          wishlist: false,
+          home: false,
+          settings: false
+        }
+      }
     });
     
     // Create default categories (pastel-colored) if none exist in Firestore
@@ -1478,7 +1492,18 @@ export const DbProvider = ({ children }) => {
           photoURL: currentUser.photoURL || '/pfp-ac.jpg',
           themePreference: 'default',
           unlockedThemes: ['default', 'red', 'blue', 'yellow'],
-          role: userEmail === 'matysallanet@gmail.com' ? 'admin' : 'member'
+          role: userEmail === 'matysallanet@gmail.com' ? 'admin' : 'member',
+          tutorialProgress: {
+            isCompleted: false,
+            steps: {
+              accounts: false,
+              calendar: false,
+              debts: false,
+              wishlist: false,
+              home: false,
+              settings: false
+            }
+          }
         }).catch(err => console.error(err));
         setUsersMetaDoc(null);
       }
@@ -1687,6 +1712,9 @@ export const DbProvider = ({ children }) => {
       if (usersMetaDoc.unlockedThemes !== undefined) {
         list.push({ key: 'unlocked_themes', value: usersMetaDoc.unlockedThemes });
       }
+      if (usersMetaDoc.tutorialProgress !== undefined) {
+        list.push({ key: 'tutorial_progress', value: usersMetaDoc.tutorialProgress });
+      }
     }
     return list;
   }, [usersMetaDoc]);
@@ -1799,7 +1827,18 @@ export const DbProvider = ({ children }) => {
     getActiveTheme,
     unlockedThemes: usersMetaDoc?.unlockedThemes || ['default', 'red', 'blue', 'yellow'],
     pendingRequestsCount,
-    isAdmin: usersMetaDoc?.role === 'admin' || currentUser?.email?.toLowerCase() === 'matysallanet@gmail.com'
+    isAdmin: usersMetaDoc?.role === 'admin' || currentUser?.email?.toLowerCase() === 'matysallanet@gmail.com',
+    tutorialProgress: {
+      isCompleted: usersMetaDoc?.tutorialProgress?.isCompleted ?? false,
+      steps: {
+        accounts: usersMetaDoc?.tutorialProgress?.steps?.accounts ?? false,
+        calendar: usersMetaDoc?.tutorialProgress?.steps?.calendar ?? false,
+        debts: usersMetaDoc?.tutorialProgress?.steps?.debts ?? false,
+        wishlist: usersMetaDoc?.tutorialProgress?.steps?.wishlist ?? false,
+        home: usersMetaDoc?.tutorialProgress?.steps?.home ?? false,
+        settings: usersMetaDoc?.tutorialProgress?.steps?.settings ?? false
+      }
+    }
   };
 
   return (

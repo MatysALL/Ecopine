@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useDb } from './db';
+import { useDb, db } from './db';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import AccountsView from './components/AccountsView';
@@ -10,11 +10,65 @@ import WishlistView from './components/WishlistView';
 import AuthView from './components/AuthView';
 import DebtsView from './components/DebtsView';
 import AdminView from './components/AdminView';
+import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './components/TutorialComponents';
 
 export default function App() {
-  const { isLoading, user, username, accounts, userMeta, activeTheme, isAdmin } = useDb();
+  const { isLoading, user, username, accounts, userMeta, activeTheme, isAdmin, tutorialProgress } = useDb();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
+  
+  const [showSpotlight, setShowSpotlight] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  const stepKeyMap = {
+    'dashboard': 'home',
+    'accounts': 'accounts',
+    'calendar': 'calendar',
+    'debts': 'debts',
+    'wishlist': 'wishlist',
+    'settings': 'settings'
+  };
+
+  const activeStepKey = stepKeyMap[activeTab];
+
+  useEffect(() => {
+    if (user && tutorialProgress && !tutorialProgress.isCompleted && activeStepKey) {
+      if (tutorialProgress.steps[activeStepKey] === false) {
+        setShowSpotlight(true);
+      } else {
+        setShowSpotlight(false);
+      }
+    } else {
+      setShowSpotlight(false);
+    }
+  }, [activeTab, tutorialProgress, user, activeStepKey]);
+
+  const handleValidateStep = async (stepKey) => {
+    try {
+      const updatedSteps = {
+        ...tutorialProgress.steps,
+        [stepKey]: true
+      };
+      
+      const isCompleted = Object.values(updatedSteps).every(v => v === true);
+      
+      await db.user_meta.put({
+        key: 'tutorial_progress',
+        value: {
+          isCompleted,
+          steps: updatedSteps
+        }
+      });
+      
+      setShowSpotlight(false);
+      
+      if (isCompleted) {
+        setShowCelebration(true);
+      }
+    } catch (err) {
+      console.error("Error validating tutorial step:", err);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'admin' && !isAdmin) {
@@ -144,10 +198,33 @@ export default function App() {
           {needsOnboarding ? (
             <OnboardingModal />
           ) : (
-            renderContent()
+            <>
+              {tutorialProgress && !tutorialProgress.isCompleted && (
+                <TutorialBanner 
+                  tutorialProgress={tutorialProgress}
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                />
+              )}
+              {renderContent()}
+            </>
           )}
         </div>
       </main>
+
+      {showSpotlight && activeStepKey && (
+        <TutorialSpotlight
+          activeTab={activeTab}
+          onValidate={handleValidateStep}
+          onClose={() => setShowSpotlight(false)}
+        />
+      )}
+
+      {showCelebration && (
+        <TutorialCelebrationModal
+          onClose={() => setShowCelebration(false)}
+        />
+      )}
     </div>
   );
 }

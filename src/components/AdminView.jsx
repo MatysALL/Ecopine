@@ -104,6 +104,24 @@ export default function AdminView() {
         await batch.commit();
       }
 
+      // Reset tutorial progress
+      const userRef = doc(firestoreDb, 'users_meta', uid);
+      const batchMeta = writeBatch(firestoreDb);
+      batchMeta.update(userRef, {
+        tutorialProgress: {
+          isCompleted: false,
+          steps: {
+            accounts: false,
+            calendar: false,
+            debts: false,
+            wishlist: false,
+            home: false,
+            settings: false
+          }
+        }
+      });
+      await batchMeta.commit();
+
       alert(`Le compte de ${username} a été réinitialisé avec succès !`);
     } catch (err) {
       console.error(err);

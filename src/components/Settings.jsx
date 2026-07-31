@@ -131,6 +131,31 @@ export default function Settings() {
     }
   };
 
+  const handleResetTutorial = async () => {
+    if (!window.confirm("Veux-tu relancer le tutoriel d'installation Nook ? Tes tampons seront réinitialisés mais tes clochettes et comptes restent intacts !")) return;
+
+    try {
+      await db.user_meta.put({
+        key: 'tutorial_progress',
+        value: {
+          isCompleted: false,
+          steps: {
+            accounts: false,
+            calendar: false,
+            debts: false,
+            wishlist: false,
+            home: false,
+            settings: false
+          }
+        }
+      });
+      alert("Tutoriel réinitialisé ! Navigue à travers les sections pour tamponner ton carnet. 🐾");
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la réinitialisation du tutoriel.");
+    }
+  };
+
   const handleAddCategory = async (e) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -454,6 +479,14 @@ export default function Settings() {
                   className="bg-ac-green text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer"
                 >
                   Enregistrer les modifications
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetTutorial}
+                  className="bg-ac-gold text-ac-brown font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer flex items-center gap-1"
+                >
+                  🐾 Revoir le tutoriel
                 </button>
 
                 {saveSuccess && (
