@@ -1761,6 +1761,12 @@ export const DbProvider = ({ children }) => {
       });
   }, [friendships, currentUser, allUsersMeta]);
 
+  // Derived state: count of received pending friend requests
+  const pendingRequestsCount = useMemo(() => {
+    if (!friendships || !currentUser) return 0;
+    return friendships.filter(f => f.status === 'pending' && f.receiverId === currentUser.uid).length;
+  }, [friendships, currentUser]);
+
   const value = {
     isLoading: authLoading || dataLoading,
     user: currentUser,
@@ -1783,7 +1789,8 @@ export const DbProvider = ({ children }) => {
     allUsersMeta,
     activeTheme,
     getActiveTheme,
-    unlockedThemes: usersMetaDoc?.unlockedThemes || ['default', 'red', 'blue', 'yellow']
+    unlockedThemes: usersMetaDoc?.unlockedThemes || ['default', 'red', 'blue', 'yellow'],
+    pendingRequestsCount
   };
 
   return (

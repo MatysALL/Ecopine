@@ -3,7 +3,7 @@ import { Leaf, PiggyBank, Calendar, Settings, Smile, Gift, LogOut, Handshake } f
 import { useDb } from '../db';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
-  const { logOutUser, user, userMeta, username } = useDb();
+  const { logOutUser, user, userMeta, username, pendingRequestsCount } = useDb();
   const photoURL = userMeta?.find(m => m.key === 'photoURL')?.value || user?.photoURL;
 
   const getInitial = (name = '') => {
@@ -141,7 +141,14 @@ export default function Sidebar({ activeTab, setActiveTab }) {
                     : 'bg-white text-ac-brown border-ac-brown hover:bg-ac-green-light hover:translate-y-[-2px]'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : item.color}`} />
+                <div className="relative">
+                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : item.color}`} />
+                  {item.id === 'settings' && pendingRequestsCount > 0 && (
+                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#E57373] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white animate-pulse shadow-sm">
+                      {pendingRequestsCount}
+                    </div>
+                  )}
+                </div>
                 <span>{item.label}</span>
               </button>
             );
@@ -196,7 +203,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-10 h-10 rounded-full border-2 border-ac-brown flex items-center justify-center transition-all duration-150 select-none ${
+              className={`w-10 h-10 rounded-full border-2 border-ac-brown flex items-center justify-center transition-all duration-150 select-none relative ${
                 isActive
                   ? 'bg-ac-green text-white border-ac-brown shadow-none translate-y-0.5'
                   : 'bg-white text-ac-brown border-ac-brown shadow-ac-sm active:translate-y-0.5 active:shadow-none'
@@ -204,6 +211,11 @@ export default function Sidebar({ activeTab, setActiveTab }) {
               title={item.label}
             >
               <Icon className={`w-4 h-4 ${isActive ? 'text-white' : item.color}`} />
+              {item.id === 'settings' && pendingRequestsCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#E57373] text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-white animate-pulse shadow-sm">
+                  {pendingRequestsCount}
+                </div>
+              )}
             </button>
           );
         })}
