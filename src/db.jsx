@@ -628,7 +628,8 @@ export const db = {
         'favorite_account_id': 'favoriteAccountId',
         'dashboard_note': 'dashboardNote',
         'photoURL': 'photoURL',
-        'theme_preference': 'themePreference'
+        'theme_preference': 'themePreference',
+        'unlocked_themes': 'unlockedThemes'
       };
       const field = fieldMap[key];
       if (field) {
@@ -649,6 +650,7 @@ export const db = {
         if (key === 'dashboard_note') return { key: 'dashboard_note', value: data.dashboardNote };
         if (key === 'photoURL') return { key: 'photoURL', value: data.photoURL };
         if (key === 'theme_preference') return { key: 'theme_preference', value: data.themePreference || 'default' };
+        if (key === 'unlocked_themes') return { key: 'unlocked_themes', value: data.unlockedThemes || ['default', 'red', 'blue', 'yellow'] };
       }
       return null;
     },
@@ -671,6 +673,7 @@ export const db = {
         if (m.key === 'dashboard_note') fields.dashboardNote = m.value;
         if (m.key === 'photoURL') fields.photoURL = m.value;
         if (m.key === 'theme_preference') fields.themePreference = m.value;
+        if (m.key === 'unlocked_themes') fields.unlockedThemes = m.value;
       });
       if (db._activeBatch) {
         db._activeBatch.set(ref, fields, { merge: true });
@@ -1215,28 +1218,12 @@ export const useDb = () => {
  * 4. Priority 4: Manual choice themePreference ('default', 'red', 'blue', 'yellow')
  */
 export function getActiveTheme(userProfile, categories) {
-  // Priority 1: Category named "waif"
-  const hasWaifCategory = categories?.some(
-    cat => cat.name?.toLowerCase().trim() === 'waif'
-  );
-  if (hasWaifCategory) {
-    return 'NEON_MULTICOLOR';
+  const unlocked = userProfile?.unlockedThemes || ['default', 'red', 'blue', 'yellow'];
+  const pref = userProfile?.themePreference || 'default';
+  if (unlocked.includes(pref)) {
+    return pref;
   }
-
-  // Priority 2: Inhabitant name "Wayfs"
-  const username = userProfile?.username || '';
-  if (username.toLowerCase().trim() === 'wayfs') {
-    return 'DARK_BLUE_PURPLE';
-  }
-
-  // Priority 3: Inhabitant name "Léa" or "Lea"
-  const normalizedUsername = username.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  if (normalizedUsername === 'lea') {
-    return 'SAKURA_PINK_PURPLE';
-  }
-
-  // Priority 4: Manual theme preference
-  return userProfile?.themePreference || 'default';
+  return 'default';
 }
 
 export const DbProvider = ({ children }) => {
@@ -1262,6 +1249,53 @@ export const DbProvider = ({ children }) => {
     return getActiveTheme(usersMetaDoc, categories);
   }, [usersMetaDoc, categories]);
 
+  // Permanent Theme Unlock Triggers Listener
+  useEffect(() => {
+    if (!currentUser || !usersMetaDoc) return;
+
+    const unlocked = usersMetaDoc.unlockedThemes || ['default', 'red', 'blue', 'yellow'];
+    const username = usersMetaDoc.username || '';
+    const themePref = usersMetaDoc.themePreference || 'default';
+
+    let needsUpdate = false;
+    const nextUnlocked = [...unlocked];
+    let nextThemePref = themePref;
+
+    // 1. Easter Egg Léa
+    const normalizedUsername = username.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (normalizedUsername === 'lea' && !nextUnlocked.includes('lea')) {
+      nextUnlocked.push('lea');
+      nextThemePref = 'lea';
+      needsUpdate = true;
+      alert("🎉 Thème Sakura (Rose & Violet) débloqué pour toujours !");
+    }
+
+    // 2. Easter Egg Wayfs
+    if (username.toLowerCase().trim() === 'wayfs' && !nextUnlocked.includes('wayfs')) {
+      nextUnlocked.push('wayfs');
+      nextThemePref = 'wayfs';
+      needsUpdate = true;
+      alert("🎉 Thème Abyssal (Bleu & Violet) débloqué pour toujours !");
+    }
+
+    // 3. Easter Egg Waif
+    const hasWaifCategory = categories?.some(cat => cat.name?.toLowerCase().trim() === 'waif');
+    if (hasWaifCategory && !nextUnlocked.includes('neon')) {
+      nextUnlocked.push('neon');
+      nextThemePref = 'neon';
+      needsUpdate = true;
+      alert("🎉 Thème Néon Cyberpunk débloqué pour toujours !");
+    }
+
+    if (needsUpdate) {
+      const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
+      updateDoc(metaRef, {
+        unlockedThemes: nextUnlocked,
+        themePreference: nextThemePref
+      }).catch(err => console.error("Error unlocking theme:", err));
+    }
+  }, [currentUser, usersMetaDoc, categories]);
+
   // Sign up and create user profile & default categories
   const signUpUser = async (email, password, firstname) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -1275,7 +1309,8 @@ export const DbProvider = ({ children }) => {
       favoriteAccountId: null,
       dashboardNote: '',
       photoURL: '/pfp-ac.jpg',
-      themePreference: 'default'
+      themePreference: 'default',
+      unlockedThemes: ['default', 'red', 'blue', 'yellow']
     });
     
     // Create default categories (pastel-colored) if none exist in Firestore
@@ -1434,7 +1469,8 @@ export const DbProvider = ({ children }) => {
           favoriteAccountId: null,
           dashboardNote: '',
           photoURL: currentUser.photoURL || '/pfp-ac.jpg',
-          themePreference: 'default'
+          themePreference: 'default',
+          unlockedThemes: ['default', 'red', 'blue', 'yellow']
         }).catch(err => console.error(err));
         setUsersMetaDoc(null);
       }
@@ -1640,6 +1676,9 @@ export const DbProvider = ({ children }) => {
       if (usersMetaDoc.themePreference !== undefined) {
         list.push({ key: 'theme_preference', value: usersMetaDoc.themePreference });
       }
+      if (usersMetaDoc.unlockedThemes !== undefined) {
+        list.push({ key: 'unlocked_themes', value: usersMetaDoc.unlockedThemes });
+      }
     }
     return list;
   }, [usersMetaDoc]);
@@ -1742,7 +1781,8 @@ export const DbProvider = ({ children }) => {
     logOutUser,
     allUsersMeta,
     activeTheme,
-    getActiveTheme
+    getActiveTheme,
+    unlockedThemes: usersMetaDoc?.unlockedThemes || ['default', 'red', 'blue', 'yellow']
   };
 
   return (

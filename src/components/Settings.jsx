@@ -38,7 +38,9 @@ export default function Settings() {
     pockets: pocketsList,
     user,
     friendships = [],
-    logOutUser
+    logOutUser,
+    unlockedThemes,
+    activeTheme
   } = useDb();
 
   // Friendship states
@@ -344,6 +346,16 @@ export default function Settings() {
     }
   };
 
+  const themesList = [
+    { id: 'default', name: 'Standard', desc: 'Crème & Boisé', bg: '#F4F1EA', btn: '#78B159', text: '#4A3E3D', border: '#4A3E3D' },
+    { id: 'red', name: 'Rouge Pastel', desc: 'Fraise & Blush', bg: '#FFF0F2', btn: '#FF8B94', text: '#5C2E35', border: '#8A4F58' },
+    { id: 'blue', name: 'Bleu Pastel', desc: 'Ciel & Glace', bg: '#EDF6FA', btn: '#92C7E8', text: '#1E2D3B', border: '#4B5E70' },
+    { id: 'yellow', name: 'Jaune Pastel', desc: 'Beurre & Miel', bg: '#FFF9E6', btn: '#F7DB99', text: '#4A3525', border: '#785D4A' },
+    { id: 'lea', name: 'Thème Léa', desc: 'Sakura Rose & Violet', bg: '#F5F3FF', btn: '#EC4899', text: '#4C1D95', border: '#8B5CF6' },
+    { id: 'wayfs', name: 'Thème Wayfs', desc: 'Abyssal Bleu & Violet', bg: '#0F172A', btn: '#8B5CF6', text: '#F8FAFC', border: '#8B5CF6' },
+    { id: 'neon', name: 'Thème Néon', desc: 'Cyberpunk Néon', bg: '#09090B', btn: '#00FFFF', text: '#F4F4F5', border: '#FF00FF' }
+  ];
+
   return (
     <div className="space-y-8 animate-fade-in text-ac-brown select-none">
       {/* Title */}
@@ -464,86 +476,49 @@ export default function Settings() {
               Choisis ton ambiance pastel favorite. Le thème s'applique instantanément et est synchronisé sur ton profil.
             </p>
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* Option 1: Default */}
-              <button
-                type="button"
-                onClick={() => handleThemeChange('default')}
-                className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 border-ac-brown transition-all cursor-pointer text-left w-full aspect-square bg-[#F4F1EA] hover:scale-102 hover:shadow-ac-xs ${
-                  themePreference === 'default' ? 'ring-4 ring-ac-green scale-102' : 'opacity-85'
-                }`}
-              >
-                <div className="w-full">
-                  <span className="block text-xs font-black text-[#4A3E3D]">Standard</span>
-                  <span className="block text-[9px] font-bold text-[#7D6C6A] leading-tight">Crème & Boisé</span>
-                </div>
-                {/* Previews */}
-                <div className="flex gap-1.5 mt-3 self-end">
-                  <div className="w-4 h-4 rounded-full border border-[#4A3E3D] bg-[#F4F1EA]" title="Fond"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#4A3E3D] bg-[#78B159]" title="Bouton"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#4A3E3D] bg-[#4A3E3D]" title="Texte"></div>
-                </div>
-              </button>
-
-              {/* Option 2: Red */}
-              <button
-                type="button"
-                onClick={() => handleThemeChange('red')}
-                className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 border-[#8A4F58] transition-all cursor-pointer text-left w-full aspect-square bg-[#FFF0F2] hover:scale-102 hover:shadow-ac-xs ${
-                  themePreference === 'red' ? 'ring-4 ring-[#FF8B94] scale-102' : 'opacity-85'
-                }`}
-              >
-                <div className="w-full">
-                  <span className="block text-xs font-black text-[#5C2E35]">Rouge Pastel</span>
-                  <span className="block text-[9px] font-bold text-[#8A4F58] leading-tight">Fraise & Blush</span>
-                </div>
-                {/* Previews */}
-                <div className="flex gap-1.5 mt-3 self-end">
-                  <div className="w-4 h-4 rounded-full border border-[#8A4F58] bg-[#FFF0F2]" title="Fond"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#8A4F58] bg-[#FF8B94]" title="Bouton"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#8A4F58] bg-[#5C2E35]" title="Texte"></div>
-                </div>
-              </button>
-
-              {/* Option 3: Blue */}
-              <button
-                type="button"
-                onClick={() => handleThemeChange('blue')}
-                className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 border-[#4B5E70] transition-all cursor-pointer text-left w-full aspect-square bg-[#EDF6FA] hover:scale-102 hover:shadow-ac-xs ${
-                  themePreference === 'blue' ? 'ring-4 ring-[#92C7E8] scale-102' : 'opacity-85'
-                }`}
-              >
-                <div className="w-full">
-                  <span className="block text-xs font-black text-[#1E2D3B]">Bleu Pastel</span>
-                  <span className="block text-[9px] font-bold text-[#4B5E70] leading-tight">Ciel & Glace</span>
-                </div>
-                {/* Previews */}
-                <div className="flex gap-1.5 mt-3 self-end">
-                  <div className="w-4 h-4 rounded-full border border-[#4B5E70] bg-[#EDF6FA]" title="Fond"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#4B5E70] bg-[#92C7E8]" title="Bouton"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#4B5E70] bg-[#1E2D3B]" title="Texte"></div>
-                </div>
-              </button>
-
-              {/* Option 4: Yellow */}
-              <button
-                type="button"
-                onClick={() => handleThemeChange('yellow')}
-                className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 border-[#785D4A] transition-all cursor-pointer text-left w-full aspect-square bg-[#FFF9E6] hover:scale-102 hover:shadow-ac-xs ${
-                  themePreference === 'yellow' ? 'ring-4 ring-[#F7DB99] scale-102' : 'opacity-85'
-                }`}
-              >
-                <div className="w-full">
-                  <span className="block text-xs font-black text-[#4A3525]">Jaune Pastel</span>
-                  <span className="block text-[9px] font-bold text-[#785D4A] leading-tight">Beurre & Miel</span>
-                </div>
-                {/* Previews */}
-                <div className="flex gap-1.5 mt-3 self-end">
-                  <div className="w-4 h-4 rounded-full border border-[#785D4A] bg-[#FFF9E6]" title="Fond"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#785D4A] bg-[#F7DB99]" title="Bouton"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#785D4A] bg-[#4A3525]" title="Texte"></div>
-                </div>
-              </button>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {themesList.map(t => {
+                const isUnlocked = unlockedThemes?.includes(t.id);
+                if (isUnlocked) {
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleThemeChange(t.id)}
+                      className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-left w-full aspect-square hover:scale-102 hover:shadow-ac-xs ${
+                        themePreference === t.id ? 'ring-4 ring-ac-green scale-102' : 'opacity-85'
+                      }`}
+                      style={{ backgroundColor: t.bg, borderColor: t.border, color: t.text }}
+                    >
+                      <div className="w-full">
+                        <span className="block text-xs font-black">{t.name}</span>
+                        <span className="block text-[9px] font-bold opacity-85 leading-tight mt-0.5">{t.desc}</span>
+                      </div>
+                      {/* Previews */}
+                      <div className="flex gap-1.5 mt-3 self-end">
+                        <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: t.bg, borderColor: t.border }} title="Fond"></div>
+                        <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: t.btn, borderColor: t.border }} title="Bouton"></div>
+                        <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: t.text, borderColor: t.border }} title="Texte"></div>
+                      </div>
+                    </button>
+                  );
+                } else {
+                  return (
+                    <div
+                      key={t.id}
+                      className="flex flex-col justify-between p-3.5 rounded-2xl border-2 border-dashed border-ac-brown/30 bg-ac-cream-dark/45 opacity-55 select-none w-full aspect-square relative overflow-hidden"
+                    >
+                      <div className="w-full">
+                        <span className="block text-xs font-black text-ac-brown-light/80">🔒 Thème Mystère</span>
+                        <span className="block text-[8px] font-extrabold text-ac-brown-light/65 leading-tight mt-1">Indice : un secret à découvrir...</span>
+                      </div>
+                      <div className="flex items-center justify-center absolute inset-0 text-xl opacity-10">
+                        🍃
+                      </div>
+                    </div>
+                  );
+                }
+              })}
             </div>
           </div>
         </div>

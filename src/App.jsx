@@ -21,9 +21,9 @@ export default function App() {
       'red': 'theme-red',
       'blue': 'theme-blue',
       'yellow': 'theme-yellow',
-      'NEON_MULTICOLOR': 'theme-neon',
-      'DARK_BLUE_PURPLE': 'theme-wayfs',
-      'SAKURA_PINK_PURPLE': 'theme-sakura'
+      'neon': 'theme-neon',
+      'wayfs': 'theme-wayfs',
+      'lea': 'theme-sakura'
     };
     return map[activeTheme] || 'theme-default';
   }, [activeTheme]);
