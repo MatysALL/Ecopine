@@ -27,6 +27,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   const [yellowClickCount, setYellowClickCount] = useState(0);
   const [distressClickCount, setDistressClickCount] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isNookCollapsed, setIsNookCollapsed] = useState(false);
   const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
 
   const handleBannerClick = () => {
@@ -113,62 +114,81 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   }, [debts]);
 
   return (
-    <div className="space-y-8 select-none">
+    <div className="space-y-6 md:space-y-8 select-none pb-20 md:pb-0 p-1 md:p-0">
       {/* 1. Bulle de bienvenue Tom Nook */}
       <div 
-        onClick={handleBannerClick}
-        className={`flex flex-col md:flex-row gap-6 bg-ac-green-light border-3 border-ac-brown rounded-3xl p-6 relative overflow-hidden items-center md:items-start shadow-ac-sm cursor-pointer transition-all duration-200 transform ${
-          isAnimating 
-            ? 'scale-95 opacity-80' 
-            : 'hover:scale-[1.01]'
+        className={`bg-ac-green-light border-3 border-ac-brown rounded-3xl relative overflow-hidden transition-all duration-200 shadow-ac-sm p-4 ${
+          isNookCollapsed ? 'pb-3' : 'pb-6'
         }`}
       >
-        <div className="flex flex-col items-center shrink-0">
-          <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-2 transform hover:rotate-6 hover:scale-105 transition-all duration-200 cursor-pointer shrink-0">
-            <img src="/tom-nook.jpg" alt="Tom Nook" className="w-full h-full object-cover object-center block" />
+        <div className="flex justify-between items-center w-full select-none">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white">
+              <img src="/tom-nook.jpg" alt="Tom Nook" className="w-full h-full object-cover object-center block" />
+            </div>
+            <div>
+              <h3 className="font-black text-xs text-ac-brown flex items-center gap-1">
+                Tom Nook 
+                <Sparkles className="w-3.5 h-3.5 text-ac-gold fill-ac-gold animate-pulse" />
+              </h3>
+              {isNookCollapsed && (
+                <p className="text-[10px] text-ac-brown-light font-bold truncate max-w-[180px] sm:max-w-md">
+                  {phase === 'welcome' && `Bonjour, ${username || 'Îlien'} ! Oui, oui !`}
+                  {phase === 'advices' && nookAdvices[currentAdviceIndex]}
+                  {phase === 'yellow' && `Je ne suis pas une banque à conseils...`}
+                  {phase === 'distress' && `Eh je suis vraiment à sec !`}
+                  {phase === 'sold' && `...`}
+                </p>
+              )}
+            </div>
           </div>
-          <span className="text-[10px] font-black text-white bg-ac-brown px-3 py-0.5 rounded-full border border-ac-brown shadow-ac-xs">
-            Tom Nook
-          </span>
+          <button 
+            onClick={() => setIsNookCollapsed(!isNookCollapsed)}
+            className="text-[9px] font-black uppercase text-ac-brown bg-white border-2 border-ac-brown px-2 py-0.5 rounded-lg shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
+          >
+            {isNookCollapsed ? 'Ouvrir 🐾' : 'Réduire'}
+          </button>
         </div>
 
-        <div className="flex-1 space-y-4 w-full relative">
-          <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative min-h-[90px] flex flex-col justify-center">
-            {phase !== 'sold' && (
-              <div className="absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[8px] font-black text-white bg-ac-gold flex items-center gap-1 animate-pulse">
-                <Smile className="w-2.5 h-2.5" /> Info
+        {!isNookCollapsed && (
+          <div 
+            onClick={handleBannerClick}
+            className={`mt-4 flex flex-col md:flex-row gap-4 items-center md:items-start cursor-pointer w-full transition-all duration-200 transform ${
+              isAnimating ? 'scale-98 opacity-85' : 'hover:scale-[1.005]'
+            }`}
+          >
+            <div className="flex-1 space-y-4 w-full relative">
+              <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative min-h-[70px] flex flex-col justify-center">
+                {phase !== 'sold' && (
+                  <div className="absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[8px] font-black text-white bg-ac-gold flex items-center gap-1 animate-pulse">
+                    <Smile className="w-2.5 h-2.5" /> Info
+                  </div>
+                )}
+                
+                <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
+                  {phase === 'welcome' && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${totalBalance.toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
+                  {phase === 'advices' && `"${nookAdvices[currentAdviceIndex]}"`}
+                  {phase === 'yellow' && `"Je ne suis pas une banque à conseils. Oui, Oui. Ma spécialité c'est garder mon argent"`}
+                  {phase === 'distress' && `"Eh je suis vraiment à sec !"`}
+                  {phase === 'sold' && `"..."`}
+                </p>
+
+                {phase === 'sold' && (
+                  <div className="absolute inset-0 bg-[#FFFDF9]/60 backdrop-blur-[1px] flex items-center justify-center rounded-2xl z-20 border-4 border-dashed border-ac-red">
+                    <span className="text-2xl font-black text-ac-red uppercase tracking-wider transform -rotate-12 border-4 border-ac-red px-4 py-2 rounded-xl bg-white shadow-ac-xs animate-bounce-in">
+                      Vendu 
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-
-            <h3 className="font-black text-sm text-ac-brown flex items-center gap-1.5">
-              {phase === 'welcome' ? `Bonjour, ${username || 'Îlien'} !` : "Conseil de Tom Nook"} <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold animate-pulse" />
-            </h3>
-            
-            <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
-              {phase === 'welcome' && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${totalBalance.toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
-              {phase === 'advices' && `"${nookAdvices[currentAdviceIndex]}"`}
-              {phase === 'yellow' && `"Je ne suis pas une banque à conseils. Oui, Oui. Ma spécialité c'est garder mon argent"`}
-              {phase === 'distress' && `"Eh je suis vraiment à sec !"`}
-              {phase === 'sold' && `"..."`}
-            </p>
-
-            {phase === 'sold' && (
-              <div className="absolute inset-0 bg-[#FFFDF9]/60 backdrop-blur-[1px] flex items-center justify-center rounded-2xl z-20 border-4 border-dashed border-ac-red">
-                <span className="text-2xl font-black text-ac-red uppercase tracking-wider transform -rotate-12 border-4 border-ac-red px-4 py-2 rounded-xl bg-white shadow-ac-xs animate-bounce-in">
-                  Vendu 
-                </span>
-              </div>
-            )}
-
-            {/* Dialogue bubble arrow */}
-            <div className="w-3 h-3 bg-white border-l-2 border-t-2 border-ac-brown/60 absolute left-[-7px] top-6 transform rotate-[-45deg] hidden md:block"></div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         {/* Left column: Favorite Account Card & Other accounts */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-6 md:space-y-8">
           {/* 2. Section Compte Favori */}
           {favoriteAccountDetails ? (
             <div 

@@ -209,32 +209,6 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         )}
       </aside>
 
-      {/* Mobile NookPhone Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-ac-cream border-t-4 border-ac-brown shadow-[0_-4px_10px_rgba(74,62,61,0.12)] flex justify-around items-center px-2 py-2 pb-safe-bottom z-40">
-        {mobileNavItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-10 h-10 rounded-full border-2 border-ac-brown flex items-center justify-center transition-all duration-150 select-none relative ${
-                isActive
-                  ? 'bg-ac-green text-white border-ac-brown shadow-none translate-y-0.5'
-                  : 'bg-white text-ac-brown border-ac-brown shadow-ac-sm active:translate-y-0.5 active:shadow-none'
-              }`}
-              title={item.label}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : item.color}`} />
-              {item.id === 'settings' && pendingRequestsCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#E57373] text-white text-[8px] font-bold rounded-full flex items-center justify-center border border-white animate-pulse shadow-sm">
-                  {pendingRequestsCount}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </nav>
     </>
   );
 }

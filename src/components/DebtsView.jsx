@@ -35,6 +35,7 @@ export default function DebtsView() {
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [settleSuccess, setSettleSuccess] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
+  const [activeDebtTab, setActiveDebtTab] = useState('payables'); // 'payables' or 'receivables' on mobile
 
   // Filter pending debts
   const pendingDebts = useMemo(() => {
@@ -411,11 +412,39 @@ export default function DebtsView() {
         </form>
       )}
 
+      {/* Segmented Control - Mobile only */}
+      <div className="flex md:hidden border-2 border-ac-brown rounded-2xl overflow-hidden p-1 bg-ac-cream mb-6 select-none">
+        <button
+          type="button"
+          onClick={() => setActiveDebtTab('payables')}
+          className={`flex-1 h-11 flex items-center justify-center font-black text-xs rounded-xl transition-all ${
+            activeDebtTab === 'payables'
+              ? 'bg-ac-red text-white border-2 border-ac-brown shadow-ac-sm'
+              : 'text-ac-brown hover:bg-white/40'
+          }`}
+          style={{ minHeight: '44px' }}
+        >
+          📤 Je dois ({payables.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveDebtTab('receivables')}
+          className={`flex-1 h-11 flex items-center justify-center font-black text-xs rounded-xl transition-all ${
+            activeDebtTab === 'receivables'
+              ? 'bg-ac-green text-white border-2 border-ac-brown shadow-ac-sm'
+              : 'text-ac-brown hover:bg-white/40'
+          }`}
+          style={{ minHeight: '44px' }}
+        >
+          📥 On me doit ({receivables.length})
+        </button>
+      </div>
+
       {/* Registry Lists Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-20 md:pb-0">
         
         {/* Column 1: Payables (Dettes) */}
-        <div className="ac-card p-6 bg-white border-ac-brown">
+        <div className={`ac-card p-6 bg-white border-ac-brown ${activeDebtTab === 'payables' ? 'block' : 'hidden md:block'}`}>
           <h3 className="text-base font-black text-ac-red mb-4 flex items-center gap-2 border-b border-ac-brown/15 pb-4">
             <Coins className="w-5 h-5 text-ac-red fill-ac-red/10" /> Je dois de l'argent ({payables.length})
           </h3>
@@ -502,7 +531,7 @@ export default function DebtsView() {
         </div>
 
         {/* Column 2: Receivables (Créances) */}
-        <div className="ac-card p-6 bg-white border-ac-brown">
+        <div className={`ac-card p-6 bg-white border-ac-brown ${activeDebtTab === 'receivables' ? 'block' : 'hidden md:block'}`}>
           <h3 className="text-base font-black text-ac-green mb-4 flex items-center gap-2 border-b border-ac-brown/15 pb-4">
             <Coins className="w-5 h-5 text-ac-green fill-ac-green/10" /> On me doit de l'argent ({receivables.length})
           </h3>
@@ -593,6 +622,8 @@ export default function DebtsView() {
       {settlingDebt && (
         <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in text-ac-brown">
           <div className="bg-[#FFFDF9] border-t-4 border-x-4 md:border-4 border-ac-brown rounded-t-3xl md:rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-slide-up md:animate-bounce-in pb-safe-bottom">
+            {/* Grab handle */}
+            <div className="w-12 h-1.5 bg-ac-brown/20 rounded-full mx-auto mb-4 md:hidden shrink-0"></div>
             {/* Close button */}
             <button 
               type="button"

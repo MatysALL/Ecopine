@@ -1076,6 +1076,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       {transferModalOpen && (
         <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in text-ac-brown">
           <div className="bg-[#FFFDF9] border-t-4 border-x-4 md:border-4 border-ac-brown rounded-t-3xl md:rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-slide-up md:animate-bounce-in pb-safe-bottom">
+            {/* Grab handle */}
+            <div className="w-12 h-1.5 bg-ac-brown/20 rounded-full mx-auto mb-4 md:hidden shrink-0"></div>
             {/* Close button */}
             <button 
               type="button"
@@ -1184,6 +1186,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       {accountFormOpen && (
         <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in text-ac-brown">
           <div className="bg-[#FFFDF9] border-t-4 border-x-4 md:border-4 border-ac-brown rounded-t-3xl md:rounded-3xl p-6 max-w-lg w-full shadow-ac-lg relative animate-slide-up md:animate-bounce-in pb-safe-bottom">
+            {/* Grab handle */}
+            <div className="w-12 h-1.5 bg-ac-brown/20 rounded-full mx-auto mb-4 md:hidden shrink-0"></div>
             {/* Close button */}
             <button 
               type="button"

@@ -11,14 +11,17 @@ import AuthView from './components/AuthView';
 import DebtsView from './components/DebtsView';
 import AdminView from './components/AdminView';
 import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './components/TutorialComponents';
+import { Leaf, PiggyBank, Calendar, Handshake, Gift, Plus } from 'lucide-react';
+import TransactionModal from './components/TransactionModal';
 
 export default function App() {
-  const { isLoading, user, username, accounts, userMeta, activeTheme, isAdmin, tutorialProgress } = useDb();
+  const { isLoading, user, username, accounts, userMeta, activeTheme, isAdmin, tutorialProgress, pendingRequestsCount } = useDb();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   
   const [showSpotlight, setShowSpotlight] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [isGlobalTxModalOpen, setIsGlobalTxModalOpen] = useState(false);
 
   const stepKeyMap = {
     'dashboard': 'home',
@@ -67,6 +70,26 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error validating tutorial step:", err);
+    }
+  };
+
+  const defaultAccountId = useMemo(() => {
+    if (!accounts || accounts.length === 0) return null;
+    const favMeta = userMeta?.find(m => m.key === 'favorite_account_id');
+    const favoriteId = favMeta ? favMeta.value : null;
+    if (favoriteId && accounts.some(a => a.id === favoriteId)) return favoriteId;
+    
+    const courant = accounts.find(a => a.type === 'Courant');
+    return courant ? courant.id : accounts[0].id;
+  }, [accounts, userMeta]);
+
+  const handleSaveGlobalTransaction = async (txData) => {
+    try {
+      await db.transactions.add(txData);
+      setIsGlobalTxModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'enregistrement de la transaction.");
     }
   };
 
@@ -166,7 +189,10 @@ export default function App() {
       {/* Mobile Top Header (only on mobile screens) */}
       {user && !needsOnboarding && (
         <header className="md:hidden flex justify-between items-center bg-ac-cream-dark border-b-3 border-ac-brown px-4 py-3 sticky top-0 z-30 select-none w-full">
-          <span className="text-lg font-black tracking-tight text-ac-brown flex items-center gap-1.5">
+          <span 
+            onClick={() => setActiveTab('dashboard')}
+            className="text-lg font-black tracking-tight text-ac-brown flex items-center gap-1.5 cursor-pointer"
+          >
             🍃 Ecopine
             {isAdmin && (
               <span className="text-[8px] uppercase font-extrabold px-1 py-0.5 bg-[#E57373] text-white rounded-full border border-white shadow-xs">
@@ -174,26 +200,34 @@ export default function App() {
               </span>
             )}
           </span>
-          <div 
-            onClick={isAdmin ? () => setActiveTab('admin') : undefined}
-            className={`w-10 h-10 rounded-full border-2 border-[#5C3A41] overflow-hidden bg-ac-green flex items-center justify-center text-white text-xs font-black shadow-ac-xs shrink-0 ${
-              isAdmin ? 'cursor-pointer hover:scale-105 active:scale-95 transition-all ring-2 ring-ac-orange ring-offset-1' : ''
-            }`}
-          >
-            {photoURL ? (
-              <img src={photoURL} alt="Profil" className="w-full h-full object-cover object-center block" />
-            ) : (
-              <span>{getInitial(username || user?.displayName)}</span>
+          <div className="relative">
+            <div 
+              onClick={() => setActiveTab(isAdmin ? 'admin' : 'settings')}
+              className={`w-10 h-10 rounded-full border-2 border-[#5C3A41] overflow-hidden bg-ac-green flex items-center justify-center text-white text-xs font-black shadow-ac-xs shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all ${
+                isAdmin ? 'ring-2 ring-ac-orange ring-offset-1' : ''
+              }`}
+            >
+              {photoURL ? (
+                <img src={photoURL} alt="Profil" className="w-full h-full object-cover object-center block" />
+              ) : (
+                <span>{getInitial(username || user?.displayName)}</span>
+              )}
+            </div>
+            {/* Mobile Friend Requests Badge */}
+            {pendingRequestsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-ac-red border border-white rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-ac-xs animate-pulse">
+                {pendingRequestsCount}
+              </span>
             )}
           </div>
         </header>
       )}
 
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation (Desktop) */}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Panel Content */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-28 md:pb-8 max-w-7xl mx-auto w-full">
         <div className="animate-bounce-in">
           {needsOnboarding ? (
             <OnboardingModal />
@@ -211,6 +245,64 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation Bar (NookPhone Dock) */}
+      {user && !needsOnboarding && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FFF9FA]/95 backdrop-blur-md border-t-2 border-[#5C3A41] pb-[env(safe-area-inset-bottom)]">
+          <nav className="flex justify-around items-center h-16 px-2">
+            {[
+              { id: 'dashboard', label: 'Accueil', icon: Leaf },
+              { id: 'accounts', label: 'Comptes', icon: PiggyBank },
+              { id: 'calendar', label: 'Calendrier', icon: Calendar },
+              { id: 'debts', label: 'Dettes', icon: Handshake },
+              { id: 'wishlist', label: 'Souhaits', icon: Gift }
+            ].map(item => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`flex flex-col items-center justify-center flex-1 h-full transition-all gap-1 cursor-pointer select-none ${
+                    isActive 
+                      ? 'text-ac-green scale-105 font-black animate-bounce-once' 
+                      : 'text-ac-brown/65 hover:text-ac-brown font-bold'
+                  }`}
+                  style={{ minHeight: '44px' }}
+                >
+                  <div className={`p-1.5 rounded-xl border transition-all ${
+                    isActive ? 'bg-[#78B159]/15 border-[#78B159]/40 shadow-xs' : 'border-transparent'
+                  }`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <span className="text-[9px] tracking-tight">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      )}
+
+      {/* Floating Action Button (FAB) on mobile */}
+      {user && !needsOnboarding && (
+        <button
+          onClick={() => setIsGlobalTxModalOpen(true)}
+          className="fixed bottom-20 right-4 md:hidden z-30 w-14 h-14 bg-ac-green text-white rounded-full shadow-lg flex items-center justify-center border-3 border-ac-brown hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          style={{ minHeight: '44px', minWidth: '44px' }}
+        >
+          <Plus className="w-7 h-7" />
+        </button>
+      )}
+
+      {/* Global Transaction Modal */}
+      {isGlobalTxModalOpen && defaultAccountId && (
+        <TransactionModal
+          isOpen={isGlobalTxModalOpen}
+          onClose={() => setIsGlobalTxModalOpen(false)}
+          onSave={handleSaveGlobalTransaction}
+          accountId={defaultAccountId}
+        />
+      )}
 
       {showSpotlight && activeStepKey && (
         <TutorialSpotlight

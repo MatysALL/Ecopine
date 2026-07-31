@@ -422,7 +422,7 @@ export default function AdminView() {
             </h3>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border-2 border-ac-brown bg-ac-cream/20">
+          <div className="overflow-x-auto shadow-inner rounded-2xl border-2 border-ac-brown bg-ac-cream/20">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b-2 border-ac-brown/15 bg-ac-cream-dark/30 text-left">
@@ -525,7 +525,7 @@ export default function AdminView() {
               <p className="text-[10px] text-ac-brown-light/75 mt-0.5">Aucun document ne correspond aux filtres.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border-2 border-ac-brown bg-ac-cream/20">
+            <div className="overflow-x-auto shadow-inner rounded-2xl border-2 border-ac-brown bg-ac-cream/20">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b-2 border-ac-brown/15 bg-ac-cream-dark/30 text-left">

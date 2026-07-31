@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useDb, expandRecurringTransactions } from '../db';
 import { 
   ChevronLeft, ChevronRight, Calendar, 
-  Coins, Leaf, ArrowUpRight, ArrowDownRight, EyeOff, Sparkles, Smile
+  Coins, Leaf, ArrowUpRight, ArrowDownRight, EyeOff, Sparkles, Smile, X
 } from 'lucide-react';
 
 export default function EconomicCalendar() {
@@ -11,6 +11,7 @@ export default function EconomicCalendar() {
   const [hoveredDay, setHoveredDay] = useState(null);
   const [hoveredData, setHoveredData] = useState([]);
   const [hoveredPosition, setHoveredPosition] = useState({ x: 0, y: 0 });
+  const [selectedDayForBottomSheet, setSelectedDayForBottomSheet] = useState(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -124,6 +125,11 @@ export default function EconomicCalendar() {
     });
   };
 
+  const getDayTransactions = (dateStr) => {
+    if (!transactionsData) return [];
+    return transactionsData.filter(t => t.date === dateStr);
+  };
+
   const handleDayHoverLeave = () => {
     setHoveredDay(null);
     setHoveredData([]);
@@ -208,33 +214,38 @@ export default function EconomicCalendar() {
                 key={idx}
                 onMouseEnter={(e) => handleDayHoverEnter(e, cell)}
                 onMouseLeave={handleDayHoverLeave}
-                className={`min-h-[75px] md:min-h-[90px] border-2 rounded-2xl p-2 transition-all flex flex-col justify-between relative cursor-help ${cellStyle} ${
+                onClick={() => {
+                  if (cell.isCurrentMonth) {
+                    setSelectedDayForBottomSheet(cell);
+                  }
+                }}
+                className={`min-h-[50px] md:min-h-[90px] border-2 rounded-2xl p-1 md:p-2 transition-all flex flex-col justify-between relative cursor-pointer md:cursor-help ${cellStyle} ${
                   isToday ? 'ring-3 ring-ac-green bg-ac-green-light/20' : ''
                 }`}
               >
                 {/* Day Number */}
                 <div className="flex justify-between items-center">
-                  <span className={`text-xs font-black ${isToday ? 'text-ac-green font-extrabold text-sm' : 'text-ac-brown'}`}>
+                  <span className={`text-[10px] md:text-xs font-black ${isToday ? 'text-ac-green font-extrabold text-xs md:text-sm' : 'text-ac-brown'}`}>
                     {cell.day}
                   </span>
                   {isToday && (
-                    <span className="text-[8px] font-black bg-ac-green text-white px-1 py-0.2 rounded-full">Auj.</span>
+                    <span className="text-[7px] md:text-[8px] font-black bg-ac-green text-white px-1 py-0.2 rounded-full">Auj.</span>
                   )}
                 </div>
 
                 {/* Render mode specific data inside cells */}
                 {cell.isCurrentMonth && dayTxs.length > 0 && (
-                  <div className="text-[10px] font-bold text-left mt-1">
-                    <div className="font-extrabold">
+                  <div className="text-[8px] md:text-[10px] font-bold text-left mt-0.5 md:mt-1">
+                    <div className="font-extrabold truncate">
                       {netFlow > 0 ? `+${Math.round(netFlow)}` : Math.round(netFlow)} 🔔
                     </div>
                   </div>
                 )}
 
-                {/* Relative Hover Tooltip Detail Component */}
+                {/* Relative Hover Tooltip Detail Component (Desktop only) */}
                 {hoveredDay === cell.dateStr && (
                   <div 
-                    className={`absolute bottom-full mb-2 z-50 bg-[#FFFDF9] border-3 border-ac-brown rounded-2xl p-4 shadow-ac-lg max-w-sm w-72 pointer-events-none animate-fade-in text-ac-brown ${
+                    className={`absolute bottom-full mb-2 z-50 bg-[#FFFDF9] border-3 border-ac-brown rounded-2xl p-4 shadow-ac-lg max-w-sm w-72 pointer-events-none animate-fade-in text-ac-brown hidden md:block ${
                       idx % 7 >= 4 
                         ? 'right-0' 
                         : 'left-1/2 -translate-x-1/2'
@@ -250,8 +261,6 @@ export default function EconomicCalendar() {
                     <h4 className="font-black text-xs text-ac-brown border-b border-ac-brown/10 pb-2 mb-2">
                       Détails du {new Date(hoveredDay).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </h4>
-
-
 
                     {/* Transactions list */}
                     {hoveredData.length === 0 ? (
@@ -295,6 +304,67 @@ export default function EconomicCalendar() {
           })}
         </div>
       </div>
+
+      {/* Bottom Sheet for selected day on Mobile */}
+      {selectedDayForBottomSheet && (
+        <div className="fixed inset-0 z-50 flex items-end md:hidden bg-ac-brown/60 backdrop-blur-xs animate-fade-in" onClick={() => setSelectedDayForBottomSheet(null)}>
+          <div 
+            className="bg-white border-t-4 border-ac-brown rounded-t-3xl p-6 w-full max-h-[80vh] flex flex-col animate-slide-up text-ac-brown select-none pb-safe-bottom"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Grab handle */}
+            <div className="w-12 h-1.5 bg-ac-brown/20 rounded-full mx-auto mb-4 shrink-0"></div>
+            
+            <div className="flex justify-between items-center pb-3 border-b border-ac-brown/10 mb-4 shrink-0">
+              <h3 className="text-base font-black text-ac-brown">
+                🗓️ Opérations du {new Date(selectedDayForBottomSheet.dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </h3>
+              <button 
+                onClick={() => setSelectedDayForBottomSheet(null)}
+                className="bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-colors z-10"
+              >
+                <X className="w-4 h-4 text-ac-brown" />
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="overflow-y-auto space-y-3 flex-1 pb-4">
+              {getDayTransactions(selectedDayForBottomSheet.dateStr).length === 0 ? (
+                <p className="text-xs font-bold text-ac-brown-light italic py-8 text-center bg-ac-cream/50 rounded-2xl border border-dashed border-ac-brown/15">
+                  Aucun flux financier ce jour. 🍃
+                </p>
+              ) : (
+                getDayTransactions(selectedDayForBottomSheet.dateStr).map((tx, idx) => {
+                  const acc = accounts?.find(a => a.id === tx.accountId);
+                  const isIncome = tx.type === 'credit';
+                  return (
+                    <div key={idx} className="p-3 bg-ac-cream border-2 border-ac-brown rounded-2xl flex justify-between items-center text-xs">
+                      <div>
+                        <p className="font-extrabold text-ac-brown">{tx.name || tx.description}</p>
+                        <div className="flex gap-1.5 mt-1">
+                          <span className="text-[8px] font-black text-ac-brown-light bg-white border border-ac-brown/15 px-1.5 py-0.5 rounded uppercase">
+                            {acc?.name || 'Compte'}
+                          </span>
+                          {tx.executionType && tx.executionType !== 'spontaneous' && (
+                            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase border ${
+                              tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' : 'bg-ac-cream-dark/50 border-ac-brown/15 text-ac-brown-light'
+                            }`}>
+                              {tx.executionType === 'planned' ? 'Prévu' : 'Passé'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
+                        {isIncome ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Account Filters */}
       <div className="ac-card p-6 bg-white border-ac-brown">
