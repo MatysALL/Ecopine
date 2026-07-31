@@ -309,6 +309,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   };
 
   const handleDeleteAccount = async (accId) => {
+    const acc = accounts?.find(a => a.id === accId);
+    if (!acc) return;
+    const isOwner = acc.ownerId === user?.uid || !acc.ownerId || (acc.allowedUsers && acc.allowedUsers[0] === user?.uid);
+    if (!isOwner) {
+      alert("Vous n'êtes pas le propriétaire de ce compte.");
+      return;
+    }
     const confirmDelete = window.confirm(
       "Es-tu sûr de vouloir supprimer ce compte ? Cela supprimera également toutes ses transactions et budgets liés."
     );
@@ -671,7 +678,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 <Edit className="w-4 h-4" /> Modifier le Compte
               </button>
             )}
-            {(myRole === 'owner' || activeAccount.ownerId === user?.uid) ? (
+            {(activeAccount.ownerId === user?.uid || !activeAccount.ownerId || (activeAccount.allowedUsers && activeAccount.allowedUsers[0] === user?.uid)) ? (
               <button
                 onClick={() => handleDeleteAccount(activeAccount.id)}
                 className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"

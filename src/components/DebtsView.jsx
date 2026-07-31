@@ -7,7 +7,7 @@ import InlineShareSelector from './InlineShareSelector';
 import AvatarStackPopover from './AvatarStackPopover';
 
 export default function DebtsView() {
-  const { debts = [], accountsData: accounts = [], user, acceptedFriends } = useDb();
+  const { debts = [], accountsData: accounts = [], user, acceptedFriends, username } = useDb();
 
   // Sharing state
   const [sharedFriendUids, setSharedFriendUids] = useState([]);
@@ -125,6 +125,13 @@ export default function DebtsView() {
 
   // Delete directly
   const handleDeleteDebt = async (id) => {
+    const debt = debts?.find(d => d.id === id);
+    if (!debt) return;
+    const isOwner = debt.ownerId === user?.uid || debt.creatorId === user?.uid || debt.userId === user?.uid || !debt.ownerId && !debt.creatorId && !debt.userId || (debt.allowedUsers && debt.allowedUsers[0] === user?.uid);
+    if (!isOwner) {
+      alert("Vous n'êtes pas le propriétaire de cette dette.");
+      return;
+    }
     if (window.confirm("Es-tu sûr de vouloir effacer cette dette de ton registre ?")) {
       try {
         await db.debts.delete(id);
@@ -132,6 +139,34 @@ export default function DebtsView() {
         console.error(err);
         alert("Erreur lors de la suppression.");
       }
+    }
+  };
+
+  const handleLeaveDebt = async (debt) => {
+    const confirmLeave = window.confirm("Es-tu sûr de vouloir quitter cette dette partagée ?");
+    if (!confirmLeave) return;
+
+    try {
+      const myUsername = username || 'Habitant';
+      const updatedAllowedUsers = (debt.allowedUsers || []).filter(uid => uid !== user?.uid);
+      
+      const updatedUserRoles = { ...(debt.userRoles || {}) };
+      delete updatedUserRoles[user?.uid];
+
+      const updatedSharedWithNames = (debt.sharedWithNames || []).filter(
+        name => name.toLowerCase() !== myUsername.toLowerCase()
+      );
+
+      await db.debts.update(debt.id, {
+        allowedUsers: updatedAllowedUsers,
+        userRoles: updatedUserRoles,
+        sharedWithNames: updatedSharedWithNames
+      });
+
+      alert("Vous avez quitté le partage de cette dette.");
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la sortie du partage.");
     }
   };
 
@@ -393,6 +428,7 @@ export default function DebtsView() {
             <div className="space-y-4">
               {payables.map((debt) => {
                 const isPopoverOpen = openPopoverDebtId === debt.id;
+                const isOwner = debt.ownerId === user?.uid || debt.creatorId === user?.uid || debt.userId === user?.uid || !debt.ownerId && !debt.creatorId && !debt.userId || (debt.allowedUsers && debt.allowedUsers[0] === user?.uid);
                 return (
                   <div key={debt.id} className={`p-4 bg-ac-red-light/10 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible ${
                     isPopoverOpen ? 'z-30' : 'z-0'
@@ -439,13 +475,23 @@ export default function DebtsView() {
                       >
                         Solder
                       </button>
-                      <button
-                        onClick={() => handleDeleteDebt(debt.id)}
-                        className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
-                        title="Supprimer sans solder"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {isOwner ? (
+                        <button
+                          onClick={() => handleDeleteDebt(debt.id)}
+                          className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                          title="Supprimer sans solder"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleLeaveDebt(debt)}
+                          className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                          title="Quitter le partage"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -469,6 +515,7 @@ export default function DebtsView() {
             <div className="space-y-4">
               {receivables.map((debt) => {
                 const isPopoverOpen = openPopoverDebtId === debt.id;
+                const isOwner = debt.ownerId === user?.uid || debt.creatorId === user?.uid || debt.userId === user?.uid || !debt.ownerId && !debt.creatorId && !debt.userId || (debt.allowedUsers && debt.allowedUsers[0] === user?.uid);
                 return (
                   <div key={debt.id} className={`p-4 bg-ac-green-light/20 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible ${
                     isPopoverOpen ? 'z-30' : 'z-0'
@@ -515,13 +562,23 @@ export default function DebtsView() {
                       >
                         Solder
                       </button>
-                      <button
-                        onClick={() => handleDeleteDebt(debt.id)}
-                        className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
-                        title="Supprimer sans solder"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {isOwner ? (
+                        <button
+                          onClick={() => handleDeleteDebt(debt.id)}
+                          className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                          title="Supprimer sans solder"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleLeaveDebt(debt)}
+                          className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                          title="Quitter le partage"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

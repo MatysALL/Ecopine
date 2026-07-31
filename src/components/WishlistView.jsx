@@ -10,7 +10,7 @@ import InlineShareSelector from './InlineShareSelector';
 import AvatarStackPopover from './AvatarStackPopover';
 
 export default function WishlistView() {
-  const { wishlist: wishes, accountsData: accounts, user, acceptedFriends } = useDb();
+  const { wishlist: wishes, accountsData: accounts, user, acceptedFriends, username } = useDb();
 
   // Sharing checkboxes state
   const [sharedFriendUids, setSharedFriendUids] = useState([]);
@@ -139,8 +139,43 @@ export default function WishlistView() {
   };
 
   const handleDeleteWish = async (id) => {
+    const wish = wishes?.find(w => w.id === id);
+    if (!wish) return;
+    const isOwner = wish.ownerId === user?.uid || wish.creatorId === user?.uid || !wish.ownerId && !wish.creatorId || (wish.allowedUsers && wish.allowedUsers[0] === user?.uid);
+    if (!isOwner) {
+      alert("Vous n'êtes pas le propriétaire de ce souhait.");
+      return;
+    }
     if (window.confirm("Es-tu sûr de vouloir retirer ce souhait de ton catalogue ?")) {
       await db.wishlist.delete(id);
+    }
+  };
+
+  const handleLeaveWish = async (wish) => {
+    const confirmLeave = window.confirm("Es-tu sûr de vouloir quitter ce souhait partagé ?");
+    if (!confirmLeave) return;
+
+    try {
+      const myUsername = username || 'Habitant';
+      const updatedAllowedUsers = (wish.allowedUsers || []).filter(uid => uid !== user?.uid);
+      
+      const updatedUserRoles = { ...(wish.userRoles || {}) };
+      delete updatedUserRoles[user?.uid];
+
+      const updatedSharedWithNames = (wish.sharedWithNames || []).filter(
+        name => name.toLowerCase() !== myUsername.toLowerCase()
+      );
+
+      await db.wishlist.update(wish.id, {
+        allowedUsers: updatedAllowedUsers,
+        userRoles: updatedUserRoles,
+        sharedWithNames: updatedSharedWithNames
+      });
+
+      alert("Vous avez quitté le partage de ce souhait.");
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la sortie du partage.");
     }
   };
 
@@ -335,6 +370,7 @@ export default function WishlistView() {
           {sortedWishes.map((wish, index) => {
             const isDragging = draggableWishId === wish.id;
             const isPopoverOpen = openPopoverWishId === wish.id;
+            const isOwner = wish.ownerId === user?.uid || wish.creatorId === user?.uid || !wish.ownerId && !wish.creatorId || (wish.allowedUsers && wish.allowedUsers[0] === user?.uid);
             return (
               <div 
                 key={wish.id} 
@@ -405,13 +441,23 @@ export default function WishlistView() {
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
-                    <button
-                      onClick={() => handleDeleteWish(wish.id)}
-                      className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
-                      title="Supprimer ce souhait"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {isOwner ? (
+                      <button
+                        onClick={() => handleDeleteWish(wish.id)}
+                        className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                        title="Supprimer ce souhait"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleLeaveWish(wish)}
+                        className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                        title="Quitter le partage"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Purchase Button */}
