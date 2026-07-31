@@ -626,7 +626,8 @@ export const db = {
       const fieldMap = {
         'username': 'username',
         'favorite_account_id': 'favoriteAccountId',
-        'dashboard_note': 'dashboardNote'
+        'dashboard_note': 'dashboardNote',
+        'photoURL': 'photoURL'
       };
       const field = fieldMap[key];
       if (field) {
@@ -645,6 +646,7 @@ export const db = {
         if (key === 'username') return { key: 'username', value: data.username };
         if (key === 'favorite_account_id') return { key: 'favorite_account_id', value: data.favoriteAccountId };
         if (key === 'dashboard_note') return { key: 'dashboard_note', value: data.dashboardNote };
+        if (key === 'photoURL') return { key: 'photoURL', value: data.photoURL };
       }
       return null;
     },
@@ -665,6 +667,7 @@ export const db = {
         if (m.key === 'username') fields.username = m.value;
         if (m.key === 'favorite_account_id') fields.favoriteAccountId = m.value;
         if (m.key === 'dashboard_note') fields.dashboardNote = m.value;
+        if (m.key === 'photoURL') fields.photoURL = m.value;
       });
       if (db._activeBatch) {
         db._activeBatch.set(ref, fields, { merge: true });
@@ -1216,6 +1219,7 @@ export const DbProvider = ({ children }) => {
   // Single document state
   const [usersMetaDoc, setUsersMetaDoc] = useState(null);
   const [dataLoading, setDataLoading] = useState(false);
+  const [allUsersMeta, setAllUsersMeta] = useState([]);
 
   // Sign up and create user profile & default categories
   const signUpUser = async (email, password, firstname) => {
@@ -1370,20 +1374,34 @@ export const DbProvider = ({ children }) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setUsersMetaDoc(data);
+        const updates = {};
         if (!data.email && currentUser.email) {
-          updateDoc(metaRef, { email: currentUser.email.toLowerCase() }).catch(err => console.error(err));
+          updates.email = currentUser.email.toLowerCase();
+        }
+        if (!data.photoURL && currentUser.photoURL) {
+          updates.photoURL = currentUser.photoURL;
+        }
+        if (Object.keys(updates).length > 0) {
+          updateDoc(metaRef, updates).catch(err => console.error(err));
         }
       } else {
         setDoc(metaRef, {
           username: currentUser.displayName || 'Habitant',
           email: currentUser.email.toLowerCase(),
           favoriteAccountId: null,
-          dashboardNote: ''
+          dashboardNote: '',
+          photoURL: currentUser.photoURL || ''
         }).catch(err => console.error(err));
         setUsersMetaDoc(null);
       }
     });
     unsubscribes.push(unsubMeta);
+
+    // Subscribe to all users_meta to get names and avatars reactively
+    const unsubAllMeta = onSnapshot(collection(firestoreDb, 'users_meta'), (snapshot) => {
+      setAllUsersMeta(snapshot.docs.map(d => ({ uid: d.id, ...d.data() })));
+    });
+    unsubscribes.push(unsubAllMeta);
 
     // Helpers for snapshot listeners containing allowedUsers
     const subscribeCollectionShared = (colName, setList) => {
@@ -1572,6 +1590,9 @@ export const DbProvider = ({ children }) => {
       if (usersMetaDoc.dashboardNote !== undefined) {
         list.push({ key: 'dashboard_note', value: usersMetaDoc.dashboardNote });
       }
+      if (usersMetaDoc.photoURL !== undefined) {
+        list.push({ key: 'photoURL', value: usersMetaDoc.photoURL });
+      }
     }
     return list;
   }, [usersMetaDoc]);
@@ -1642,13 +1663,16 @@ export const DbProvider = ({ children }) => {
       .filter(f => f.status === 'accepted')
       .map(f => {
         const isSender = f.senderId === currentUser.uid;
+        const friendUid = isSender ? f.receiverId : f.senderId;
+        const meta = allUsersMeta.find(m => m.uid === friendUid);
         return {
-          uid: isSender ? f.receiverId : f.senderId,
+          uid: friendUid,
           email: isSender ? f.receiverEmail : f.senderEmail,
-          name: isSender ? f.receiverName : f.senderName
+          name: meta?.username || (isSender ? f.receiverName : f.senderName),
+          photoURL: meta?.photoURL || meta?.avatarUrl || null
         };
       });
-  }, [friendships, currentUser]);
+  }, [friendships, currentUser, allUsersMeta]);
 
   const value = {
     isLoading: authLoading || dataLoading,
@@ -1668,7 +1692,8 @@ export const DbProvider = ({ children }) => {
     globalLatestTransactions,
     signUpUser,
     logInUser,
-    logOutUser
+    logOutUser,
+    allUsersMeta
   };
 
   return (

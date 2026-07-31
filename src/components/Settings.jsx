@@ -11,6 +11,7 @@ export default function Settings() {
 
   // Profile states
   const [username, setUsername] = useState('');
+  const [photoURL, setPhotoURL] = useState('');
   const [favAccountId, setFavAccountId] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -84,16 +85,19 @@ export default function Settings() {
     if (userMeta) {
       const nameMeta = userMeta.find(m => m.key === 'username');
       const favMeta = userMeta.find(m => m.key === 'favorite_account_id');
+      const photoMeta = userMeta.find(m => m.key === 'photoURL');
       setUsername(nameMeta?.value || '');
       setFavAccountId(favMeta?.value || '');
+      setPhotoURL(photoMeta?.value || user?.photoURL || '');
     }
-  }, [userMeta]);
+  }, [userMeta, user]);
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
     try {
       await db.user_meta.put({ key: 'username', value: username.trim() });
       await db.user_meta.put({ key: 'favorite_account_id', value: favAccountId });
+      await db.user_meta.put({ key: 'photoURL', value: photoURL.trim() });
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -348,8 +352,19 @@ export default function Settings() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Ex: Matys"
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Photo de profil (URL / Avatar)</label>
+                <input
+                  type="url"
+                  value={photoURL}
+                  onChange={(e) => setPhotoURL(e.target.value)}
+                  placeholder="Ex: https://image.png"
+                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                 />
               </div>
 

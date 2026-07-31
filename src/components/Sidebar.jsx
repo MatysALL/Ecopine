@@ -3,7 +3,17 @@ import { Leaf, PiggyBank, Calendar, Settings, Smile, Gift, LogOut, Handshake } f
 import { useDb } from '../db';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
-  const { logOutUser } = useDb();
+  const { logOutUser, user, userMeta, username } = useDb();
+  const photoURL = userMeta?.find(m => m.key === 'photoURL')?.value || user?.photoURL;
+
+  const getInitial = (name = '') => {
+    if (!name) return '🍃';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
   
   const navItems = [
     { id: 'dashboard', label: 'Accueil', icon: Leaf, color: 'text-ac-green' },
@@ -95,9 +105,17 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       <aside className="hidden md:flex w-64 bg-ac-cream-dark border-r-3 border-ac-brown flex flex-col justify-between h-screen sticky top-0 p-6 select-none">
         {/* Brand & Logo */}
         <div className="flex flex-col items-center">
-          <div className="w-20 h-20 bg-ac-green rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer">
-            <Leaf className="w-12 h-12 text-white fill-white" />
-          </div>
+          {photoURL ? (
+            <img 
+              src={photoURL} 
+              alt="Profil" 
+              className="w-12 h-12 rounded-full border-2 border-[#5C3A41] object-cover shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer animate-fade-in" 
+            />
+          ) : (
+            <div className="w-12 h-12 bg-ac-green rounded-full flex items-center justify-center border-2 border-[#5C3A41] shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer text-white font-black text-sm">
+              {getInitial(username || user?.displayName)}
+            </div>
+          )}
           <h1 className="text-2xl font-black tracking-tight text-ac-brown text-center mb-1">
             Ecopine
           </h1>

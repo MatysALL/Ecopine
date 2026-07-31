@@ -11,7 +11,7 @@ import AuthView from './components/AuthView';
 import DebtsView from './components/DebtsView';
 
 export default function App() {
-  const { isLoading, user, username, accounts } = useDb();
+  const { isLoading, user, username, accounts, userMeta } = useDb();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
 
@@ -85,8 +85,33 @@ export default function App() {
   // Connected but no account yet -> force onboarding (guided first account creation)
   const needsOnboarding = accounts.length === 0;
 
+  const photoURL = userMeta?.find(m => m.key === 'photoURL')?.value || user?.photoURL;
+
+  const getInitial = (name = '') => {
+    if (!name) return '🍃';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   return (
-    <div className={`flex bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30 ${isSakura ? 'theme-sakura' : 'theme-standard'}`}>
+    <div className={`flex flex-col md:flex-row bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30 ${isSakura ? 'theme-sakura' : 'theme-standard'}`}>
+      {/* Mobile Top Header (only on mobile screens) */}
+      {user && !needsOnboarding && (
+        <header className="md:hidden flex justify-between items-center bg-ac-cream-dark border-b-3 border-ac-brown px-4 py-3 sticky top-0 z-30 select-none w-full">
+          <span className="text-lg font-black tracking-tight text-ac-brown flex items-center gap-1">🍃 Ecopine</span>
+          <div className="w-10 h-10 rounded-full border-2 border-[#5C3A41] overflow-hidden bg-ac-green flex items-center justify-center text-white text-xs font-black shadow-ac-xs">
+            {photoURL ? (
+              <img src={photoURL} alt="Profil" className="w-full h-full object-cover" />
+            ) : (
+              <span>{getInitial(username || user?.displayName)}</span>
+            )}
+          </div>
+        </header>
+      )}
+
       {/* Sidebar Navigation */}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 

@@ -16,11 +16,26 @@ export default function AvatarStackPopover({
   size = 'sm',
   onOpenChange
 }) {
-  const { acceptedFriends = [], user } = useDb();
+  const { acceptedFriends = [], user, allUsersMeta = [] } = useDb();
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const effectiveOwnerId = ownerId || allowedUsers[0] || user?.uid;
+
+  const getUserProfile = (uid) => {
+    if (uid === user?.uid) {
+      return {
+        name: user?.displayName || "Propriétaire",
+        photoURL: user?.photoURL || allUsersMeta.find(m => m.uid === uid)?.photoURL || null
+      };
+    }
+    const meta = allUsersMeta.find(m => m.uid === uid);
+    const friend = acceptedFriends.find(f => f.uid === uid);
+    return {
+      name: meta?.username || friend?.name || "Habitant",
+      photoURL: meta?.photoURL || meta?.avatarUrl || friend?.photoURL || null
+    };
+  };
 
   // Filter allowed friends (excluding owner)
   const sharedFriends = acceptedFriends.filter(f => allowedUsers.includes(friendUid(f)));
@@ -100,25 +115,44 @@ export default function AvatarStackPopover({
         title="Gérer les partages de l'île"
       >
         {/* Owner Avatar (if shared with others or explicitly passed) */}
-        {allowedUsers.length > 1 && (
-          <div 
-            className={`rounded-full bg-ac-brown text-white font-black flex items-center justify-center border-white shadow-ac-xs ${avatarSizeClass}`}
-            title="Propriétaire 🍃"
-          >
-            🍃
-          </div>
-        )}
+        {allowedUsers.length > 1 && (() => {
+          const ownerProfile = getUserProfile(effectiveOwnerId);
+          return ownerProfile.photoURL ? (
+            <img 
+              src={ownerProfile.photoURL} 
+              alt={ownerProfile.name}
+              className={`rounded-full object-cover border-white shadow-ac-xs ${avatarSizeClass}`}
+              title={`Propriétaire : ${ownerProfile.name} 🍃`}
+            />
+          ) : (
+            <div 
+              className={`rounded-full bg-ac-brown text-white font-black flex items-center justify-center border-white shadow-ac-xs ${avatarSizeClass}`}
+              title={`Propriétaire : ${ownerProfile.name} 🍃`}
+            >
+              🍃
+            </div>
+          );
+        })()}
 
         {/* Shared Friends Avatars */}
         {sharedFriends.slice(0, 3).map(friend => {
+          const profile = getUserProfile(friend.uid);
           const pastelStyle = getPastelColor(friend.uid);
-          return (
+          return profile.photoURL ? (
+            <img
+              key={friend.uid}
+              src={profile.photoURL}
+              alt={profile.name}
+              className={`rounded-full object-cover border-white shadow-ac-xs ${avatarSizeClass}`}
+              title={`${profile.name} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
+            />
+          ) : (
             <div
               key={friend.uid}
               className={`rounded-full flex items-center justify-center font-black border-white shadow-ac-xs ${pastelStyle} ${avatarSizeClass}`}
-              title={`${friend.name} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
+              title={`${profile.name} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
             >
-              {getInitial(friend.name)}
+              {getInitial(profile.name)}
             </div>
           );
         })}
@@ -188,9 +222,17 @@ export default function AvatarStackPopover({
                       }`}
                     >
                       <div className="flex items-center gap-3.5">
-                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-black ${pastelStyle}`}>
-                          {getInitial(friend.name)}
-                        </div>
+                        {profile.photoURL ? (
+                          <img 
+                            src={profile.photoURL} 
+                            alt={profile.name}
+                            className="w-8 h-8 rounded-full border border-ac-brown/15 object-cover"
+                          />
+                        ) : (
+                          <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-black ${pastelStyle}`}>
+                            {getInitial(profile.name)}
+                          </div>
+                        )}
                         <div className="flex flex-col">
                           <span className="text-xs font-black text-[#5C3A41] leading-tight">
                             {friend.name}

@@ -125,7 +125,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       >
         <div className="flex flex-col items-center shrink-0">
           <div className="w-16 h-16 bg-[#FFFDF9] rounded-full flex items-center justify-center border-3 border-ac-brown shadow-ac-sm mb-2 transform hover:rotate-6 hover:scale-105 transition-all duration-200 cursor-pointer overflow-hidden">
-            <img src="/tom-nook.png" alt="Tom Nook" className="w-12 h-12 object-contain" />
+            <img src="/tom-nook.jpg" alt="Tom Nook" className="w-12 h-12 object-contain" />
           </div>
           <span className="text-[10px] font-black text-white bg-ac-brown px-3 py-0.5 rounded-full border border-ac-brown shadow-ac-xs">
             Tom Nook
