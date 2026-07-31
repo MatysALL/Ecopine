@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useDb, db } from '../db';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useDb } from '../db';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
-import { Plus, X, Check, Edit3, Eye, Shield, Users } from 'lucide-react';
+import { Plus, X, Check } from 'lucide-react';
 import { getPastelColor, getInitial } from './InlineShareSelector';
 
 export default function AvatarStackPopover({
@@ -13,17 +14,11 @@ export default function AvatarStackPopover({
   collectionName,
   onUpdate,
   size = 'sm',
-  position = 'bottom',
   onOpenChange
 }) {
   const { acceptedFriends = [], user } = useDb();
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const popoverRef = useRef(null);
-
-  const positionClass = position === 'top' 
-    ? 'bottom-full mb-2 right-0' 
-    : 'top-full mt-2 right-0';
 
   const effectiveOwnerId = ownerId || allowedUsers[0] || user?.uid;
 
@@ -40,23 +35,6 @@ export default function AvatarStackPopover({
       onOpenChange(isOpen);
     }
   }, [isOpen, onOpenChange]);
-
-  // Handle click outside to close popover
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('touchstart', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, [isOpen]);
 
   const handleToggleFriend = async (friendUid) => {
     if (isUpdating) return;
@@ -114,7 +92,7 @@ export default function AvatarStackPopover({
   const plusSizeClass = size === 'md' ? 'w-8 h-8 text-sm' : 'w-6 h-6 text-xs';
 
   return (
-    <div className={`relative inline-block select-none ${isOpen ? 'z-40' : 'z-0'}`} ref={popoverRef}>
+    <div className="relative inline-block select-none">
       {/* Avatar Stack Trigger */}
       <div 
         onClick={() => setIsOpen(!isOpen)}
@@ -158,97 +136,106 @@ export default function AvatarStackPopover({
         </div>
       </div>
 
-      {/* Instant Floating Mini-Popover */}
-      {isOpen && (
-        <div className={`absolute ${positionClass} z-[100] w-72 bg-[#FFFDF9] border-3 border-ac-brown rounded-2xl p-3.5 shadow-ac-md animate-bounce-in`}>
-          {/* Header */}
-          <div className="flex items-center justify-between pb-2 border-b border-ac-brown/10 mb-2">
-            <div className="flex items-center gap-1.5 text-xs font-black text-ac-brown">
-              <span>🍃</span>
-              <span>Passeport Habitants</span>
+      {/* Global Fixed Modal using createPortal to isolate stack contexts */}
+      {isOpen && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setIsOpen(false)}
+        >
+          <div 
+            className="relative bg-[#FFF9FA] border-2 border-[#5C3A41] rounded-2xl p-6 w-full max-w-md shadow-2xl z-[10000] animate-in fade-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b-2 border-[#5C3A41]/10 mb-4">
+              <div className="flex items-center gap-2 text-sm font-black text-[#5C3A41]">
+                <span>🍃</span>
+                <span>Passeport Habitants</span>
+              </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 rounded-full text-[#5C3A41]/60 hover:text-[#5C3A41] hover:bg-[#5C3A41]/5 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1 rounded-full text-ac-brown-light hover:text-ac-brown hover:bg-ac-cream transition-colors cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
 
-          <p className="text-[10px] font-bold text-ac-brown-light mb-2">
-            Gère l'accès et les rôles de tes amis en direct :
-          </p>
+            <p className="text-xs font-bold text-[#5C3A41]/80 mb-4">
+              Gère l'accès et les rôles de tes amis en direct :
+            </p>
 
-          {/* Friends List */}
-          {acceptedFriends.length === 0 ? (
-            <div className="py-3 text-center bg-ac-cream/50 rounded-xl border border-dashed border-ac-brown/15">
-              <p className="text-[11px] font-black text-ac-brown">Aucun ami disponible</p>
-              <p className="text-[9px] text-ac-brown-light">Ajoute des amis dans les Paramètres.</p>
-            </div>
-          ) : (
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5 scrollbar-thin">
-              {acceptedFriends.map(friend => {
-                const isSelected = allowedUsers.includes(friend.uid);
-                const role = userRoles[friend.uid] || 'editor';
-                const pastelStyle = getPastelColor(friend.uid);
+            {/* Friends List */}
+            {acceptedFriends.length === 0 ? (
+              <div className="py-6 text-center bg-[#5C3A41]/5 rounded-2xl border-2 border-dashed border-[#5C3A41]/15">
+                <p className="text-xs font-black text-[#5C3A41]">Aucun ami disponible</p>
+                <p className="text-[10px] text-[#5C3A41]/60 mt-0.5">Ajoute des amis dans les Paramètres.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1 scrollbar-thin">
+                {acceptedFriends.map(friend => {
+                  const isSelected = allowedUsers.includes(friend.uid);
+                  const role = userRoles[friend.uid] || 'editor';
+                  const pastelStyle = getPastelColor(friend.uid);
 
-                return (
-                  <div
-                    key={friend.uid}
-                    onClick={() => handleToggleFriend(friend.uid)}
-                    className={`flex items-center justify-between p-2 rounded-xl border-2 transition-all cursor-pointer select-none ${
-                      isSelected
-                        ? 'bg-ac-green-light/40 border-ac-green text-ac-brown'
-                        : 'bg-white border-ac-brown/10 hover:border-ac-brown/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={`w-7 h-7 rounded-full border flex items-center justify-center text-[10px] font-black ${pastelStyle}`}>
-                        {getInitial(friend.name)}
+                  return (
+                    <div
+                      key={friend.uid}
+                      onClick={() => handleToggleFriend(friend.uid)}
+                      className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all cursor-pointer select-none ${
+                        isSelected
+                          ? 'bg-ac-green-light/40 border-ac-green text-ac-brown'
+                          : 'bg-white border-[#5C3A41]/10 hover:border-[#5C3A41]/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-black ${pastelStyle}`}>
+                          {getInitial(friend.name)}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black text-[#5C3A41] leading-tight">
+                            {friend.name}
+                          </span>
+                          <span className="text-[10px] font-semibold text-[#5C3A41]/60 truncate max-w-[150px]">
+                            {friend.email}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[11px] font-black text-ac-brown leading-tight">
-                          {friend.name}
-                        </span>
-                        <span className="text-[9px] font-semibold text-ac-brown-light truncate max-w-[110px]">
-                          {friend.email}
-                        </span>
+
+                      <div className="flex items-center gap-2">
+                        {isSelected && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleRole(e, friend.uid)}
+                            className={`px-2 py-1 rounded-full border text-[9px] font-black uppercase flex items-center gap-1 cursor-pointer transition-all ${
+                              role === 'editor'
+                                ? 'bg-ac-green text-white border-ac-green'
+                                : 'bg-ac-gold-light text-ac-gold-dark border-ac-gold/40'
+                            }`}
+                            title="Changer le rôle"
+                          >
+                            {role === 'editor' ? '✏️ Éditeur' : '👁️ Spectateur'}
+                          </button>
+                        )}
+
+                        <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-colors ${
+                          isSelected ? 'bg-ac-green border-ac-green text-white' : 'border-[#5C3A41]/20 bg-white'
+                        }`}>
+                          {isSelected && <Check className="w-4 h-4 stroke-[3]" />}
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
 
-                    <div className="flex items-center gap-1.5">
-                      {isSelected && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleToggleRole(e, friend.uid)}
-                          className={`px-1.5 py-0.5 rounded-full border text-[8px] font-black uppercase flex items-center gap-0.5 cursor-pointer transition-all ${
-                            role === 'editor'
-                              ? 'bg-ac-green text-white border-ac-green'
-                              : 'bg-ac-gold-light text-ac-gold-dark border-ac-gold/40'
-                          }`}
-                          title="Changer le rôle"
-                        >
-                          {role === 'editor' ? '✏️ Éditeur' : '👁️ Spectateur'}
-                        </button>
-                      )}
-
-                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
-                        isSelected ? 'bg-ac-green border-ac-green text-white' : 'border-ac-brown/20 bg-ac-cream'
-                      }`}>
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="mt-4 pt-3 border-t border-[#5C3A41]/10 flex items-center justify-between text-[10px] font-extrabold text-[#5C3A41]/60">
+              <span>🍃 Écopine Passeport</span>
+              {isUpdating && <span className="text-ac-green animate-pulse">Synchro...</span>}
             </div>
-          )}
-
-          <div className="mt-2.5 pt-2 border-t border-ac-brown/10 flex items-center justify-between text-[9px] font-extrabold text-ac-brown-light">
-            <span>🍃 Écopine Passeport</span>
-            {isUpdating && <span className="text-ac-green animate-pulse">Synchro...</span>}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
