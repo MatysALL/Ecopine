@@ -377,42 +377,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
   };
 
-  const handleExportCSV = () => {
-    if (!transactions || transactions.length === 0) {
-      alert("Aucune transaction à exporter pour ce compte.");
-      return;
-    }
-
-    const headers = ["Date", "Description", "Categorie", "Montant", "Type"];
-    
-    const rows = transactions.map(t => [
-      t.date,
-      `"${(t.name || t.description || '').replace(/"/g, '""')}"`,
-      `"${(t.category || '').replace(/"/g, '""')}"`,
-      t.amount.toFixed(2),
-      t.type
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(e => e.join(","))
-    ].join("\n");
-
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    
-    const safeAccountName = (activeAccount?.name || 'compte').toLowerCase().replace(/[^a-z0-9]/g, '_');
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    link.setAttribute("href", url);
-    link.setAttribute("download", `export_transactions_${safeAccountName}_${todayStr}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   // CSV Drag and Drop Parser
   const handleDrag = (e) => {
     e.preventDefault();
@@ -711,12 +675,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 self-start sm:self-auto">
-                <button
-                  onClick={handleExportCSV}
-                  className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-4 h-4" /> Exporter en CSV
-                </button>
+
                 {myRole !== 'viewer' && (
                   <button
                     onClick={() => {

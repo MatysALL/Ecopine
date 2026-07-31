@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db, useDb } from '../db';
 import { 
-  Download, Upload, Trash2, ShieldAlert, CheckCircle, AlertCircle, 
+  Trash2, ShieldAlert, CheckCircle, AlertCircle, 
   User, Users, Tag, Plus, FileSpreadsheet, Palette 
 } from 'lucide-react';
 
 export default function Settings() {
-  const [importStatus, setImportStatus] = useState(null);
-  const [importMessage, setImportMessage] = useState('');
 
   // Profile states
   const [username, setUsername] = useState('');
@@ -199,104 +197,7 @@ export default function Settings() {
     }
   };
 
-  const handleExport = async () => {
-    try {
-      const data = {
-        user_meta: userMeta,
-        accounts: accountsList,
-        transactions: allTransactions,
-        pockets: pocketsList,
-        categories: categoriesList
-      };
 
-      const jsonStr = JSON.stringify(data, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      
-      const todayStr = new Date().toISOString().split('T')[0];
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ecopine_backup_${todayStr}.json`;
-      link.click();
-      
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
-      alert("Erreur lors de l'export de la base de données.");
-    }
-  };
-
-  const handleImport = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImportStatus(null);
-    setImportMessage('');
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const text = event.target.result;
-        const data = JSON.parse(text);
-
-        if (!data || typeof data !== 'object') {
-          throw new Error("Format JSON invalide.");
-        }
-
-        const requiredTables = ['accounts', 'transactions'];
-        for (const table of requiredTables) {
-          if (!data[table] || !Array.isArray(data[table])) {
-            throw new Error(`Données manquantes ou invalides pour la table '${table}'.`);
-          }
-        }
-
-        const confirmOverwrite = window.confirm(
-          "Attention : Importer ce fichier écrasera toutes les données actuelles de ton application Ecopine. Continuer ?"
-        );
-        if (!confirmOverwrite) return;
-
-        // Perform import by clearing tables and bulk-adding
-        await db.transaction('rw', db.accounts, db.transactions, db.pockets, db.categories, db.user_meta, async () => {
-          await db.accounts.clear();
-          await db.transactions.clear();
-          await db.pockets.clear();
-          await db.categories.clear();
-          await db.user_meta.clear();
-
-          if (data.user_meta && data.user_meta.length > 0) await db.user_meta.bulkAdd(data.user_meta);
-          if (data.accounts.length > 0) await db.accounts.bulkAdd(data.accounts);
-          if (data.transactions.length > 0) await db.transactions.bulkAdd(data.transactions);
-          if (data.pockets && data.pockets.length > 0) await db.pockets.bulkAdd(data.pockets);
-          if (data.categories && data.categories.length > 0) {
-            await db.categories.bulkAdd(data.categories);
-          } else {
-            // Populate defaults if none present in backup
-            await db.categories.bulkAdd([
-              { name: 'Loisirs', isDefault: 1 },
-              { name: 'Nourriture', isDefault: 1 },
-              { name: 'Logement', isDefault: 1 },
-              { name: 'Transports', isDefault: 1 },
-              { name: 'Abonnements', isDefault: 1 },
-              { name: 'Cadeaux', isDefault: 1 },
-              { name: 'Santé', isDefault: 1 },
-              { name: 'Salaire', isDefault: 1 },
-              { name: 'Autre', isDefault: 1 }
-            ]);
-          }
-        });
-
-        setImportStatus('success');
-        setImportMessage("Base de données restaurée avec succès !");
-        setTimeout(() => window.location.reload(), 1500);
-      } catch (err) {
-        console.error(err);
-        setImportStatus('error');
-        setImportMessage(`Échec de la restauration : ${err.message}`);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
 
   const handleReset = async () => {
     const confirmWipe = window.confirm(
@@ -316,48 +217,6 @@ export default function Settings() {
 
     alert("Application réinitialisée avec succès !");
     window.location.reload();
-  };
-
-  const handleCSVExport = async () => {
-    try {
-      const txs = allTransactions;
-      const accs = accountsList;
-      const categories = categoriesList;
-
-      const csvRows = [
-        ['Date', 'Compte', 'Transaction', 'Montant', 'Type', 'Categorie', 'Execution'].join(',')
-      ];
-
-      for (const tx of txs) {
-        const acc = accs.find(a => a.id === tx.accountId);
-        const cat = categories.find(c => c.id === tx.categoryId);
-        const catName = cat ? cat.name : (tx.category || 'Autre');
-        
-        const row = [
-          tx.date,
-          `"${(acc ? acc.name : 'Inconnu').replace(/"/g, '""')}"`,
-          `"${(tx.name || tx.description || 'Sans nom').replace(/"/g, '""')}"`,
-          tx.amount.toFixed(2),
-          tx.type === 'credit' ? 'Revenu' : 'Dépense',
-          `"${catName.replace(/"/g, '""')}"`,
-          tx.executionType || 'spontaneous'
-        ];
-        csvRows.push(row.join(','));
-      }
-
-      // Prepend UTF-8 BOM for correct accents display in Excel
-      const csvString = '\uFEFF' + csvRows.join('\n');
-      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ecopine_export_transactions_${new Date().toISOString().split('T')[0]}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
-      alert("Erreur lors de l'export CSV : " + err.message);
-    }
   };
 
   const handleLogout = async () => {
@@ -782,78 +641,7 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Tableur Excel/CSV Export Card */}
-        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-[220px] justify-between">
-          <div>
-            <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-2">
-              <FileSpreadsheet className="w-5 h-5 text-ac-green" /> Export Tableur
-            </h3>
-            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-4">
-              Télécharge l'historique complet de tes écritures sous la forme d'un fichier CSV optimisé pour Excel.
-            </p>
-          </div>
-          <button
-            onClick={handleCSVExport}
-            className="w-full bg-ac-green text-white font-extrabold text-xs py-3 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer mt-auto"
-          >
-            Télécharger le fichier CSV (.csv)
-          </button>
-        </div>
 
-        {/* Database backup Card */}
-        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-[220px] justify-between">
-          <div>
-            <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-2">
-              <Download className="w-5 h-5 text-ac-gold" /> Sauvegarder la base
-            </h3>
-            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-4">
-              Exporte toutes tes tables Cloud dans un fichier JSON confidentiel pour sauvegarder ton île.
-            </p>
-          </div>
-          <button
-            onClick={handleExport}
-            className="w-full bg-white hover:bg-ac-cream border-3 border-ac-brown text-ac-brown font-extrabold text-xs py-3 rounded-2xl shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer mt-auto"
-          >
-            Exporter mes données (.json)
-          </button>
-        </div>
-
-        {/* Restore backup Card */}
-        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col h-[220px] justify-between">
-          <div>
-            <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-2">
-              <Upload className="w-5 h-5 text-ac-sky animate-pulse" /> Restaurer sauvegarde
-            </h3>
-            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-2">
-              Sélectionne un fichier de sauvegarde JSON pour restaurer ton île. <strong>Données écrasées !</strong>
-            </p>
-          </div>
-
-          <div className="space-y-2 mt-auto">
-            <label className="w-full bg-ac-sky-light text-ac-sky hover:bg-ac-sky/10 font-extrabold text-xs py-3 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer">
-              <Upload className="w-3.5 h-3.5" />
-              Choisir une sauvegarde (.json)
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleImport}
-                className="hidden"
-              />
-            </label>
-
-            {importStatus && (
-              <div className={`text-[10px] font-bold px-2 py-1 rounded-xl border flex items-center gap-1.5 animate-bounce-in ${
-                importStatus === 'success'
-                  ? 'bg-ac-green-light text-ac-green border-ac-green/20'
-                  : 'bg-ac-red-light text-ac-red border-ac-red/20'
-              }`}>
-                <span>{importMessage}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Danger Zone Card */}
       <div className="ac-card p-6 bg-white border-ac-brown">
