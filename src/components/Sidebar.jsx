@@ -3,7 +3,7 @@ import { Leaf, PiggyBank, Calendar, Settings, Smile, Gift, LogOut, Handshake } f
 import { useDb } from '../db';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
-  const { logOutUser, user, userMeta, username, pendingRequestsCount } = useDb();
+  const { logOutUser, user, userMeta, username, pendingRequestsCount, isAdmin } = useDb();
   const photoURL = userMeta?.find(m => m.key === 'photoURL')?.value || user?.photoURL;
 
   const getInitial = (name = '') => {
