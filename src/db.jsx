@@ -1310,7 +1310,8 @@ export const DbProvider = ({ children }) => {
       dashboardNote: '',
       photoURL: '/pfp-ac.jpg',
       themePreference: 'default',
-      unlockedThemes: ['default', 'red', 'blue', 'yellow']
+      unlockedThemes: ['default', 'red', 'blue', 'yellow'],
+      role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member'
     });
     
     // Create default categories (pastel-colored) if none exist in Firestore
@@ -1459,18 +1460,25 @@ export const DbProvider = ({ children }) => {
         if (!data.photoURL) {
           updates.photoURL = currentUser.photoURL || '/pfp-ac.jpg';
         }
+        if (currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' && data.role !== 'admin') {
+          updates.role = 'admin';
+        } else if (!data.role) {
+          updates.role = 'member';
+        }
         if (Object.keys(updates).length > 0) {
           updateDoc(metaRef, updates).catch(err => console.error(err));
         }
       } else {
+        const userEmail = currentUser.email?.toLowerCase() || '';
         setDoc(metaRef, {
           username: currentUser.displayName || 'Habitant',
-          email: currentUser.email.toLowerCase(),
+          email: userEmail,
           favoriteAccountId: null,
           dashboardNote: '',
           photoURL: currentUser.photoURL || '/pfp-ac.jpg',
           themePreference: 'default',
-          unlockedThemes: ['default', 'red', 'blue', 'yellow']
+          unlockedThemes: ['default', 'red', 'blue', 'yellow'],
+          role: userEmail === 'matysallanet@gmail.com' ? 'admin' : 'member'
         }).catch(err => console.error(err));
         setUsersMetaDoc(null);
       }
@@ -1790,7 +1798,8 @@ export const DbProvider = ({ children }) => {
     activeTheme,
     getActiveTheme,
     unlockedThemes: usersMetaDoc?.unlockedThemes || ['default', 'red', 'blue', 'yellow'],
-    pendingRequestsCount
+    pendingRequestsCount,
+    isAdmin: usersMetaDoc?.role === 'admin' || currentUser?.email?.toLowerCase() === 'matysallanet@gmail.com'
   };
 
   return (

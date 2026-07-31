@@ -106,7 +106,12 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         {/* Brand & Logo */}
         <div className="flex flex-col items-center">
           {photoURL ? (
-            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#5C3A41] shrink-0 shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer animate-fade-in">
+            <div 
+              onClick={isAdmin ? () => setActiveTab('admin') : undefined}
+              className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#5C3A41] shrink-0 shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer animate-fade-in ${
+                isAdmin ? 'ring-3 ring-ac-orange ring-offset-2' : ''
+              }`}
+            >
               <img 
                 src={photoURL} 
                 alt="Profil" 
@@ -114,12 +119,22 @@ export default function Sidebar({ activeTab, setActiveTab }) {
               />
             </div>
           ) : (
-            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#5C3A41] shrink-0 bg-ac-green shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer text-white font-black text-sm">
+            <div 
+              onClick={isAdmin ? () => setActiveTab('admin') : undefined}
+              className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#5C3A41] shrink-0 bg-ac-green shadow-ac-sm mb-3 transform hover:rotate-12 transition-transform duration-200 cursor-pointer text-white font-black text-sm ${
+                isAdmin ? 'ring-3 ring-ac-orange ring-offset-2' : ''
+              }`}
+            >
               {getInitial(username || user?.displayName)}
             </div>
           )}
-          <h1 className="text-2xl font-black tracking-tight text-ac-brown text-center mb-1">
+          <h1 className="text-2xl font-black tracking-tight text-ac-brown text-center mb-1 flex items-center gap-1.5 justify-center">
             Ecopine
+            {isAdmin && (
+              <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.5 bg-[#E57373] text-white rounded-full border border-white shadow-sm flex items-center gap-0.5">
+                🔑 Admin
+              </span>
+            )}
           </h1>
           <p className="text-xs font-semibold text-ac-brown-light text-center bg-ac-cream px-3 py-1 rounded-full border border-ac-brown/20">
             Mon App de gestion économique

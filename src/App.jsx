@@ -9,11 +9,18 @@ import OnboardingModal from './components/OnboardingModal';
 import WishlistView from './components/WishlistView';
 import AuthView from './components/AuthView';
 import DebtsView from './components/DebtsView';
+import AdminView from './components/AdminView';
 
 export default function App() {
-  const { isLoading, user, username, accounts, userMeta, activeTheme } = useDb();
+  const { isLoading, user, username, accounts, userMeta, activeTheme, isAdmin } = useDb();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
+
+  useEffect(() => {
+    if (activeTab === 'admin' && !isAdmin) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, isAdmin]);
 
   const activeThemeClass = useMemo(() => {
     const map = {
@@ -62,6 +69,8 @@ export default function App() {
         return <WishlistView />;
       case 'settings':
         return <Settings />;
+      case 'admin':
+        return <AdminView />;
       default:
         return <Dashboard onViewAccountDetails={handleViewAccountDetails} username={username} />;
     }
@@ -103,8 +112,20 @@ export default function App() {
       {/* Mobile Top Header (only on mobile screens) */}
       {user && !needsOnboarding && (
         <header className="md:hidden flex justify-between items-center bg-ac-cream-dark border-b-3 border-ac-brown px-4 py-3 sticky top-0 z-30 select-none w-full">
-          <span className="text-lg font-black tracking-tight text-ac-brown flex items-center gap-1">🍃 Ecopine</span>
-          <div className="w-10 h-10 rounded-full border-2 border-[#5C3A41] overflow-hidden bg-ac-green flex items-center justify-center text-white text-xs font-black shadow-ac-xs shrink-0">
+          <span className="text-lg font-black tracking-tight text-ac-brown flex items-center gap-1.5">
+            🍃 Ecopine
+            {isAdmin && (
+              <span className="text-[8px] uppercase font-extrabold px-1 py-0.5 bg-[#E57373] text-white rounded-full border border-white shadow-xs">
+                🔑 Admin
+              </span>
+            )}
+          </span>
+          <div 
+            onClick={isAdmin ? () => setActiveTab('admin') : undefined}
+            className={`w-10 h-10 rounded-full border-2 border-[#5C3A41] overflow-hidden bg-ac-green flex items-center justify-center text-white text-xs font-black shadow-ac-xs shrink-0 ${
+              isAdmin ? 'cursor-pointer hover:scale-105 active:scale-95 transition-all ring-2 ring-ac-orange ring-offset-1' : ''
+            }`}
+          >
             {photoURL ? (
               <img src={photoURL} alt="Profil" className="w-full h-full object-cover object-center block" />
             ) : (
