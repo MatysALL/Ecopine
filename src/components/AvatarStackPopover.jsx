@@ -142,15 +142,15 @@ export default function AvatarStackPopover({
         {sharedFriends.slice(0, 3).map(friend => {
           const profile = getUserProfile(friend.uid);
           const pastelStyle = getPastelColor(friend.uid);
-          return profile.photoURL ? (
+          return profile?.photoURL ? (
             <div
               key={friend.uid}
               className={`rounded-full overflow-hidden flex items-center justify-center border-2 border-white shadow-ac-xs shrink-0 ${avatarSizeClass}`}
-              title={`${profile.name} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
+              title={`${profile?.name || 'Habitant'} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
             >
               <img
-                src={profile.photoURL}
-                alt={profile.name}
+                src={profile?.photoURL}
+                alt={profile?.name || 'Habitant'}
                 className="w-full h-full object-cover object-center block"
               />
             </div>
@@ -158,9 +158,9 @@ export default function AvatarStackPopover({
             <div
               key={friend.uid}
               className={`rounded-full overflow-hidden flex items-center justify-center font-black border-2 border-white shadow-ac-xs shrink-0 ${pastelStyle} ${avatarSizeClass}`}
-              title={`${profile.name} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
+              title={`${profile?.name || 'Habitant'} (${userRoles[friend.uid] === 'viewer' ? 'Spectateur' : 'Éditeur'})`}
             >
-              {getInitial(profile.name)}
+              {getInitial(profile?.name || 'Habitant')}
             </div>
           );
         })}
@@ -230,17 +230,17 @@ export default function AvatarStackPopover({
                       }`}
                     >
                       <div className="flex items-center gap-3.5">
-                        {profile.photoURL ? (
+                        {friend?.photoURL ? (
                           <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center border border-ac-brown/15 shrink-0">
                             <img 
-                              src={profile.photoURL} 
-                              alt={profile.name}
+                              src={friend?.photoURL} 
+                              alt={friend?.name || 'Habitant'}
                               className="w-full h-full object-cover object-center block"
                             />
                           </div>
                         ) : (
                           <div className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black border border-ac-brown/15 shrink-0 ${pastelStyle}`}>
-                            {getInitial(profile.name)}
+                            {getInitial(friend?.name || 'Habitant')}
                           </div>
                         )}
                         <div className="flex flex-col">
