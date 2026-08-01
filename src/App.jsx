@@ -11,7 +11,7 @@ import AuthView from './components/AuthView';
 import DebtsView from './components/DebtsView';
 import AdminView from './components/AdminView';
 import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './components/TutorialComponents';
-import { Leaf, PiggyBank, Calendar, Handshake, Gift, Plus } from 'lucide-react';
+import { Leaf, PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon } from 'lucide-react';
 import TransactionModal from './components/TransactionModal';
 
 export default function App() {
@@ -95,6 +95,9 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab === 'admin' && !isAdmin) {
+      setActiveTab('dashboard');
+    }
+    if (activeTab === 'home') {
       setActiveTab('dashboard');
     }
   }, [activeTab, isAdmin]);
@@ -251,11 +254,11 @@ export default function App() {
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FFF9FA]/95 backdrop-blur-md border-t-2 border-[#5C3A41] pb-[env(safe-area-inset-bottom)]">
           <nav className="flex justify-around items-center h-16 px-2">
             {[
-              { id: 'dashboard', label: 'Accueil', icon: Leaf },
               { id: 'accounts', label: 'Comptes', icon: PiggyBank },
               { id: 'calendar', label: 'Calendrier', icon: Calendar },
               { id: 'debts', label: 'Dettes', icon: Handshake },
-              { id: 'wishlist', label: 'Souhaits', icon: Gift }
+              { id: 'wishlist', label: 'Souhaits', icon: Gift },
+              { id: 'settings', label: 'Paramètres', icon: SettingsIcon }
             ].map(item => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -270,10 +273,15 @@ export default function App() {
                   }`}
                   style={{ minHeight: '44px' }}
                 >
-                  <div className={`p-1.5 rounded-xl border transition-all ${
+                  <div className={`relative p-1.5 rounded-xl border transition-all ${
                     isActive ? 'bg-[#78B159]/15 border-[#78B159]/40 shadow-xs' : 'border-transparent'
                   }`}>
                     <Icon className="w-5 h-5" />
+                    {item.id === 'settings' && pendingRequestsCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-ac-red border border-white rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-ac-xs animate-pulse">
+                        {pendingRequestsCount}
+                      </span>
+                    )}
                   </div>
                   <span className="text-[9px] tracking-tight">{item.label}</span>
                 </button>
