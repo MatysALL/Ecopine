@@ -26,7 +26,8 @@
   --shadow-ac-lg: 0 10px 0 0 rgba(74, 62, 61, 0.15);
   
   --animate-wiggle: wiggle 0.3s ease-in-out infinite;
-  --animate-soft-shake: softShake 0.2s ease-in-out infinite;
+  --animate-soft-shake: microShakeX 0.15s ease-in-out infinite;
+  --animate-micro-shake-x: microShakeX 0.15s ease-in-out infinite;
   --animate-bounce-in: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   --animate-slide-up: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -36,11 +37,10 @@
   50% { transform: rotate(3deg); }
 }
 
-@keyframes softShake {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(-0.5px, 0.5px) rotate(-0.2deg); }
-  50% { transform: translate(0.5px, -0.5px) rotate(0.2deg); }
-  75% { transform: translate(-0.5px, -0.5px) rotate(-0.2deg); }
+@keyframes microShakeX {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1px); }
+  75% { transform: translateX(1px); }
 }
 
 @keyframes bounceIn {
