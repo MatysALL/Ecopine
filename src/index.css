@@ -27,7 +27,7 @@
   
   --animate-wiggle: wiggle 0.3s ease-in-out infinite;
   --animate-bubble-pop: bubblePop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  --animate-micro-vibration: microVibration 0.14s ease-in-out infinite;
+  --animate-micro-vibration: microVibration 0.32s ease-in-out infinite;
   --animate-bounce-in: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   --animate-slide-up: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -56,7 +56,7 @@
 }
 
 .animate-micro-vibration {
-  animation: microVibration 0.14s infinite ease-in-out;
+  animation: microVibration 0.32s infinite ease-in-out;
 }
 
 @keyframes bounceIn {
