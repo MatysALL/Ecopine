@@ -30,7 +30,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   });
 
   const [nookStep, setNookStep] = useState(0);
-  const [isWiggling, setIsWiggling] = useState(false);
+  const [isPopping, setIsPopping] = useState(false);
   const [isNookCollapsed, setIsNookCollapsed] = useState(false);
   const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
 
@@ -49,11 +49,13 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     const nextStep = nookStep + 1;
     setNookStep(nextStep);
 
-    // Trigger visual wiggle animation feedback on click
-    setIsWiggling(true);
-    setTimeout(() => {
-      setIsWiggling(false);
-    }, 300);
+    // Trigger smooth bubble pop animation feedback on click for steps 0 to 12
+    if (nextStep < 13) {
+      setIsPopping(true);
+      setTimeout(() => {
+        setIsPopping(false);
+      }, 200);
+    }
 
     // ÉTAPE 5 : Le Panneau VENDU (1 dernier clic après l'étape 13)
     if (nextStep >= 14) {
@@ -120,7 +122,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   // Card background and text color calculation based on annoyance state
   const getCardStyle = () => {
     if (isSold) return "bg-white border-2 border-ac-brown/60 text-ac-brown";
-    if (nookStep === 13) return "bg-black text-white border-2 border-black animate-micro-shake-x";
+    if (nookStep === 13) return "bg-black text-white border-2 border-black animate-micro-vibration";
     if (nookStep >= 10) return "bg-black/60 text-white border-2 border-ac-brown/80 backdrop-blur-xs";
     if (nookStep >= 7) return "bg-black/20 text-ac-brown border-2 border-ac-brown/60 backdrop-blur-xs";
     return "bg-white border-2 border-ac-brown/60 text-ac-brown";
@@ -136,7 +138,13 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       >
         <div className="flex justify-between items-center w-full select-none">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white transition-transform ${isWiggling || (nookStep === 13 && !isSold) ? 'animate-micro-shake-x scale-105' : ''}`}>
+            <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white transition-transform ${
+              nookStep === 13 && !isSold 
+                ? 'animate-micro-vibration' 
+                : isPopping 
+                  ? 'animate-bubble-pop' 
+                  : ''
+            }`}>
               <img src="/tom-nook.jpg" alt="Tom Nook" className="w-full h-full object-cover object-center block" />
             </div>
             <div>
@@ -172,7 +180,13 @@ export default function Dashboard({ onViewAccountDetails, username }) {
             onClick={handleBannerClick}
             className={`mt-4 flex flex-col md:flex-row gap-4 items-center md:items-start w-full transition-all duration-200 transform ${
               isSold ? 'cursor-default' : 'cursor-pointer'
-            } ${isWiggling || (nookStep === 13 && !isSold) ? 'animate-micro-shake-x scale-[1.01]' : !isSold ? 'hover:scale-[1.005]' : ''}`}
+            } ${
+              nookStep === 13 && !isSold 
+                ? 'animate-micro-vibration' 
+                : isPopping 
+                  ? 'animate-bubble-pop' 
+                  : !isSold ? 'hover:scale-[1.005]' : ''
+            }`}
           >
             <div className="flex-1 space-y-4 w-full relative">
               <div className={`rounded-2xl p-4 shadow-ac-xs relative min-h-[75px] flex flex-col justify-center transition-colors duration-300 ${getCardStyle()}`}>

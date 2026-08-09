@@ -26,8 +26,8 @@
   --shadow-ac-lg: 0 10px 0 0 rgba(74, 62, 61, 0.15);
   
   --animate-wiggle: wiggle 0.3s ease-in-out infinite;
-  --animate-soft-shake: microShakeX 0.15s ease-in-out infinite;
-  --animate-micro-shake-x: microShakeX 0.15s ease-in-out infinite;
+  --animate-bubble-pop: bubblePop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --animate-micro-vibration: microVibration 0.14s ease-in-out infinite;
   --animate-bounce-in: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   --animate-slide-up: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -37,10 +37,26 @@
   50% { transform: rotate(3deg); }
 }
 
-@keyframes microShakeX {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-1px); }
-  75% { transform: translateX(1px); }
+@keyframes bubblePop {
+  0% { transform: scale(0.92); opacity: 0.6; }
+  50% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes microVibration {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-1.5px, 0.5px); }
+  40% { transform: translate(1.5px, -0.5px); }
+  60% { transform: translate(-1px, -0.5px); }
+  80% { transform: translate(1px, 0.5px); }
+}
+
+.animate-bubble-pop {
+  animation: bubblePop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.animate-micro-vibration {
+  animation: microVibration 0.14s infinite ease-in-out;
 }
 
 @keyframes bounceIn {
