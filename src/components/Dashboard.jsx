@@ -21,57 +21,29 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     "Chaque projet de pont ou de rampe demande la participation de tous, mais surtout la tienne ! Oui, oui !"
   ];
 
-  const [currentAdviceIndex, setCurrentAdviceIndex] = useState(0);
-  const [viewedIndices, setViewedIndices] = useState([]);
-  const [phase, setPhase] = useState('welcome'); // 'welcome', 'advices', 'yellow', 'distress', 'sold'
-  const [yellowClickCount, setYellowClickCount] = useState(0);
-  const [distressClickCount, setDistressClickCount] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
+  const [isWiggling, setIsWiggling] = useState(false);
   const [isNookCollapsed, setIsNookCollapsed] = useState(false);
   const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
 
   const handleBannerClick = () => {
-    if (isAnimating || phase === 'sold') return;
+    if (clickCount >= 5) return;
 
-    setIsAnimating(true);
+    setClickCount(prev => prev + 1);
 
-    // Swap text state halfway through animation (at 100ms)
+    // Trigger visual wiggle animation feedback on click
+    setIsWiggling(true);
     setTimeout(() => {
-      if (phase === 'welcome') {
-        setPhase('advices');
-        setCurrentAdviceIndex(0);
-        setViewedIndices([0]);
-      } else if (phase === 'advices') {
-        const unviewed = nookAdvices
-          .map((_, idx) => idx)
-          .filter(idx => !viewedIndices.includes(idx));
+      setIsWiggling(false);
+    }, 300);
+  };
 
-        if (unviewed.length > 0) {
-          const randomIdx = unviewed[Math.floor(Math.random() * unviewed.length)];
-          setCurrentAdviceIndex(randomIdx);
-          setViewedIndices(prev => [...prev, randomIdx]);
-        } else {
-          setPhase('yellow');
-        }
-      } else if (phase === 'yellow') {
-        const nextCount = yellowClickCount + 1;
-        setYellowClickCount(nextCount);
-        if (nextCount >= 5) {
-          setPhase('distress');
-        }
-      } else if (phase === 'distress') {
-        const nextCount = distressClickCount + 1;
-        setDistressClickCount(nextCount);
-        if (nextCount >= 10) {
-          setPhase('sold');
-        }
-      }
-    }, 100);
-
-    // End animation after 200ms
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 200);
+  const handleToggleCollapse = () => {
+    if (!isNookCollapsed) {
+      // Reset click counter when user closes/reduces the bubble
+      setClickCount(0);
+    }
+    setIsNookCollapsed(!isNookCollapsed);
   };
 
   if (!accountsData || accountsData.length === 0) {
@@ -123,7 +95,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       >
         <div className="flex justify-between items-center w-full select-none">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white">
+            <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white transition-transform ${isWiggling ? 'animate-wiggle scale-110' : ''}`}>
               <img src="/tom-nook.jpg" alt="Tom Nook" className="w-full h-full object-cover object-center block" />
             </div>
             <div>
@@ -133,18 +105,19 @@ export default function Dashboard({ onViewAccountDetails, username }) {
               </h3>
               {isNookCollapsed && (
                 <p className="text-[10px] text-ac-brown-light font-bold truncate max-w-[180px] sm:max-w-md">
-                  {phase === 'welcome' && `Bonjour, ${username || 'Îlien'} ! Oui, oui !`}
-                  {phase === 'advices' && nookAdvices[currentAdviceIndex]}
-                  {phase === 'yellow' && `Je ne suis pas une banque à conseils...`}
-                  {phase === 'distress' && `Eh je suis vraiment à sec !`}
-                  {phase === 'sold' && `...`}
+                  {clickCount === 0 && `Bonjour, ${username || 'Îlien'} ! Oui, oui !`}
+                  {clickCount === 1 && `Économise tes clochettes aujourd'hui...`}
+                  {clickCount === 2 && `Un prêt à taux zéro, c'est une affaire en or !`}
+                  {clickCount === 3 && `Aïe ! Pourquoi tu me tapotes la tête ?`}
+                  {clickCount === 4 && `Encore un clic et je pose le panneau...`}
+                  {clickCount >= 5 && `🔴 VENDU ! Ce terrain est réservé !`}
                 </p>
               )}
             </div>
           </div>
           <button 
-            onClick={() => setIsNookCollapsed(!isNookCollapsed)}
-            className="text-[9px] font-black uppercase text-ac-brown bg-white border-2 border-ac-brown px-2 py-0.5 rounded-lg shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
+            onClick={handleToggleCollapse}
+            className="text-[9px] font-black uppercase text-ac-brown bg-white hover:bg-ac-cream border-2 border-ac-brown px-2 py-0.5 rounded-lg shadow-ac-xs hover:translate-y-[1px] cursor-pointer transition-colors"
           >
             {isNookCollapsed ? 'Ouvrir 🐾' : 'Réduire'}
           </button>
@@ -154,30 +127,36 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           <div 
             onClick={handleBannerClick}
             className={`mt-4 flex flex-col md:flex-row gap-4 items-center md:items-start cursor-pointer w-full transition-all duration-200 transform ${
-              isAnimating ? 'scale-98 opacity-85' : 'hover:scale-[1.005]'
+              isWiggling ? 'animate-wiggle scale-[1.02]' : 'hover:scale-[1.005]'
             }`}
           >
             <div className="flex-1 space-y-4 w-full relative">
-              <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative min-h-[70px] flex flex-col justify-center">
-                {phase !== 'sold' && (
+              <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative min-h-[75px] flex flex-col justify-center">
+                {clickCount < 5 && (
                   <div className="absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[8px] font-black text-white bg-ac-gold flex items-center gap-1 animate-pulse">
-                    <Smile className="w-2.5 h-2.5" /> Info
+                    <Smile className="w-2.5 h-2.5" /> {clickCount > 0 ? `Clic ${clickCount}/5` : 'Info'}
                   </div>
                 )}
                 
-                <p className="text-xs font-bold leading-relaxed text-ac-brown-light mt-1">
-                  {phase === 'welcome' && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${totalBalance.toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
-                  {phase === 'advices' && `"${nookAdvices[currentAdviceIndex]}"`}
-                  {phase === 'yellow' && `"Je ne suis pas une banque à conseils. Oui, Oui. Ma spécialité c'est garder mon argent"`}
-                  {phase === 'distress' && `"Eh je suis vraiment à sec !"`}
-                  {phase === 'sold' && `"..."`}
+                <p className="text-xs font-bold leading-relaxed text-ac-brown mt-1">
+                  {clickCount === 0 && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${totalBalance.toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
+                  {clickCount === 1 && `"Économise tes clochettes aujourd'hui pour t'offrir la maison de tes rêves demain ! Oui, oui !"`}
+                  {clickCount === 2 && `"Un prêt à taux zéro, c'est une affaire en or ! Pense à placer tes clochettes régulièrement."`}
+                  {clickCount === 3 && `"Aïe ! Pourquoi tu me tapotes la tête ? Tu veux que je mette ce terrain en vente, oui ?!"`}
+                  {clickCount === 4 && `"Encore un clic et je pose le panneau d'hypothèque ! Attention à tes clochettes, oui oui !"`}
+                  {clickCount >= 5 && `"Ce terrain est désormais réservé / VENDU ! Merci pour tes clochettes !"`}
                 </p>
 
-                {phase === 'sold' && (
-                  <div className="absolute inset-0 bg-[#FFFDF9]/60 backdrop-blur-[1px] flex items-center justify-center rounded-2xl z-20 border-4 border-dashed border-ac-red">
-                    <span className="text-2xl font-black text-ac-red uppercase tracking-wider transform -rotate-12 border-4 border-ac-red px-4 py-2 rounded-xl bg-white shadow-ac-xs animate-bounce-in">
-                      Vendu 
-                    </span>
+                {/* Statut final "VENDU" badge style Animal Crossing */}
+                {clickCount >= 5 && (
+                  <div className="absolute inset-0 bg-[#FFFDF9]/85 backdrop-blur-xs flex items-center justify-center rounded-2xl z-20 border-3 border-dashed border-ac-red">
+                    <div className="bg-[#D9534F] text-white border-3 border-ac-brown px-6 py-2.5 rounded-2xl shadow-ac-md transform -rotate-6 flex items-center gap-2.5 animate-bounce-in">
+                      <span className="text-2xl">🚩</span>
+                      <div className="text-center">
+                        <span className="text-2xl font-black uppercase tracking-wider block leading-none">VENDU</span>
+                        <span className="text-[9px] font-extrabold uppercase tracking-widest text-white/90">Nook Inc.</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
