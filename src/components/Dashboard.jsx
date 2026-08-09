@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useDb } from '../db';
+import { db as firestoreDb } from '../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
   ChevronRight, Gift, Activity, Smile, Handshake
@@ -9,39 +11,69 @@ import AvatarStackPopover from './AvatarStackPopover';
 export default function Dashboard({ onViewAccountDetails, username }) {
   const { 
     userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, 
-    wishlist, pockets, categories, debts 
+    wishlist, pockets, categories, debts, user 
   } = useDb();
 
-  // Tom Nook interactive advice states for mobile / welcome banner
+  // 6 Financial Advices for Tom Nook
   const nookAdvices = [
-    "Économise tes clochettes aujourd'hui pour t'offrir la maison de tes rêves demain !",
-    "Un prêt à taux zéro, c'est une affaire en or ! Oui, oui !",
+    "Économise tes clochettes aujourd'hui pour t'offrir la maison de tes rêves demain ! Oui, oui !",
+    "Un prêt à taux zéro, c'est une affaire en or ! Pense à placer tes clochettes régulièrement.",
     "Pense à placer tes clochettes avant que le cours du navet ne chute !",
     "Agrandir ta maison demande des sacrifices économiques constants...",
-    "Chaque projet de pont ou de rampe demande la participation de tous, mais surtout la tienne ! Oui, oui !"
+    "Chaque projet de pont ou de rampe demande la participation de tous, mais surtout la tienne ! Oui, oui !",
+    "Gère bien tes comptes pour garder un solde toujours positif, oui oui !"
   ];
 
-  const [clickCount, setClickCount] = useState(0);
+  // Persistent sold state from localStorage / userMeta
+  const [isSold, setIsSold] = useState(() => {
+    return localStorage.getItem('tomNookSold') === 'true' || localStorage.getItem('ecopine_tom_nook_sold') === 'true';
+  });
+
+  const [nookStep, setNookStep] = useState(0);
   const [isWiggling, setIsWiggling] = useState(false);
   const [isNookCollapsed, setIsNookCollapsed] = useState(false);
   const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
 
-  const handleBannerClick = () => {
-    if (clickCount >= 5) return;
+  // Sync with Firestore userMeta if available
+  useEffect(() => {
+    if (userMeta?.tomNookSold) {
+      setIsSold(true);
+      localStorage.setItem('tomNookSold', 'true');
+      localStorage.setItem('ecopine_tom_nook_sold', 'true');
+    }
+  }, [userMeta]);
 
-    setClickCount(prev => prev + 1);
+  const handleBannerClick = async () => {
+    if (isSold) return;
+
+    const nextStep = nookStep + 1;
+    setNookStep(nextStep);
 
     // Trigger visual wiggle animation feedback on click
     setIsWiggling(true);
     setTimeout(() => {
       setIsWiggling(false);
     }, 300);
+
+    // ÉTAPE 5 : Le Panneau VENDU (1 dernier clic après l'étape 13)
+    if (nextStep >= 14) {
+      setIsSold(true);
+      localStorage.setItem('tomNookSold', 'true');
+      localStorage.setItem('ecopine_tom_nook_sold', 'true');
+      if (user?.uid) {
+        try {
+          await updateDoc(doc(firestoreDb, 'users_meta', user.uid), { tomNookSold: true });
+        } catch (err) {
+          console.error("Could not persist tomNookSold to Firestore:", err);
+        }
+      }
+    }
   };
 
   const handleToggleCollapse = () => {
-    if (!isNookCollapsed) {
-      // Reset click counter when user closes/reduces the bubble
-      setClickCount(0);
+    if (!isNookCollapsed && !isSold) {
+      // Reset step when user closes/reduces the bubble (unless sold permanently)
+      setNookStep(0);
     }
     setIsNookCollapsed(!isNookCollapsed);
   };
@@ -85,6 +117,15 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     return debts ? debts.filter(d => d.status === 'pending') : [];
   }, [debts]);
 
+  // Card background and text color calculation based on annoyance state
+  const getCardStyle = () => {
+    if (isSold) return "bg-white border-2 border-ac-brown/60 text-ac-brown";
+    if (nookStep === 13) return "bg-black text-white border-2 border-black animate-wiggle";
+    if (nookStep >= 10) return "bg-black/60 text-white border-2 border-ac-brown/80 backdrop-blur-xs";
+    if (nookStep >= 7) return "bg-black/20 text-ac-brown border-2 border-ac-brown/60 backdrop-blur-xs";
+    return "bg-white border-2 border-ac-brown/60 text-ac-brown";
+  };
+
   return (
     <div className="space-y-6 md:space-y-8 select-none pb-20 md:pb-0 p-1 md:p-0">
       {/* 1. Bulle de bienvenue Tom Nook */}
@@ -95,7 +136,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       >
         <div className="flex justify-between items-center w-full select-none">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white transition-transform ${isWiggling ? 'animate-wiggle scale-110' : ''}`}>
+            <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white transition-transform ${isWiggling || (nookStep === 13 && !isSold) ? 'animate-wiggle scale-110' : ''}`}>
               <img src="/tom-nook.jpg" alt="Tom Nook" className="w-full h-full object-cover object-center block" />
             </div>
             <div>
@@ -105,12 +146,15 @@ export default function Dashboard({ onViewAccountDetails, username }) {
               </h3>
               {isNookCollapsed && (
                 <p className="text-[10px] text-ac-brown-light font-bold truncate max-w-[180px] sm:max-w-md">
-                  {clickCount === 0 && `Bonjour, ${username || 'Îlien'} ! Oui, oui !`}
-                  {clickCount === 1 && `Économise tes clochettes aujourd'hui...`}
-                  {clickCount === 2 && `Un prêt à taux zéro, c'est une affaire en or !`}
-                  {clickCount === 3 && `Aïe ! Pourquoi tu me tapotes la tête ?`}
-                  {clickCount === 4 && `Encore un clic et je pose le panneau...`}
-                  {clickCount >= 5 && `🔴 VENDU ! Ce terrain est réservé !`}
+                  {isSold ? '🔴 VENDU ! Ce terrain est réservé !' : (
+                    <>
+                      {nookStep === 0 && `Bonjour, ${username || 'Îlien'} ! Oui, oui !`}
+                      {nookStep >= 1 && nookStep <= 6 && nookAdvices[nookStep - 1]}
+                      {nookStep >= 7 && nookStep <= 9 && `Je n’ai plus de conseil à te donner`}
+                      {nookStep >= 10 && nookStep <= 12 && `je n’ai vraiment plus de conseil, maintenant arrête`}
+                      {nookStep === 13 && `un dernier conseil alors, ne me demande plus rien !`}
+                    </>
+                  )}
                 </p>
               )}
             </div>
@@ -126,30 +170,43 @@ export default function Dashboard({ onViewAccountDetails, username }) {
         {!isNookCollapsed && (
           <div 
             onClick={handleBannerClick}
-            className={`mt-4 flex flex-col md:flex-row gap-4 items-center md:items-start cursor-pointer w-full transition-all duration-200 transform ${
-              isWiggling ? 'animate-wiggle scale-[1.02]' : 'hover:scale-[1.005]'
-            }`}
+            className={`mt-4 flex flex-col md:flex-row gap-4 items-center md:items-start w-full transition-all duration-200 transform ${
+              isSold ? 'cursor-default' : 'cursor-pointer'
+            } ${isWiggling || (nookStep === 13 && !isSold) ? 'animate-wiggle scale-[1.02]' : !isSold ? 'hover:scale-[1.005]' : ''}`}
           >
             <div className="flex-1 space-y-4 w-full relative">
-              <div className="bg-white border-2 border-ac-brown/60 rounded-2xl p-4 shadow-ac-xs relative min-h-[75px] flex flex-col justify-center">
-                {clickCount < 5 && (
-                  <div className="absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[8px] font-black text-white bg-ac-gold flex items-center gap-1 animate-pulse">
-                    <Smile className="w-2.5 h-2.5" /> {clickCount > 0 ? `Clic ${clickCount}/5` : 'Info'}
+              <div className={`rounded-2xl p-4 shadow-ac-xs relative min-h-[75px] flex flex-col justify-center transition-colors duration-300 ${getCardStyle()}`}>
+                {!isSold && (
+                  <div className={`absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[8px] font-black text-white flex items-center gap-1 shadow-xs ${
+                    nookStep === 13 ? 'bg-red-600 animate-bounce' :
+                    nookStep >= 10 ? 'bg-orange-600' :
+                    nookStep >= 7 ? 'bg-gray-800' : 'bg-ac-gold animate-pulse'
+                  }`}>
+                    <Smile className="w-2.5 h-2.5" />
+                    {nookStep === 0 && 'Info'}
+                    {nookStep >= 1 && nookStep <= 6 && `Conseil ${nookStep}/6`}
+                    {nookStep >= 7 && nookStep <= 9 && `0 conseil`}
+                    {nookStep >= 10 && nookStep <= 12 && `Lassitude`}
+                    {nookStep === 13 && `Crise !`}
                   </div>
                 )}
                 
-                <p className="text-xs font-bold leading-relaxed text-ac-brown mt-1">
-                  {clickCount === 0 && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${totalBalance.toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
-                  {clickCount === 1 && `"Économise tes clochettes aujourd'hui pour t'offrir la maison de tes rêves demain ! Oui, oui !"`}
-                  {clickCount === 2 && `"Un prêt à taux zéro, c'est une affaire en or ! Pense à placer tes clochettes régulièrement."`}
-                  {clickCount === 3 && `"Aïe ! Pourquoi tu me tapotes la tête ? Tu veux que je mette ce terrain en vente, oui ?!"`}
-                  {clickCount === 4 && `"Encore un clic et je pose le panneau d'hypothèque ! Attention à tes clochettes, oui oui !"`}
-                  {clickCount >= 5 && `"Ce terrain est désormais réservé / VENDU ! Merci pour tes clochettes !"`}
+                <p className="text-xs font-bold leading-relaxed mt-1">
+                  {isSold && `"Ce terrain est désormais réservé / VENDU ! Merci pour tes clochettes !"`}
+                  {!isSold && (
+                    <>
+                      {nookStep === 0 && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${totalBalance.toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
+                      {nookStep >= 1 && nookStep <= 6 && `"${nookAdvices[nookStep - 1]}"`}
+                      {nookStep >= 7 && nookStep <= 9 && `"Je n’ai plus de conseil à te donner"`}
+                      {nookStep >= 10 && nookStep <= 12 && `"je n’ai vraiment plus de conseil, maintenant arrête"`}
+                      {nookStep === 13 && `"un dernier conseil alors, ne me demande plus rien !"`}
+                    </>
+                  )}
                 </p>
 
                 {/* Statut final "VENDU" badge style Animal Crossing */}
-                {clickCount >= 5 && (
-                  <div className="absolute inset-0 bg-[#FFFDF9]/85 backdrop-blur-xs flex items-center justify-center rounded-2xl z-20 border-3 border-dashed border-ac-red">
+                {isSold && (
+                  <div className="absolute inset-0 bg-[#FFFDF9]/85 backdrop-blur-xs flex items-center justify-center rounded-2xl z-20 border-3 border-dashed border-ac-red select-none">
                     <div className="bg-[#D9534F] text-white border-3 border-ac-brown px-6 py-2.5 rounded-2xl shadow-ac-md transform -rotate-6 flex items-center gap-2.5 animate-bounce-in">
                       <span className="text-2xl">🚩</span>
                       <div className="text-center">
