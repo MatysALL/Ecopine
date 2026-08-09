@@ -11,6 +11,7 @@ export default function EconomicCalendar() {
   const [hoveredDay, setHoveredDay] = useState(null);
   const [hoveredData, setHoveredData] = useState([]);
   const [hoveredPosition, setHoveredPosition] = useState({ x: 0, y: 0 });
+  const [selectedDay, setSelectedDay] = useState(null);
   const [selectedDayForBottomSheet, setSelectedDayForBottomSheet] = useState(null);
 
   const year = currentDate.getFullYear();
@@ -91,8 +92,6 @@ export default function EconomicCalendar() {
     });
   }
 
-
-
   const navigateMonth = (direction) => {
     const nextDate = new Date(currentDate);
     nextDate.setMonth(currentDate.getMonth() + direction);
@@ -109,7 +108,6 @@ export default function EconomicCalendar() {
   const handleDayHoverEnter = (e, cell) => {
     if (!cell.isCurrentMonth) return;
     
-    // In Mode 1, we list transactions on that date
     const dayTxs = transactionsData
       ? transactionsData.filter(t => t.date === cell.dateStr)
       : [];
@@ -117,7 +115,6 @@ export default function EconomicCalendar() {
     setHoveredDay(cell.dateStr);
     setHoveredData(dayTxs);
 
-    // Calculate tooltip coordinates
     const rect = e.currentTarget.getBoundingClientRect();
     setHoveredPosition({
       x: rect.left + window.scrollX + rect.width / 2,
@@ -135,10 +132,11 @@ export default function EconomicCalendar() {
     setHoveredData([]);
   };
 
-  const frenchDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const frenchDaysLong = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const frenchDaysShort = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
   return (
-    <div className="space-y-6 select-none relative text-ac-brown">
+    <div className="space-y-6 select-none relative text-ac-brown pb-28">
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm">
         <div>
@@ -152,7 +150,7 @@ export default function EconomicCalendar() {
       </div>
 
       {/* Main Calendar Card */}
-      <div className="ac-card p-6 bg-white border-ac-brown relative">
+      <div className="ac-card p-4 md:p-6 bg-white border-ac-brown relative">
         {/* Month Selector */}
         <div className="flex justify-between items-center mb-6">
           <button
@@ -173,20 +171,20 @@ export default function EconomicCalendar() {
         </div>
 
         {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 md:gap-2">
           {/* Days of Week Header */}
-          {frenchDays.map(d => (
-            <div key={d} className="text-center font-black text-xs text-ac-brown-light uppercase py-2">
-              {d}
+          {frenchDaysLong.map((d, idx) => (
+            <div key={idx} className="text-center font-black text-xs text-ac-brown-light uppercase py-2">
+              <span className="hidden md:inline">{d}</span>
+              <span className="inline md:hidden">{frenchDaysShort[idx]}</span>
             </div>
           ))}
 
           {/* Grid Cells */}
           {calendarCells.map((cell, idx) => {
             const isToday = cell.dateStr === new Date().toISOString().split('T')[0];
-            const isFuture = cell.dateStr > new Date().toISOString().split('T')[0];
+            const isSelected = selectedDay && selectedDay.dateStr === cell.dateStr;
             
-            // Mode 1 data calculations
             const dayTxs = cell.isCurrentMonth && transactionsData
               ? transactionsData.filter(t => t.date === cell.dateStr)
               : [];
@@ -216,26 +214,41 @@ export default function EconomicCalendar() {
                 onMouseLeave={handleDayHoverLeave}
                 onClick={() => {
                   if (cell.isCurrentMonth) {
+                    setSelectedDay(cell);
                     setSelectedDayForBottomSheet(cell);
                   }
                 }}
-                className={`min-h-[50px] md:min-h-[90px] border-2 rounded-2xl p-1 md:p-2 transition-all flex flex-col justify-between relative cursor-pointer md:cursor-help ${cellStyle} ${
-                  isToday ? 'ring-3 ring-ac-green bg-ac-green-light/20' : ''
+                className={`aspect-square p-1 rounded-xl md:aspect-auto md:min-h-[90px] md:p-2 md:rounded-2xl border-2 transition-all flex flex-col justify-between relative cursor-pointer ${cellStyle} ${
+                  isSelected 
+                    ? 'ring-2 ring-[#7C9E59] bg-[#7C9E59]/15 border-[#7C9E59]' 
+                    : isToday 
+                    ? 'ring-2 ring-ac-green bg-ac-green-light/20' 
+                    : ''
                 }`}
               >
                 {/* Day Number */}
-                <div className="flex justify-between items-center">
-                  <span className={`text-[10px] md:text-xs font-black ${isToday ? 'text-ac-green font-extrabold text-xs md:text-sm' : 'text-ac-brown'}`}>
+                <div className="flex justify-between items-center w-full">
+                  <span className={`text-[10px] md:text-xs font-black ${isToday || isSelected ? 'text-ac-green font-extrabold text-xs md:text-sm' : 'text-ac-brown'}`}>
                     {cell.day}
                   </span>
                   {isToday && (
-                    <span className="text-[7px] md:text-[8px] font-black bg-ac-green text-white px-1 py-0.2 rounded-full">Auj.</span>
+                    <span className="hidden md:inline text-[7px] md:text-[8px] font-black bg-ac-green text-white px-1 py-0.2 rounded-full">Auj.</span>
                   )}
                 </div>
 
-                {/* Render mode specific data inside cells */}
+                {/* Mobile Discrete Indicators (Pills / Dots) */}
                 {cell.isCurrentMonth && dayTxs.length > 0 && (
-                  <div className="text-[8px] md:text-[10px] font-bold text-left mt-0.5 md:mt-1">
+                  <div className="flex md:hidden items-center justify-center gap-0.5 mt-auto pb-0.5">
+                    {netFlow > 0 && <span className="w-1.5 h-1.5 rounded-full bg-[#7C9E59] shrink-0"></span>}
+                    {netFlow < 0 && <span className="w-1.5 h-1.5 rounded-full bg-[#E57373] shrink-0"></span>}
+                    {netFlow === 0 && <span className="w-1.5 h-1.5 rounded-full bg-ac-gold shrink-0"></span>}
+                    {dayTxs.length > 1 && <span className="w-1.5 h-1.5 rounded-full bg-ac-brown/40 shrink-0"></span>}
+                  </div>
+                )}
+
+                {/* Desktop Full Amount View */}
+                {cell.isCurrentMonth && dayTxs.length > 0 && (
+                  <div className="hidden md:block text-[8px] md:text-[10px] font-bold text-left mt-0.5 md:mt-1">
                     <div className="font-extrabold truncate">
                       {netFlow > 0 ? `+${Math.round(netFlow)}` : Math.round(netFlow)} 🔔
                     </div>
@@ -290,7 +303,7 @@ export default function EconomicCalendar() {
                               </div>
 
                               <span className={`font-black whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                                {isIncome ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
+                                {isIncome ? '+' : '-'}{Number(tx.amount).toFixed(2)} 🔔
                               </span>
                             </div>
                           );
@@ -304,6 +317,58 @@ export default function EconomicCalendar() {
           })}
         </div>
       </div>
+
+      {/* Selected Day Operations Detail Section under Calendar */}
+      {selectedDay && (
+        <div className="ac-card p-4 md:p-6 bg-white border-ac-brown animate-fade-in space-y-4">
+          <div className="flex justify-between items-center pb-3 border-b border-ac-brown/10">
+            <h4 className="text-sm md:text-base font-black text-ac-brown flex items-center gap-2">
+              🗓️ Opérations du {new Date(selectedDay.dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </h4>
+            <button
+              onClick={() => setSelectedDay(null)}
+              className="text-xs font-black text-ac-brown-light hover:text-ac-brown bg-ac-cream hover:bg-ac-cream-dark px-2.5 py-1 rounded-full border border-ac-brown/20 cursor-pointer transition-colors"
+            >
+              Fermer ✕
+            </button>
+          </div>
+
+          {getDayTransactions(selectedDay.dateStr).length === 0 ? (
+            <p className="text-xs font-bold text-ac-brown-light italic py-6 text-center bg-ac-cream/50 rounded-2xl border border-dashed border-ac-brown/15">
+              Aucune opération enregistrée ce jour-là. 🍃
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {getDayTransactions(selectedDay.dateStr).map((tx, idx) => {
+                const acc = accounts?.find(a => a.id === tx.accountId);
+                const isIncome = tx.type === 'credit';
+                return (
+                  <div key={idx} className="p-3 bg-ac-cream/60 border-2 border-ac-brown rounded-2xl flex justify-between items-center text-xs shadow-ac-xs">
+                    <div className="truncate pr-2">
+                      <p className="font-extrabold text-ac-brown truncate">{tx.name || tx.description}</p>
+                      <div className="flex gap-1.5 mt-1 items-center">
+                        <span className="text-[8px] font-black text-ac-brown-light bg-white border border-ac-brown/15 px-1.5 py-0.5 rounded uppercase">
+                          {acc?.name || 'Compte'}
+                        </span>
+                        {tx.executionType && tx.executionType !== 'spontaneous' && (
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase border ${
+                            tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' : 'bg-ac-cream-dark/50 border-ac-brown/15 text-ac-brown-light'
+                          }`}>
+                            {tx.executionType === 'planned' ? 'Prévu' : 'Passé'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
+                      {isIncome ? '+' : '-'}{Number(tx.amount).toFixed(2)} 🔔
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Bottom Sheet for selected day on Mobile */}
       {selectedDayForBottomSheet && (
@@ -355,7 +420,7 @@ export default function EconomicCalendar() {
                         </div>
                       </div>
                       <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                        {isIncome ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
+                        {isIncome ? '+' : '-'}{Number(tx.amount).toFixed(2)} 🔔
                       </span>
                     </div>
                   );
@@ -374,11 +439,11 @@ export default function EconomicCalendar() {
         {!accounts ? (
           <p className="text-xs text-ac-brown-light">Chargement des comptes...</p>
         ) : (
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-nowrap overflow-x-auto gap-2 pb-2 scrollbar-none">
             {accounts.map(acc => (
               <label 
                 key={acc.id}
-                className={`flex items-center gap-2 border-2 border-ac-brown rounded-full px-4 py-2 text-xs font-bold cursor-pointer select-none transition-colors ${
+                className={`flex items-center gap-2 border-2 border-ac-brown rounded-full px-4 py-2 text-xs font-bold cursor-pointer select-none transition-colors shrink-0 ${
                   selectedAccounts[acc.id]
                     ? 'bg-ac-green-light border-ac-brown text-ac-brown font-extrabold'
                     : 'bg-white hover:bg-ac-cream border-ac-brown/30 text-ac-brown-light'
@@ -395,7 +460,7 @@ export default function EconomicCalendar() {
                 }`}>
                   {selectedAccounts[acc.id] && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
                 </span>
-                {acc.name}
+                <span className="whitespace-nowrap">{acc.name}</span>
               </label>
             ))}
           </div>
@@ -404,3 +469,4 @@ export default function EconomicCalendar() {
     </div>
   );
 }
+

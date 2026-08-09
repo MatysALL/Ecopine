@@ -369,7 +369,7 @@ export default function AdminView() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in text-ac-brown select-none pb-8">
+    <div className="space-y-8 animate-fade-in text-ac-brown select-none pb-28">
       {/* Title */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -383,7 +383,7 @@ export default function AdminView() {
       </div>
 
       {/* Main Tabs Navigation */}
-      <div className="flex gap-2 pb-2 overflow-x-auto border-b-2 border-ac-brown/10 scrollbar-thin">
+      <div className="flex flex-nowrap overflow-x-auto gap-2 pb-2 border-b-2 border-ac-brown/10 scrollbar-none">
         <button
           onClick={() => setActiveSubTab('users')}
           className={`px-4 py-2.5 rounded-2xl border-2 font-black text-xs transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
@@ -415,14 +415,15 @@ export default function AdminView() {
 
       {/* 1. USERS MONITORS SECTION */}
       {activeSubTab === 'users' && (
-        <div className="ac-card p-6 bg-white border-ac-brown space-y-6">
+        <div className="ac-card p-4 md:p-6 bg-white border-ac-brown space-y-6">
           <div className="flex justify-between items-center pb-3 border-b-2 border-ac-brown/5">
             <h3 className="text-base font-black text-ac-brown flex items-center gap-2">
               🍃 Registre Général des Habitants ({allUsersMeta.length})
             </h3>
           </div>
 
-          <div className="overflow-x-auto shadow-inner rounded-2xl border-2 border-ac-brown bg-ac-cream/20">
+          {/* Desktop Table View (>= md) */}
+          <div className="hidden md:block overflow-x-auto shadow-inner rounded-2xl border-2 border-ac-brown bg-ac-cream/20">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b-2 border-ac-brown/15 bg-ac-cream-dark/30 text-left">
@@ -487,24 +488,90 @@ export default function AdminView() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Cards View (< md) */}
+          <div className="block md:hidden space-y-3">
+            {allUsersMeta.map(u => (
+              <div key={u.uid} className="bg-ac-cream/40 border-2 border-ac-brown rounded-2xl p-4 space-y-3 shadow-ac-xs">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full border border-ac-brown/25 overflow-hidden flex items-center justify-center shrink-0 bg-ac-cream-dark shadow-ac-xs">
+                      {u.photoURL ? (
+                        <img src={u.photoURL} alt="Pfp" className="w-full h-full object-cover object-center block" />
+                      ) : (
+                        <span className="text-sm font-bold text-ac-brown">🍃</span>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-ac-brown">{u.username || 'Sans nom'}</h4>
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase mt-0.5 ${
+                        u.role === 'admin' 
+                          ? 'bg-[#E57373] text-white border border-[#E57373]/20 shadow-xs' 
+                          : 'bg-ac-sky-light text-ac-sky border border-ac-sky/20'
+                      }`}>
+                        {u.role || 'member'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Body */}
+                <div className="space-y-1 bg-white p-3 rounded-xl border border-ac-brown/15 text-xs">
+                  <div className="font-semibold text-ac-brown break-all">
+                    <span className="text-[10px] font-black uppercase text-ac-brown-light block mb-0.5">E-mail</span>
+                    {u.email}
+                  </div>
+                  <div className="pt-2 border-t border-ac-brown/10">
+                    <span className="text-[10px] font-black uppercase text-ac-brown-light block mb-0.5">UID Firebase</span>
+                    <span className="font-mono text-[10px] text-ac-brown-light select-all break-all">{u.uid}</span>
+                  </div>
+                </div>
+
+                {/* Footer / Actions */}
+                <div className="pt-1">
+                  {isTargetAdmin(u) ? (
+                    <div className="w-full text-[10px] font-black text-ac-green bg-ac-green-light border border-ac-green/30 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-ac-xs">
+                      🛡️ Compte Protégé (Admin)
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleResetUser(u.uid, u.username)}
+                        className="w-full py-2 px-3 rounded-xl bg-ac-orange hover:bg-ac-orange/90 text-white font-black text-xs border-2 border-ac-brown shadow-ac-xs active:translate-y-0.5 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Réinitialiser
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(u.uid, u.username)}
+                        className="w-full py-2 px-3 rounded-xl bg-ac-red hover:bg-ac-red/90 text-white font-black text-xs border-2 border-ac-brown shadow-ac-xs active:translate-y-0.5 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* 2. COLLECTION DATA MONITOR SECTION */}
       {activeSubTab !== 'users' && (
-        <div className="ac-card p-6 bg-white border-ac-brown space-y-6">
+        <div className="ac-card p-4 md:p-6 bg-white border-ac-brown space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-3 border-b-2 border-ac-brown/5">
             <h3 className="text-base font-black text-ac-brown flex items-center gap-2">
               📂 Monitoring de la Table : <span className="underline">{activeSubTab}</span> ({filteredTableData.length} documents)
             </h3>
 
             {/* Filter by User */}
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-extrabold text-ac-brown-light">Habitant :</label>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label className="text-xs font-extrabold text-ac-brown-light shrink-0">Habitant :</label>
               <select
                 value={selectedUserFilter}
                 onChange={(e) => setSelectedUserFilter(e.target.value)}
-                className="bg-white border-2 border-ac-brown rounded-xl px-2 py-1 text-xs font-bold focus:outline-none cursor-pointer"
+                className="bg-white border-2 border-ac-brown rounded-xl px-2 py-1 text-xs font-bold focus:outline-none cursor-pointer w-full sm:w-auto"
               >
                 <option value="all">Tous les habitants</option>
                 {allUsersMeta.map(u => (
@@ -525,37 +592,135 @@ export default function AdminView() {
               <p className="text-[10px] text-ac-brown-light/75 mt-0.5">Aucun document ne correspond aux filtres.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto shadow-inner rounded-2xl border-2 border-ac-brown bg-ac-cream/20">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-ac-brown/15 bg-ac-cream-dark/30 text-left">
-                    {renderTableHeaders(activeSubTab)}
-                    <th className="p-3 text-center text-xs font-black uppercase text-ac-brown">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTableData.map(row => (
-                    <tr key={row.id} className="border-b border-ac-brown/10 hover:bg-ac-cream-dark/15 transition-colors">
-                      {renderRowCells(row, activeSubTab, allUsersMeta)}
-                      <td className="p-3">
-                        <div className="flex items-center justify-center">
-                          <button
-                            onClick={() => handleDeleteRow(row.id)}
-                            className="bg-white hover:bg-ac-red-light border border-ac-brown/25 hover:border-ac-red/20 text-ac-brown-light hover:text-ac-red p-1.5 rounded-lg cursor-pointer transition-colors"
-                            title="Supprimer la ligne"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
+            <>
+              {/* Desktop Table View (>= md) */}
+              <div className="hidden md:block overflow-x-auto shadow-inner rounded-2xl border-2 border-ac-brown bg-ac-cream/20">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-ac-brown/15 bg-ac-cream-dark/30 text-left">
+                      {renderTableHeaders(activeSubTab)}
+                      <th className="p-3 text-center text-xs font-black uppercase text-ac-brown">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredTableData.map(row => (
+                      <tr key={row.id} className="border-b border-ac-brown/10 hover:bg-ac-cream-dark/15 transition-colors">
+                        {renderRowCells(row, activeSubTab, allUsersMeta)}
+                        <td className="p-3">
+                          <div className="flex items-center justify-center">
+                            <button
+                              onClick={() => handleDeleteRow(row.id)}
+                              className="bg-white hover:bg-ac-red-light border border-ac-brown/25 hover:border-ac-red/20 text-ac-brown-light hover:text-ac-red p-1.5 rounded-lg cursor-pointer transition-colors"
+                              title="Supprimer la ligne"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards View (< md) */}
+              <div className="block md:hidden space-y-3">
+                {filteredTableData.map(row => {
+                  const findUserName = (uid) => {
+                    const u = allUsersMeta.find(m => m.uid === uid);
+                    return u ? u.username : uid?.slice(0, 8);
+                  };
+
+                  return (
+                    <div key={row.id} className="bg-ac-cream/40 border-2 border-ac-brown rounded-2xl p-4 space-y-3 shadow-ac-xs text-xs">
+                      <div className="flex justify-between items-start gap-2 border-b border-ac-brown/10 pb-2">
+                        <div>
+                          <span className="font-mono text-[10px] text-ac-brown-light bg-white border border-ac-brown/20 px-1.5 py-0.5 rounded font-bold">
+                            ID: {row.id?.slice(0, 8)}...
+                          </span>
+                          <h4 className="font-black text-sm text-ac-brown mt-1">
+                            {row.name || row.description || row.title || (row.senderEmail ? `${row.senderEmail} ➔ ${row.receiverEmail}` : 'Document')}
+                          </h4>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteRow(row.id)}
+                          className="bg-white hover:bg-ac-red-light border-2 border-ac-brown text-ac-red p-2 rounded-xl cursor-pointer shadow-ac-xs active:translate-y-0.5 transition-all"
+                          title="Supprimer la ligne"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Content details depending on collection */}
+                      <div className="space-y-1 text-ac-brown">
+                        {activeSubTab === 'accounts' && (
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-ac-gold text-sm">{row.balance} 💰 ({row.currency || 'EUR'})</span>
+                            <span className="text-[10px] font-black bg-white px-2 py-0.5 rounded-full border border-ac-brown/15">
+                              Créateur: {findUserName(row.creatorId)}
+                            </span>
+                          </div>
+                        )}
+                        {activeSubTab === 'transactions' && (
+                          <div className="flex justify-between items-center">
+                            <span className={`font-bold text-sm ${row.type === 'expense' ? 'text-ac-red' : 'text-ac-green'}`}>
+                              {row.type === 'expense' ? '-' : '+'}{row.amount}
+                            </span>
+                            <div className="text-right">
+                              <span className="text-[10px] text-ac-brown-light block">{row.date}</span>
+                              <span className="text-[10px] font-black text-ac-brown">Habitant: {findUserName(row.userId)}</span>
+                            </div>
+                          </div>
+                        )}
+                        {activeSubTab === 'pockets' && (
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-ac-green text-sm">{row.allocated} 💰 (Dépensé: {row.spent || 0})</span>
+                            <span className="text-[10px] font-black text-ac-brown">Habitant: {findUserName(row.userId)}</span>
+                          </div>
+                        )}
+                        {activeSubTab === 'categories' && (
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{row.emoji}</span>
+                              <span className="w-4 h-4 rounded-full border border-ac-brown/20" style={{ backgroundColor: row.color }}></span>
+                            </div>
+                            <span className="text-[10px] font-black text-ac-brown">Habitant: {findUserName(row.userId)}</span>
+                          </div>
+                        )}
+                        {activeSubTab === 'debts' && (
+                          <div className="flex justify-between items-center">
+                            <span className={`font-bold ${row.type === 'owed' ? 'text-ac-green' : 'text-ac-red'}`}>
+                              {row.type === 'owed' ? 'Dû par' : 'Dû à'} {row.person} : {row.amount}
+                            </span>
+                            <span className="text-[10px] font-black text-ac-brown">Créateur: {findUserName(row.creatorId)}</span>
+                          </div>
+                        )}
+                        {activeSubTab === 'wishlist' && (
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-ac-gold">{row.price}</span>
+                            <span className="text-[10px] font-black text-ac-brown">Créateur: {findUserName(row.creatorId)}</span>
+                          </div>
+                        )}
+                        {activeSubTab === 'friendships' && (
+                          <div className="flex justify-between items-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                              row.status === 'accepted' ? 'bg-ac-green-light text-ac-green border border-ac-green/20' : 'bg-ac-gold-light text-ac-gold-dark border border-ac-gold/20'
+                            }`}>
+                              Statut: {row.status}
+                            </span>
+                            <span className="text-[10px] font-black text-ac-brown">Envoyeur: {findUserName(row.senderId)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       )}
     </div>
   );
 }
+

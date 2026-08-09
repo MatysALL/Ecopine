@@ -733,4 +733,13 @@ body.theme-wayfs {
   background: #8B5CF6 !important;
 }
 
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+
 
