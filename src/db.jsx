@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { auth, db as firestoreDb } from './firebase';
+import { auth, googleProvider, db as firestoreDb } from './firebase';
 import { 
   collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, 
   setDoc, query, where, onSnapshot, writeBatch, runTransaction 
@@ -7,6 +7,7 @@ import {
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
+  signInWithPopup,
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
@@ -1358,6 +1359,62 @@ export const DbProvider = ({ children }) => {
     return signInWithEmailAndPassword(auth, email, password);
   };
 
+  const loginWithGoogle = async () => {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+
+    if (user) {
+      const metaRef = doc(firestoreDb, 'users_meta', user.uid);
+      const docSnap = await getDoc(metaRef);
+
+      if (!docSnap.exists()) {
+        await setDoc(metaRef, {
+          uid: user.uid,
+          username: user.displayName || "Habitant",
+          email: user.email,
+          photoURL: user.photoURL || "/pfp-ac.jpg",
+          role: user.email === "matysallanet@gmail.com" ? "admin" : "member",
+          themePreference: "default",
+          unlockedThemes: ["default", "red", "blue", "yellow"],
+          tutorialProgress: {
+            isCompleted: false,
+            steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false }
+          },
+          createdAt: new Date().toISOString()
+        });
+
+        // Initialize default categories for new user
+        const defaultCategories = [
+          { name: 'Alimentation', emoji: '🍎', color: '#FFB3B3' },
+          { name: 'Transport', emoji: '🚗', color: '#B3D9FF' },
+          { name: 'Loisirs', emoji: '🎈', color: '#B3FFB3' },
+          { name: 'Logement', emoji: '🏠', color: '#FFE0B3' },
+          { name: 'Santé', emoji: '💊', color: '#E0B3FF' }
+        ];
+        const q = query(collection(firestoreDb, 'categories'), where('userId', '==', user.uid));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+          const batch = writeBatch(firestoreDb);
+          defaultCategories.forEach(cat => {
+            const catRef = doc(collection(firestoreDb, 'categories'));
+            batch.set(catRef, {
+              ...cat,
+              userId: user.uid
+            });
+          });
+          await batch.commit();
+        }
+      } else {
+        await setDoc(metaRef, {
+          email: user.email,
+          photoURL: user.photoURL || "/pfp-ac.jpg"
+        }, { merge: true });
+      }
+    }
+
+    return user;
+  };
+
   const logOutUser = async () => {
     return signOut(auth);
   };
@@ -1821,6 +1878,7 @@ export const DbProvider = ({ children }) => {
     globalLatestTransactions,
     signUpUser,
     logInUser,
+    loginWithGoogle,
     logOutUser,
     allUsersMeta,
     activeTheme,
