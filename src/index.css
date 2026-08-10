@@ -28,6 +28,7 @@
   --animate-wiggle: wiggle 0.3s ease-in-out infinite;
   --animate-bubble-pop: bubblePop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   --animate-micro-vibration: microVibration 0.32s ease-in-out infinite;
+  --animate-shake-once: shakeOnce 0.25s ease-in-out;
   --animate-bounce-in: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   --animate-slide-up: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -49,6 +50,18 @@
   40% { transform: translate(1.5px, -0.5px); }
   60% { transform: translate(-1px, -0.5px); }
   80% { transform: translate(1px, 0.5px); }
+}
+
+@keyframes shakeOnce {
+  0% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.02) rotate(-1.5deg); }
+  50% { transform: scale(0.98) rotate(1.5deg); }
+  75% { transform: scale(1.01) rotate(-0.5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.animate-shake-once {
+  animation: shakeOnce 0.25s ease-in-out;
 }
 
 .animate-bubble-pop {

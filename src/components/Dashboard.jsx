@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useDb } from '../db';
 import { db as firestoreDb } from '../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -30,9 +30,16 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   });
 
   const [nookStep, setNookStep] = useState(0);
-  const [isPopping, setIsPopping] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
   const [isNookCollapsed, setIsNookCollapsed] = useState(false);
   const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
+  const shakeTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (shakeTimeoutRef.current) clearTimeout(shakeTimeoutRef.current);
+    };
+  }, []);
 
   // Sync with Firestore userMeta if available
   useEffect(() => {
@@ -49,12 +56,16 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     const nextStep = nookStep + 1;
     setNookStep(nextStep);
 
-    // Trigger smooth bubble pop animation feedback on click for steps 0 to 12
-    if (nextStep < 13) {
-      setIsPopping(true);
+    // Trigger reactive shake animation feedback on click (duration: 250ms)
+    if (nextStep < 14) {
+      if (shakeTimeoutRef.current) clearTimeout(shakeTimeoutRef.current);
+      setIsShaking(false);
       setTimeout(() => {
-        setIsPopping(false);
-      }, 200);
+        setIsShaking(true);
+        shakeTimeoutRef.current = setTimeout(() => {
+          setIsShaking(false);
+        }, 250);
+      }, 10);
     }
 
     // ÉTAPE 5 : Le Panneau VENDU (1 dernier clic après l'étape 13)
@@ -122,7 +133,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   // Card background and text color calculation based on annoyance state
   const getCardStyle = () => {
     if (isSold) return "bg-white border-2 border-ac-brown/60 text-ac-brown";
-    if (nookStep === 13) return "bg-black text-white border-2 border-black animate-micro-vibration";
+    if (nookStep === 13) return "bg-black text-white border-2 border-black";
     if (nookStep >= 10) return "bg-black/60 text-white border-2 border-ac-brown/80 backdrop-blur-xs";
     if (nookStep >= 7) return "bg-black/20 text-ac-brown border-2 border-ac-brown/60 backdrop-blur-xs";
     return "bg-white border-2 border-ac-brown/60 text-ac-brown";
@@ -139,11 +150,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
         <div className="flex justify-between items-center w-full select-none">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white transition-transform ${
-              nookStep === 13 && !isSold 
-                ? 'animate-micro-vibration' 
-                : isPopping 
-                  ? 'animate-bubble-pop' 
-                  : ''
+              isShaking ? 'animate-shake-once' : ''
             }`}>
               <img src="/tom-nook.jpg" alt="Tom Nook" className="w-full h-full object-cover object-center block" />
             </div>
@@ -181,11 +188,9 @@ export default function Dashboard({ onViewAccountDetails, username }) {
             className={`mt-4 flex flex-col md:flex-row gap-4 items-center md:items-start w-full transition-all duration-200 transform ${
               isSold ? 'cursor-default' : 'cursor-pointer'
             } ${
-              nookStep === 13 && !isSold 
-                ? 'animate-micro-vibration' 
-                : isPopping 
-                  ? 'animate-bubble-pop' 
-                  : !isSold ? 'hover:scale-[1.005]' : ''
+              isShaking 
+                ? 'animate-shake-once' 
+                : !isSold ? 'hover:scale-[1.005]' : ''
             }`}
           >
             <div className="flex-1 space-y-4 w-full relative">
