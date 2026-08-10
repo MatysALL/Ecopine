@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, useDb } from '../db';
+import { db as firestoreDb } from '../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { 
   Trash2, ShieldAlert, CheckCircle, AlertCircle, 
   User, Users, Tag, Plus, FileSpreadsheet, Palette 
@@ -147,6 +149,20 @@ export default function Settings() {
           }
         }
       });
+
+      // Reset tomNookSold in Firestore & clean scoped/global localStorage
+      if (user?.uid) {
+        try {
+          const userRef = doc(firestoreDb, 'users_meta', user.uid);
+          await updateDoc(userRef, { tomNookSold: false });
+          localStorage.removeItem(`tomNookSold_${user.uid}`);
+        } catch (err) {
+          console.error("Error resetting tomNookSold in Firestore:", err);
+        }
+      }
+      localStorage.removeItem('tomNookSold');
+      localStorage.removeItem('ecopine_tom_nook_sold');
+
       alert("Tutoriel réinitialisé ! Navigue à travers les sections pour tamponner ton carnet. 🐾");
     } catch (err) {
       console.error(err);

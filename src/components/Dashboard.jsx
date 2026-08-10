@@ -10,7 +10,7 @@ import AvatarStackPopover from './AvatarStackPopover';
 
 export default function Dashboard({ onViewAccountDetails, username }) {
   const { 
-    userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, 
+    userMeta, userProfile, accountsData, favoriteAccountDetails, globalLatestTransactions, 
     wishlist, pockets, categories, debts, user 
   } = useDb();
 
@@ -24,10 +24,28 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     "Gère bien tes comptes pour garder un solde toujours positif, oui oui !"
   ];
 
-  // Persistent sold state from localStorage / userMeta
-  const [isSold, setIsSold] = useState(() => {
-    return localStorage.getItem('tomNookSold') === 'true' || localStorage.getItem('ecopine_tom_nook_sold') === 'true';
-  });
+  const userStorageKey = user?.uid ? `tomNookSold_${user.uid}` : null;
+
+  // Cleanup old global residual keys
+  useEffect(() => {
+    localStorage.removeItem('tomNookSold');
+    localStorage.removeItem('ecopine_tom_nook_sold');
+  }, []);
+
+  // Primary source of truth: Firestore userProfile.tomNookSold, fallback: scoped localStorage
+  const isSold = userProfile?.tomNookSold === true || 
+    userMeta?.find(m => m.key === 'tomNookSold')?.value === true || 
+    (userStorageKey ? localStorage.getItem(userStorageKey) === 'true' : false);
+
+  // Sync scoped localStorage backup when Firestore updates
+  useEffect(() => {
+    if (!userStorageKey) return;
+    if (userProfile?.tomNookSold === true) {
+      localStorage.setItem(userStorageKey, 'true');
+    } else if (userProfile?.tomNookSold === false) {
+      localStorage.removeItem(userStorageKey);
+    }
+  }, [userProfile?.tomNookSold, userStorageKey]);
 
   const [nookStep, setNookStep] = useState(0);
   const [isShaking, setIsShaking] = useState(false);
@@ -40,15 +58,6 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       if (shakeTimeoutRef.current) clearTimeout(shakeTimeoutRef.current);
     };
   }, []);
-
-  // Sync with Firestore userMeta if available
-  useEffect(() => {
-    if (userMeta?.tomNookSold) {
-      setIsSold(true);
-      localStorage.setItem('tomNookSold', 'true');
-      localStorage.setItem('ecopine_tom_nook_sold', 'true');
-    }
-  }, [userMeta]);
 
   const handleBannerClick = async () => {
     if (isSold) return;
@@ -70,9 +79,9 @@ export default function Dashboard({ onViewAccountDetails, username }) {
 
     // ÉTAPE 5 : Le Panneau VENDU (1 dernier clic après l'étape 13)
     if (nextStep >= 14) {
-      setIsSold(true);
-      localStorage.setItem('tomNookSold', 'true');
-      localStorage.setItem('ecopine_tom_nook_sold', 'true');
+      if (userStorageKey) {
+        localStorage.setItem(userStorageKey, 'true');
+      }
       if (user?.uid) {
         try {
           await updateDoc(doc(firestoreDb, 'users_meta', user.uid), { tomNookSold: true });

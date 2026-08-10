@@ -1316,6 +1316,7 @@ export const DbProvider = ({ children }) => {
       themePreference: 'default',
       unlockedThemes: ['default', 'red', 'blue', 'yellow'],
       role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
+      tomNookSold: false,
       tutorialProgress: {
         isCompleted: false,
         steps: {
@@ -1376,6 +1377,7 @@ export const DbProvider = ({ children }) => {
           role: user.email === "matysallanet@gmail.com" ? "admin" : "member",
           themePreference: "default",
           unlockedThemes: ["default", "red", "blue", "yellow"],
+          tomNookSold: false,
           tutorialProgress: {
             isCompleted: false,
             steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false }
@@ -1772,6 +1774,9 @@ export const DbProvider = ({ children }) => {
       if (usersMetaDoc.tutorialProgress !== undefined) {
         list.push({ key: 'tutorial_progress', value: usersMetaDoc.tutorialProgress });
       }
+      if (usersMetaDoc.tomNookSold !== undefined) {
+        list.push({ key: 'tomNookSold', value: usersMetaDoc.tomNookSold });
+      }
     }
     return list;
   }, [usersMetaDoc]);
@@ -1864,6 +1869,8 @@ export const DbProvider = ({ children }) => {
     isLoading: authLoading || dataLoading,
     user: currentUser,
     username: usersMetaDoc?.username || '',
+    userProfile: usersMetaDoc,
+    usersMetaDoc,
     userMeta,
     accounts,
     transactions,

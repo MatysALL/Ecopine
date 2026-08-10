@@ -133,10 +133,11 @@ export default function AdminView() {
         await batch.commit();
       }
 
-      // Reset tutorial progress
+      // Reset tutorial progress & Tom Nook Easter Egg
       const userRef = doc(firestoreDb, 'users_meta', uid);
       const batchMeta = writeBatch(firestoreDb);
       batchMeta.update(userRef, {
+        tomNookSold: false,
         tutorialProgress: {
           isCompleted: false,
           steps: {
@@ -150,6 +151,9 @@ export default function AdminView() {
         }
       });
       await batchMeta.commit();
+      localStorage.removeItem(`tomNookSold_${uid}`);
+      localStorage.removeItem('tomNookSold');
+      localStorage.removeItem('ecopine_tom_nook_sold');
 
       alert(`Le compte de ${username} a été réinitialisé avec succès !`);
     } catch (err) {
