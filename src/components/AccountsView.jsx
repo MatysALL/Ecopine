@@ -41,8 +41,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [isDragActive, setIsDragActive] = useState(false);
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
+  const [toastMessage, setToastMessage] = useState(null);
 
-  const { accountsData: accounts, transactions: allTransactions, user, acceptedFriends, username } = useDb();
+  const { accountsData: accounts, transactions: allTransactions, categories, user, acceptedFriends, username } = useDb();
 
   // Sharing popup state
   const [sharingDoc, setSharingDoc] = useState(null);
@@ -404,9 +405,65 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
   };
 
+  // Helper to escape special characters for CSV format
+  const escapeCSV = (val) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(';') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  // CSV Export Handler
+  const handleExportCSV = () => {
+    if (!activeAccount || !transactions) return;
+
+    // Required columns: Date;Libellé;Montant;Type;Catégorie;Note
+    const headers = ['Date', 'Libellé', 'Montant', 'Type', 'Catégorie', 'Note'];
+    const rows = transactions.map(tx => {
+      const typeLabel = tx.type === 'credit' ? 'Recette' : 'Dépense';
+      const amountVal = Math.abs(Number(tx.amount) || 0).toFixed(2);
+      const catName = tx.category || categories?.find(c => c.id === tx.categoryId)?.name || '';
+      const noteVal = tx.note || tx.description || '';
+
+      return [
+        escapeCSV(tx.date || ''),
+        escapeCSV(tx.name || tx.description || 'Transaction'),
+        escapeCSV(amountVal),
+        escapeCSV(typeLabel),
+        escapeCSV(catName),
+        escapeCSV(noteVal)
+      ].join(';');
+    });
+
+    // UTF-8 with BOM (\uFEFF) and semicolon separator (;)
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const sanitizedAccountName = (activeAccount.name || 'compte')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9_-]/gi, '_')
+      .replace(/_+/g, '_');
+
+    const fileName = `ecopine_${sanitizedAccountName}_${todayStr}.csv`;
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const parseCSVDate = (dateStr) => {
     if (!dateStr) return '';
-    const parts = dateStr.trim().split(/[./-]/);
+    const clean = dateStr.trim().replace(/^["']|["']$/g, '');
+    const parts = clean.split(/[./-]/);
     if (parts.length === 3) {
       if (parts[2].length === 4) { // DD/MM/YYYY
         return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
@@ -415,90 +472,124 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       }
     }
     try {
-      const d = new Date(dateStr);
+      const d = new Date(clean);
       if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
     } catch (e) {}
-    return dateStr;
+    return clean;
   };
 
   const parseCSVAmount = (amountStr) => {
     if (!amountStr) return 0;
-    let clean = amountStr.replace(/\s/g, '').replace(',', '.').replace('€', '').trim();
+    let clean = amountStr.replace(/\s/g, '').replace(',', '.').replace('€', '').replace('🔔', '').replace('$', '').trim();
     const parsed = parseFloat(clean);
     return isNaN(parsed) ? 0 : parsed;
   };
 
   const processCSVFile = (file) => {
     setCsvError('');
+    if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target.result;
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      const text = e.target.result || '';
+      // Strip UTF-8 BOM if present
+      const cleanText = text.replace(/^\uFEFF/, '');
+      const lines = cleanText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
       
       if (lines.length < 2) {
         setCsvError("Le fichier CSV est vide ou ne contient pas assez de données.");
         return;
       }
 
-      let delimiter = ',';
-      if (lines[0].includes(';')) delimiter = ';';
-      else if (lines[0].includes('\t')) delimiter = '\t';
+      // Detect separator: ';' default, fallback ','
+      let delimiter = ';';
+      if (!lines[0].includes(';') && lines[0].includes(',')) {
+        delimiter = ',';
+      } else if (!lines[0].includes(';') && !lines[0].includes(',') && lines[0].includes('\t')) {
+        delimiter = '\t';
+      }
 
-      const rows = lines.map(line => line.split(delimiter).map(cell => cell.trim().replace(/^["']|["']$/g, '')));
+      const parseCSVLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === delimiter && !inQuotes) {
+            result.push(current.trim().replace(/^["']|["']$/g, ''));
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim().replace(/^["']|["']$/g, ''));
+        return result;
+      };
+
+      const rows = lines.map(parseCSVLine);
       
       const headers = rows[0].map(h => h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
       
       let dateCol = headers.findIndex(h => h.includes('date') || h.includes('valeur'));
-      let descCol = headers.findIndex(h => h.includes('description') || h.includes('libelle') || h.includes('communication') || h.includes('motif') || h.includes('details') || h.includes('nom'));
-      let amountCol = headers.findIndex(h => h.includes('montant') || h.includes('somme') || h.includes('valeur') || h.includes('amount'));
+      let descCol = headers.findIndex(h => h.includes('libelle') || h.includes('description') || h.includes('name') || h.includes('motif') || h.includes('nom') || h.includes('details'));
+      let amountCol = headers.findIndex(h => h.includes('montant') || h.includes('amount') || h.includes('somme') || h.includes('valeur'));
+      let typeCol = headers.findIndex(h => h.includes('type'));
+      let catCol = headers.findIndex(h => h.includes('categorie') || h.includes('category'));
+      let noteCol = headers.findIndex(h => h.includes('note') || h.includes('remarque'));
 
+      // Validate minimal presence of Date and Montant columns
       if (dateCol === -1 || amountCol === -1) {
-        const testRow = rows[1];
-        if (testRow) {
-          testRow.forEach((cell, idx) => {
-            if (dateCol === -1 && (cell.includes('/') || cell.includes('-')) && cell.length >= 8) {
-              dateCol = idx;
-            } else if (amountCol === -1 && !isNaN(parseFloat(cell.replace(',', '.')))) {
-              amountCol = idx;
-            } else if (descCol === -1 && cell.length > 3 && isNaN(parseFloat(cell))) {
-              descCol = idx;
-            }
-          });
-        }
-      }
-
-      if (dateCol === -1 || amountCol === -1) {
-        setCsvError("Impossible de détecter automatiquement les colonnes de Date ou de Montant.");
+        setCsvError("Le fichier CSV doit impérativement contenir les colonnes 'Date' et 'Montant'.");
         return;
       }
 
       const parsedTransactions = [];
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (row.length <= Math.max(dateCol, amountCol, descCol)) continue;
+        if (row.length <= Math.max(dateCol, amountCol)) continue;
 
         const rawDate = row[dateCol];
-        const rawDesc = descCol !== -1 ? row[descCol] : 'Transaction Importée';
+        const rawDesc = descCol !== -1 && row[descCol] ? row[descCol] : 'Transaction Importée';
         const rawAmount = row[amountCol];
+        const rawType = typeCol !== -1 ? row[typeCol] : '';
+        const rawCat = catCol !== -1 ? row[catCol] : 'Import CSV';
+        const rawNote = noteCol !== -1 ? row[noteCol] : '';
 
         const date = parseCSVDate(rawDate);
         const amount = parseCSVAmount(rawAmount);
 
         if (date && amount !== 0) {
-          const isIncome = amount > 0;
+          let isIncome = amount > 0;
+          if (rawType) {
+            const normalizedType = rawType.toLowerCase();
+            if (normalizedType.includes('recette') || normalizedType.includes('credit')) {
+              isIncome = true;
+            } else if (normalizedType.includes('dépense') || normalizedType.includes('depense') || normalizedType.includes('debit')) {
+              isIncome = false;
+            }
+          }
+
           parsedTransactions.push({
             date,
             name: rawDesc || 'Transaction sans nom',
             description: rawDesc || 'Transaction sans nom',
             amount: Math.abs(amount),
             type: isIncome ? 'credit' : 'debit',
-            category: 'Import CSV',
+            category: rawCat || 'Import CSV',
             categoryId: null,
             budgetId: null,
             executionType: 'spontaneous',
             isRecurring: false,
             recurrencePeriod: 'none',
-            recurrenceEnd: ''
+            recurrenceEnd: '',
+            note: rawNote || ''
           });
         }
       }
@@ -509,7 +600,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         setCsvPreviewTxs(parsedTransactions);
       }
     };
-    reader.readAsText(file);
+    reader.readAsText(file, 'UTF-8');
   };
 
   const handleConfirmCSVImport = async () => {
@@ -521,8 +612,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }));
 
     await db.transactions.bulkAdd(preparedTxs);
+    const count = preparedTxs.length;
     setCsvPreviewTxs(null);
-    alert(`${preparedTxs.length} transactions importées avec succès !`);
+    setToastMessage(`${count} transactions importées avec succès ! 🎉`);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
   };
 
   return (
@@ -632,8 +727,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             </div>
           )}
 
-          {/* Account Edit/Delete Controls */}
-          <div className="flex gap-3">
+          {/* Account Edit/Export/Import/Delete Controls */}
+          <div className="flex flex-wrap gap-3 items-center">
             {myRole !== 'viewer' && (
               <button
                 onClick={() => handleEditAccount(activeAccount)}
@@ -642,6 +737,29 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 <Edit className="w-4 h-4" /> Modifier le Compte
               </button>
             )}
+
+            {/* 📤 Exporter en CSV */}
+            <button
+              onClick={handleExportCSV}
+              className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
+              title="Exporter le relevé de ce compte au format CSV"
+            >
+              <Upload className="w-4 h-4 text-ac-green rotate-180" /> 📤 Exporter en CSV
+            </button>
+
+            {/* 📥 Importer un CSV */}
+            {myRole !== 'viewer' && (
+              <label className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer">
+                <Upload className="w-4 h-4 text-ac-sky" /> 📥 Importer un CSV
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  className="hidden" 
+                  onChange={handleFileInput} 
+                />
+              </label>
+            )}
+
             {(activeAccount.ownerId === user?.uid || !activeAccount.ownerId || (activeAccount.allowedUsers && activeAccount.allowedUsers[0] === user?.uid)) ? (
               <button
                 onClick={() => handleDeleteAccount(activeAccount.id)}
@@ -1343,7 +1461,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
           </div>
         </div>
       )}
-
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 bg-ac-green text-white font-extrabold text-sm px-5 py-3 rounded-2xl border-3 border-ac-brown shadow-ac-lg z-50 animate-bounce-in flex items-center gap-2">
+          <CheckCircle className="w-5 h-5 text-white" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
     </div>
   );
