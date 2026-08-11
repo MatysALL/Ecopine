@@ -1,18 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { db, useDb } from '../db';
-import { doc, getDoc, getDocs, query, collection, where } from 'firebase/firestore';
-import { db as firestoreDb } from '../firebase';
 import { Plus, Trash2, Handshake, X, Coins, Sparkles, Mail, Edit2 } from 'lucide-react';
-import InlineShareSelector from './InlineShareSelector';
-import AvatarStackPopover from './AvatarStackPopover';
 
 export default function DebtsView() {
   const { debts = [], accountsData: accounts = [], user, acceptedFriends, username } = useDb();
-
-  // Sharing state
-  const [sharedFriendUids, setSharedFriendUids] = useState([]);
-  const [formUserRoles, setFormUserRoles] = useState({});
-  const [openPopoverDebtId, setOpenPopoverDebtId] = useState(null);
 
   // Editing debt state
   const [editingDebt, setEditingDebt] = useState(null);
@@ -64,8 +55,7 @@ export default function DebtsView() {
 
     setIsSubmitting(true);
     try {
-      const primaryFriendId = associatedFriendId || (sharedFriendUids.length > 0 ? sharedFriendUids[0] : null);
-      const selectedFriend = acceptedFriends?.find(f => f.uid === primaryFriendId);
+      const selectedFriend = acceptedFriends?.find(f => f.uid === associatedFriendId);
 
       const debtData = {
         type: debtType,
@@ -73,10 +63,8 @@ export default function DebtsView() {
         amount: amt,
         description: debtDescription.trim(),
         status: 'pending',
-        associatedFriendId: primaryFriendId,
-        associatedFriendName: selectedFriend ? selectedFriend.name : null,
-        allowedUsers: Array.from(new Set([user.uid, ...sharedFriendUids])),
-        userRoles: { [user.uid]: 'owner', ...formUserRoles }
+        associatedFriendId: associatedFriendId || null,
+        associatedFriendName: selectedFriend ? selectedFriend.name : null
       };
 
       if (editingDebt) {
@@ -108,8 +96,6 @@ export default function DebtsView() {
     setDebtAmount(debt.amount.toString());
     setDebtDescription(debt.description || '');
     setAssociatedFriendId(debt.associatedFriendId || '');
-    setSharedFriendUids(debt.allowedUsers ? debt.allowedUsers.filter(uid => uid !== user?.uid) : []);
-    setFormUserRoles(debt.userRoles || {});
     setFormOpen(true);
   };
 
@@ -118,21 +104,12 @@ export default function DebtsView() {
     setDebtAmount('');
     setDebtDescription('');
     setAssociatedFriendId('');
-    setSharedFriendUids([]);
-    setFormUserRoles({});
     setEditingDebt(null);
     setFormOpen(false);
   };
 
   // Delete directly
   const handleDeleteDebt = async (id) => {
-    const debt = debts?.find(d => d.id === id);
-    if (!debt) return;
-    const isOwner = debt.ownerId === user?.uid || debt.creatorId === user?.uid || debt.userId === user?.uid || !debt.ownerId && !debt.creatorId && !debt.userId || (debt.allowedUsers && debt.allowedUsers[0] === user?.uid);
-    if (!isOwner) {
-      alert("Vous n'êtes pas le propriétaire de cette dette.");
-      return;
-    }
     if (window.confirm("Es-tu sûr de vouloir effacer cette dette de ton registre ?")) {
       try {
         await db.debts.delete(id);
@@ -140,34 +117,6 @@ export default function DebtsView() {
         console.error(err);
         alert("Erreur lors de la suppression.");
       }
-    }
-  };
-
-  const handleLeaveDebt = async (debt) => {
-    const confirmLeave = window.confirm("Es-tu sûr de vouloir quitter cette dette partagée ?");
-    if (!confirmLeave) return;
-
-    try {
-      const myUsername = username || 'Habitant';
-      const updatedAllowedUsers = (debt.allowedUsers || []).filter(uid => uid !== user?.uid);
-      
-      const updatedUserRoles = { ...(debt.userRoles || {}) };
-      delete updatedUserRoles[user?.uid];
-
-      const updatedSharedWithNames = (debt.sharedWithNames || []).filter(
-        name => name.toLowerCase() !== myUsername.toLowerCase()
-      );
-
-      await db.debts.update(debt.id, {
-        allowedUsers: updatedAllowedUsers,
-        userRoles: updatedUserRoles,
-        sharedWithNames: updatedSharedWithNames
-      });
-
-      alert("Vous avez quitté le partage de cette dette.");
-    } catch (err) {
-      console.error(err);
-      alert("Erreur lors de la sortie du partage.");
     }
   };
 
@@ -192,14 +141,12 @@ export default function DebtsView() {
     try {
       const todayStr = new Date().toISOString().split('T')[0];
 
-      // Format description as strict: [Nom de la dette] - [Description] or just [Nom]
       const txDescription = settlingDebt.description
         ? `${settlingDebt.person} - ${settlingDebt.description}`
         : settlingDebt.person;
 
       const isToPay = settlingDebt.type === 'to_pay';
 
-      // Create new transaction structure
       const newTx = {
         accountId: selectedAccountId,
         name: isToPay ? `Remboursement : ${settlingDebt.person}` : `Encaissement : ${settlingDebt.person}`,
@@ -210,54 +157,11 @@ export default function DebtsView() {
         pocketId: null
       };
 
-      // Check shared debt & account details for mirror transaction
-      const isSharedDebt = (settlingDebt.allowedUsers || []).length > 1;
-      const isSharedAccount = (targetAccount.allowedUsers || []).length > 1;
-      const otherUid = isSharedDebt ? settlingDebt.allowedUsers.find(uid => uid !== user?.uid) : null;
-      let otherAccountId = null;
-
-      if (isSharedDebt && isSharedAccount && otherUid) {
-        const otherMetaRef = doc(firestoreDb, 'users_meta', otherUid);
-        const otherMetaSnap = await getDoc(otherMetaRef);
-        if (otherMetaSnap.exists()) {
-          otherAccountId = otherMetaSnap.data().favoriteAccountId;
-        }
-
-        if (!otherAccountId) {
-          const qAccs = query(collection(firestoreDb, 'accounts'), where('allowedUsers', 'array-contains', otherUid));
-          const snapAccs = await getDocs(qAccs);
-          if (!snapAccs.empty) {
-            otherAccountId = snapAccs.docs[0].id;
-          }
-        }
-      }
-
-      // Run transactional update
-      await db.transaction('rw', [db.transactions, db.debts], async () => {
-        // Add transaction
-        await db.transactions.add(newTx);
-
-        // Add mirror transaction if shared and other participant account is resolved
-        if (isSharedDebt && isSharedAccount && otherAccountId) {
-          const mirrorTx = {
-            accountId: otherAccountId,
-            name: isToPay ? `Encaissement (Miroir) : ${settlingDebt.person}` : `Remboursement (Miroir) : ${settlingDebt.person}`,
-            description: `Ajustement miroir pour dette/créance partagée : ${settlingDebt.description || settlingDebt.person}`,
-            amount: settlingDebt.amount,
-            type: isToPay ? 'credit' : 'debit',
-            date: todayStr,
-            pocketId: null
-          };
-          await db.transactions.add(mirrorTx);
-        }
-
-        // Delete debt (resolved)
-        await db.debts.delete(settlingDebt.id);
-      });
+      await db.transactions.add(newTx);
+      await db.debts.delete(settlingDebt.id);
 
       setSettleSuccess(true);
 
-      // Close modal after delay
       setTimeout(() => {
         setSettlingDebt(null);
         setSettleSuccess(false);
@@ -373,23 +277,6 @@ export default function DebtsView() {
             />
           </div>
 
-          <InlineShareSelector
-            allowedUsers={sharedFriendUids}
-            userRoles={formUserRoles}
-            onChange={(newAllowed, newUserRoles) => {
-              setSharedFriendUids(newAllowed);
-              setFormUserRoles(newUserRoles);
-            }}
-            onSelectFriend={(friend) => {
-              if (friend && friend.name) {
-                setDebtPerson(friend.name);
-                setAssociatedFriendId(friend.uid);
-              }
-            }}
-            ownerId={editingDebt?.creatorId || user?.uid}
-            title="Passeport Habitants — Attribuer & Partager la Dette"
-          />
-
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -456,12 +343,8 @@ export default function DebtsView() {
           ) : (
             <div className="space-y-4">
               {payables.map((debt) => {
-                const isPopoverOpen = openPopoverDebtId === debt.id;
-                const isOwner = debt.ownerId === user?.uid || debt.creatorId === user?.uid || debt.userId === user?.uid || !debt.ownerId && !debt.creatorId && !debt.userId || (debt.allowedUsers && debt.allowedUsers[0] === user?.uid);
                 return (
-                  <div key={debt.id} className={`p-4 bg-ac-red-light/10 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible ${
-                    isPopoverOpen ? 'z-30' : 'z-0'
-                  }`}>
+                  <div key={debt.id} className="p-4 bg-ac-red-light/10 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible">
                     <div className="space-y-1">
                       <div className="flex items-baseline gap-1.5 flex-wrap">
                         <span className="font-extrabold text-sm text-ac-brown">{debt.person}</span>
@@ -480,15 +363,6 @@ export default function DebtsView() {
                       </span>
 
                       <div className="flex gap-1.5">
-                        <AvatarStackPopover
-                          allowedUsers={debt.allowedUsers || []}
-                          userRoles={debt.userRoles || {}}
-                          ownerId={debt.creatorId || debt.userId}
-                          docId={debt.id}
-                          collectionName="debts"
-                          onOpenChange={(open) => setOpenPopoverDebtId(open ? debt.id : null)}
-                        />
-                      {(debt.creatorId === user?.uid || !debt.creatorId) && (
                         <button
                           onClick={() => handleEditDebt(debt)}
                           className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
@@ -496,15 +370,13 @@ export default function DebtsView() {
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                      <button
-                        onClick={() => openSettleModal(debt)}
-                        className="bg-ac-red hover:bg-ac-red/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
-                        title="Régler / Solder"
-                      >
-                        Solder
-                      </button>
-                      {isOwner ? (
+                        <button
+                          onClick={() => openSettleModal(debt)}
+                          className="bg-ac-red hover:bg-ac-red/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
+                          title="Régler / Solder"
+                        >
+                          Solder
+                        </button>
                         <button
                           onClick={() => handleDeleteDebt(debt.id)}
                           className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
@@ -512,20 +384,11 @@ export default function DebtsView() {
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => handleLeaveDebt(debt)}
-                          className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
-                          title="Quitter le partage"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
           )}
         </div>
@@ -543,12 +406,8 @@ export default function DebtsView() {
           ) : (
             <div className="space-y-4">
               {receivables.map((debt) => {
-                const isPopoverOpen = openPopoverDebtId === debt.id;
-                const isOwner = debt.ownerId === user?.uid || debt.creatorId === user?.uid || debt.userId === user?.uid || !debt.ownerId && !debt.creatorId && !debt.userId || (debt.allowedUsers && debt.allowedUsers[0] === user?.uid);
                 return (
-                  <div key={debt.id} className={`p-4 bg-ac-green-light/20 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible ${
-                    isPopoverOpen ? 'z-30' : 'z-0'
-                  }`}>
+                  <div key={debt.id} className="p-4 bg-ac-green-light/20 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible">
                     <div className="space-y-1">
                       <div className="flex items-baseline gap-1.5 flex-wrap">
                         <span className="font-extrabold text-sm text-ac-brown">{debt.person}</span>
@@ -567,15 +426,6 @@ export default function DebtsView() {
                       </span>
 
                       <div className="flex gap-1.5">
-                        <AvatarStackPopover
-                          allowedUsers={debt.allowedUsers || []}
-                          userRoles={debt.userRoles || {}}
-                          ownerId={debt.creatorId || debt.userId}
-                          docId={debt.id}
-                          collectionName="debts"
-                          onOpenChange={(open) => setOpenPopoverDebtId(open ? debt.id : null)}
-                        />
-                      {(debt.creatorId === user?.uid || !debt.creatorId) && (
                         <button
                           onClick={() => handleEditDebt(debt)}
                           className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
@@ -583,15 +433,13 @@ export default function DebtsView() {
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                      <button
-                        onClick={() => openSettleModal(debt)}
-                        className="bg-ac-green hover:bg-ac-green/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
-                        title="Récupérer / Solder"
-                      >
-                        Solder
-                      </button>
-                      {isOwner ? (
+                        <button
+                          onClick={() => openSettleModal(debt)}
+                          className="bg-ac-green hover:bg-ac-green/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
+                          title="Récupérer / Solder"
+                        >
+                          Solder
+                        </button>
                         <button
                           onClick={() => handleDeleteDebt(debt.id)}
                           className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
@@ -599,20 +447,11 @@ export default function DebtsView() {
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => handleLeaveDebt(debt)}
-                          className="p-1.5 bg-white hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
-                          title="Quitter le partage"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
           )}
         </div>

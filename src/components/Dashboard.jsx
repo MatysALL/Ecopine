@@ -4,7 +4,6 @@ import {
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
   ChevronRight, Gift, Activity, Smile, Handshake
 } from 'lucide-react';
-import AvatarStackPopover from './AvatarStackPopover';
 
 export default function Dashboard({ onViewAccountDetails, username }) {
   const { 
@@ -243,14 +242,6 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  <AvatarStackPopover
-                    allowedUsers={favoriteAccountDetails.account.allowedUsers || []}
-                    userRoles={favoriteAccountDetails.account.userRoles || {}}
-                    ownerId={favoriteAccountDetails.account.creatorId || favoriteAccountDetails.account.ownerId}
-                    docId={favoriteAccountDetails.account.id}
-                    collectionName="accounts"
-                    size="md"
-                  />
                   <div className="w-12 h-12 bg-ac-gold rounded-full flex items-center justify-center border-2 border-ac-brown shadow-ac-sm group-hover:scale-110 transition-transform duration-200">
                     <Coins className="w-6 h-6 text-white fill-white" />
                   </div>
@@ -394,23 +385,10 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                       <div>
                         <h4 className="font-extrabold text-xs text-ac-brown">{acc.name}</h4>
                         <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-white border border-ac-brown/20 text-ac-brown-light mt-1 inline-block">
-                          {acc.sharedWithNames && acc.sharedWithNames.length > 0 
-                            ? `Partagé avec ${acc.sharedWithNames.join(', ')}` 
-                            : acc.type} {acc.rate > 0 ? `(${acc.rate}%)` : ''}
+                          {acc.type} {acc.rate > 0 ? `(${acc.rate}%)` : ''}
                         </span>
                       </div>
                       <div className="text-right flex items-center gap-2">
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <AvatarStackPopover
-                            allowedUsers={acc.allowedUsers || []}
-                            userRoles={acc.userRoles || {}}
-                            ownerId={acc.creatorId || acc.ownerId}
-                            docId={acc.id}
-                            collectionName="accounts"
-                            size="sm"
-                            onOpenChange={(open) => setOpenPopoverAccountId(open ? acc.id : null)}
-                          />
-                        </div>
                         <span className="font-black text-sm text-ac-brown block">
                           {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
                         </span>
@@ -444,14 +422,6 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                         )}
                       </div>
                       <div className="text-right ml-3 shrink-0 flex items-center gap-2">
-                        <AvatarStackPopover
-                          allowedUsers={wish.allowedUsers || []}
-                          userRoles={wish.userRoles || {}}
-                          ownerId={wish.creatorId || wish.userId}
-                          docId={wish.id}
-                          collectionName="wishlist"
-                          size="sm"
-                        />
                         <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs">
                           {wish.price.toLocaleString('fr-FR')} 🔔
                         </span>

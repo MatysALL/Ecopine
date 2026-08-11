@@ -6,20 +6,13 @@ import {
   Plus, Edit2, Trash2, Gift, Coins, Sparkles, X, 
   Landmark, Mail
 } from 'lucide-react';
-import InlineShareSelector from './InlineShareSelector';
-import AvatarStackPopover from './AvatarStackPopover';
 
 export default function WishlistView() {
   const { wishlist: wishes, accountsData: accounts, user, acceptedFriends, username } = useDb();
 
-  // Sharing checkboxes state
-  const [sharedFriendUids, setSharedFriendUids] = useState([]);
-  const [formUserRoles, setFormUserRoles] = useState({});
-
   // UI state
   const [formOpen, setFormOpen] = useState(false);
   const [editingWish, setEditingWish] = useState(null);
-  const [openPopoverWishId, setOpenPopoverWishId] = useState(null);
   
   // Form fields
   const [wishName, setWishName] = useState('');
@@ -104,9 +97,7 @@ export default function WishlistView() {
       const wishData = {
         name: wishName.trim(),
         price: priceValue,
-        description: wishDescription.trim(),
-        allowedUsers: [user.uid, ...sharedFriendUids],
-        userRoles: { [user.uid]: 'owner', ...formUserRoles }
+        description: wishDescription.trim()
       };
 
       if (editingWish) {
@@ -133,49 +124,12 @@ export default function WishlistView() {
     setWishName(wish.name);
     setWishPrice(wish.price.toString());
     setWishDescription(wish.description || '');
-    setSharedFriendUids(wish.allowedUsers ? wish.allowedUsers.filter(uid => uid !== user?.uid) : []);
-    setFormUserRoles(wish.userRoles || {});
     setFormOpen(true);
   };
 
   const handleDeleteWish = async (id) => {
-    const wish = wishes?.find(w => w.id === id);
-    if (!wish) return;
-    const isOwner = wish.ownerId === user?.uid || wish.creatorId === user?.uid || !wish.ownerId && !wish.creatorId || (wish.allowedUsers && wish.allowedUsers[0] === user?.uid);
-    if (!isOwner) {
-      alert("Vous n'êtes pas le propriétaire de ce souhait.");
-      return;
-    }
     if (window.confirm("Es-tu sûr de vouloir retirer ce souhait de ton catalogue ?")) {
       await db.wishlist.delete(id);
-    }
-  };
-
-  const handleLeaveWish = async (wish) => {
-    const confirmLeave = window.confirm("Es-tu sûr de vouloir quitter ce souhait partagé ?");
-    if (!confirmLeave) return;
-
-    try {
-      const myUsername = username || 'Habitant';
-      const updatedAllowedUsers = (wish.allowedUsers || []).filter(uid => uid !== user?.uid);
-      
-      const updatedUserRoles = { ...(wish.userRoles || {}) };
-      delete updatedUserRoles[user?.uid];
-
-      const updatedSharedWithNames = (wish.sharedWithNames || []).filter(
-        name => name.toLowerCase() !== myUsername.toLowerCase()
-      );
-
-      await db.wishlist.update(wish.id, {
-        allowedUsers: updatedAllowedUsers,
-        userRoles: updatedUserRoles,
-        sharedWithNames: updatedSharedWithNames
-      });
-
-      alert("Vous avez quitté le partage de ce souhait.");
-    } catch (err) {
-      console.error(err);
-      alert("Erreur lors de la sortie du partage.");
     }
   };
 
@@ -185,8 +139,6 @@ export default function WishlistView() {
     setWishDescription('');
     setFormOpen(false);
     setEditingWish(null);
-    setSharedFriendUids([]);
-    setFormUserRoles({});
   };
 
   // Handlers for Purchase flow
@@ -326,16 +278,6 @@ export default function WishlistView() {
             />
           </div>
 
-          <InlineShareSelector
-            allowedUsers={sharedFriendUids}
-            userRoles={formUserRoles}
-            onChange={(newAllowed, newUserRoles) => {
-              setSharedFriendUids(newAllowed);
-              setFormUserRoles(newUserRoles);
-            }}
-            ownerId={editingWish?.creatorId || user?.uid}
-          />
-
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -369,8 +311,6 @@ export default function WishlistView() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedWishes.map((wish, index) => {
             const isDragging = draggableWishId === wish.id;
-            const isPopoverOpen = openPopoverWishId === wish.id;
-            const isOwner = wish.ownerId === user?.uid || wish.creatorId === user?.uid || !wish.ownerId && !wish.creatorId || (wish.allowedUsers && wish.allowedUsers[0] === user?.uid);
             return (
               <div 
                 key={wish.id} 
@@ -380,8 +320,6 @@ export default function WishlistView() {
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
                 className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 flex flex-col justify-between group select-none relative transition-all overflow-visible ${
-                  isPopoverOpen ? 'z-30' : 'z-0'
-                } ${
                   isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                 }`}
               >
@@ -424,16 +362,8 @@ export default function WishlistView() {
 
                 {/* Action Buttons Group */}
                 <div className="mt-6 pt-4 border-t border-ac-brown/10 flex items-center justify-between">
-                  {/* Edit & Delete & Share */}
+                  {/* Edit & Delete */}
                   <div className="flex gap-1.5">
-                    <AvatarStackPopover
-                      allowedUsers={wish.allowedUsers || []}
-                      userRoles={wish.userRoles || {}}
-                      ownerId={wish.creatorId || wish.userId}
-                      docId={wish.id}
-                      collectionName="wishlist"
-                      onOpenChange={(open) => setOpenPopoverWishId(open ? wish.id : null)}
-                    />
                     <button
                       onClick={() => handleEditWish(wish)}
                       className="p-2 hover:bg-ac-cream rounded-xl text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
@@ -441,23 +371,13 @@ export default function WishlistView() {
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
-                    {isOwner ? (
-                      <button
-                        onClick={() => handleDeleteWish(wish.id)}
-                        className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
-                        title="Supprimer ce souhait"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleLeaveWish(wish)}
-                        className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
-                        title="Quitter le partage"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDeleteWish(wish.id)}
+                      className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                      title="Supprimer ce souhait"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
                   {/* Purchase Button */}

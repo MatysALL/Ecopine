@@ -691,8 +691,7 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        allowedUsers: data.allowedUsers || [auth.currentUser.uid],
-        creatorId: auth.currentUser.uid
+        userId: auth.currentUser.uid
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'accounts'));
@@ -733,7 +732,7 @@ export const db = {
     },
     clear: async () => {
       if (!auth.currentUser) return;
-      const q = query(collection(firestoreDb, 'accounts'), where('allowedUsers', 'array-contains', auth.currentUser.uid));
+      const q = query(collection(firestoreDb, 'accounts'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
       const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'accounts', docSnap.id)));
@@ -749,8 +748,7 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          allowedUsers: [auth.currentUser.uid],
-          creatorId: auth.currentUser.uid
+          userId: auth.currentUser.uid
         });
       });
       if (!db._activeBatch) {
@@ -876,17 +874,19 @@ export const db = {
       }
     },
     bulkAdd: async (txs) => {
-      if (!auth.currentUser) return;
-      const batch = db._activeBatch || writeBatch(firestoreDb);
-      txs.forEach(tx => {
-        const ref = doc(collection(firestoreDb, 'transactions'));
-        const { id, ...rest } = tx;
-        batch.set(ref, {
-          ...rest,
-          userId: auth.currentUser.uid
+      if (!auth.currentUser || !txs || txs.length === 0) return;
+      const chunkSize = 450;
+      for (let i = 0; i < txs.length; i += chunkSize) {
+        const chunk = txs.slice(i, i + chunkSize);
+        const batch = writeBatch(firestoreDb);
+        chunk.forEach(tx => {
+          const ref = doc(collection(firestoreDb, 'transactions'));
+          const { id, ...rest } = tx;
+          batch.set(ref, {
+            ...rest,
+            userId: auth.currentUser.uid
+          });
         });
-      });
-      if (!db._activeBatch) {
         await batch.commit();
       }
     }
@@ -953,8 +953,7 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        allowedUsers: data.allowedUsers || [auth.currentUser.uid],
-        creatorId: auth.currentUser.uid
+        userId: auth.currentUser.uid
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'wishlist'));
@@ -982,7 +981,7 @@ export const db = {
     },
     clear: async () => {
       if (!auth.currentUser) return;
-      const q = query(collection(firestoreDb, 'wishlist'), where('allowedUsers', 'array-contains', auth.currentUser.uid));
+      const q = query(collection(firestoreDb, 'wishlist'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
       const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'wishlist', docSnap.id)));
@@ -998,8 +997,7 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          allowedUsers: [auth.currentUser.uid],
-          creatorId: auth.currentUser.uid
+          userId: auth.currentUser.uid
         });
       });
       if (!db._activeBatch) {
@@ -1076,8 +1074,7 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        allowedUsers: data.allowedUsers || [auth.currentUser.uid],
-        creatorId: auth.currentUser.uid
+        userId: auth.currentUser.uid
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'debts'));
@@ -1105,7 +1102,7 @@ export const db = {
     },
     clear: async () => {
       if (!auth.currentUser) return;
-      const q = query(collection(firestoreDb, 'debts'), where('allowedUsers', 'array-contains', auth.currentUser.uid));
+      const q = query(collection(firestoreDb, 'debts'), where('userId', '==', auth.currentUser.uid));
       const snap = await getDocs(q);
       const batch = db._activeBatch || writeBatch(firestoreDb);
       snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'debts', docSnap.id)));
@@ -1121,8 +1118,7 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          allowedUsers: [auth.currentUser.uid],
-          creatorId: auth.currentUser.uid
+          userId: auth.currentUser.uid
         });
       });
       if (!db._activeBatch) {
@@ -1473,44 +1469,6 @@ export const DbProvider = ({ children }) => {
     }
   }, [categories, currentUser, authLoading, dataLoading]);
 
-  // Transparent migration for legacy records
-  useEffect(() => {
-    if (!currentUser) return;
-    const runMigration = async () => {
-      try {
-        const collectionsToMigrate = ['accounts', 'wishlist', 'debts'];
-        for (const colName of collectionsToMigrate) {
-          const q = query(
-            collection(firestoreDb, colName), 
-            where('userId', '==', currentUser.uid)
-          );
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-            const batch = writeBatch(firestoreDb);
-            let migrationCount = 0;
-            snap.docs.forEach(docSnap => {
-              const data = docSnap.data();
-              if (!data.allowedUsers) {
-                batch.update(doc(firestoreDb, colName, docSnap.id), {
-                  allowedUsers: [currentUser.uid],
-                  creatorId: currentUser.uid
-                });
-                migrationCount++;
-              }
-            });
-            if (migrationCount > 0) {
-              await batch.commit();
-              console.log(`[V3.0.0 Migration] Migrated ${migrationCount} docs in ${colName}`);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Migration error:", error);
-      }
-    };
-    runMigration();
-  }, [currentUser]);
-
   // Data Subscription (only when logged in)
   useEffect(() => {
     if (!currentUser) return;
@@ -1573,9 +1531,9 @@ export const DbProvider = ({ children }) => {
     });
     unsubscribes.push(unsubAllMeta);
 
-    // Helpers for snapshot listeners containing allowedUsers
-    const subscribeCollectionShared = (colName, setList) => {
-      const q = query(collection(firestoreDb, colName), where('allowedUsers', 'array-contains', currentUser.uid));
+    // Helpers for snapshot listeners targeting document owner (userId)
+    const subscribeCollectionOwned = (colName, setList) => {
+      const q = query(collection(firestoreDb, colName), where('userId', '==', currentUser.uid));
       return onSnapshot(q, (snapshot) => {
         const list = snapshot.docs.map(d => ({
           id: d.id,
@@ -1585,9 +1543,9 @@ export const DbProvider = ({ children }) => {
       });
     };
 
-    unsubscribes.push(subscribeCollectionShared('accounts', setAccounts));
-    unsubscribes.push(subscribeCollectionShared('wishlist', setWishlist));
-    unsubscribes.push(subscribeCollectionShared('debts', setDebts));
+    unsubscribes.push(subscribeCollectionOwned('accounts', setAccounts));
+    unsubscribes.push(subscribeCollectionOwned('wishlist', setWishlist));
+    unsubscribes.push(subscribeCollectionOwned('debts', setDebts));
     unsubscribes.push(onSnapshot(query(collection(firestoreDb, 'categories'), where('userId', '==', currentUser.uid)), (snapshot) => {
       setCategories(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }));

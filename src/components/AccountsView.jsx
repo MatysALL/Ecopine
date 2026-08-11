@@ -9,8 +9,6 @@ import {
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import PocketManager from './PocketManager';
-import InlineShareSelector from './InlineShareSelector';
-import AvatarStackPopover from './AvatarStackPopover';
 
 export default function AccountsView({ selectedAccountId, setSelectedAccountId }) {
   // Account Form states
@@ -43,17 +41,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [toastMessage, setToastMessage] = useState(null);
   const [importHistoryModalOpen, setImportHistoryModalOpen] = useState(false);
 
-  const { accountsData: accounts, transactions: allTransactions, categories, user, acceptedFriends, username } = useDb();
-
-  // Sharing popup state
-  const [sharingDoc, setSharingDoc] = useState(null);
-
-  // Sharing checkboxes state
-  const [sharedFriendUids, setSharedFriendUids] = useState([]);
-
-  // Sharing roles state
-  const [formUserRoles, setFormUserRoles] = useState({});
-  const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
+  const { accountsData: accounts, transactions: allTransactions, categories, user, username } = useDb();
 
   // Drag & Drop state for Accounts
   const [draggableAccountId, setDraggableAccountId] = useState(null);
@@ -131,12 +119,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     return calculateLivretInterests(activeAccount, transactions, todayStr);
   }, [activeAccount, transactions]);
 
-  // Current active account user role
-  const myRole = useMemo(() => {
-    if (!activeAccount) return 'owner';
-    return activeAccount.userRoles?.[user?.uid] || 'owner';
-  }, [activeAccount, user]);
-
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
     e.preventDefault();
@@ -147,8 +129,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       const initial = parseFloat(accInitial);
       const rate = accRate ? parseFloat(accRate) : 0;
 
-      const ownerId = editingAccount ? (editingAccount.ownerId || editingAccount.creatorId || user.uid) : user.uid;
-
       const data = {
         name: accName.trim(),
         type: accType,
@@ -158,33 +138,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         initialBalance: isNaN(initial) ? 0 : initial,
         rate: isNaN(rate) ? 0 : rate,
       };
-
-      if (editingAccount && editingAccount.ownerId !== user.uid) {
-        // Safe merge for editors
-        data.allowedUsers = editingAccount.allowedUsers;
-        data.ownerId = ownerId;
-        data.userRoles = editingAccount.userRoles || { [ownerId]: 'owner', [user.uid]: 'editor' };
-        data.sharedWithNames = editingAccount.sharedWithNames || [];
-      } else {
-        // Owner logic
-        const roles = { [ownerId]: 'owner' };
-        const sharedNames = [];
-        const updatedAllowedUsers = [ownerId];
-
-        sharedFriendUids.forEach(uid => {
-          const friend = acceptedFriends?.find(f => f.uid === uid);
-          if (friend) {
-            roles[uid] = formUserRoles[uid] || 'editor';
-            sharedNames.push(friend.name);
-            updatedAllowedUsers.push(uid);
-          }
-        });
-
-        data.allowedUsers = updatedAllowedUsers;
-        data.ownerId = ownerId;
-        data.userRoles = roles;
-        data.sharedWithNames = sharedNames;
-      }
 
       if (editingAccount) {
         await db.accounts.update(editingAccount.id, data);
@@ -215,8 +168,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccRib('');
     setAccInitial('');
     setAccRate('');
-    setSharedFriendUids([]);
-    setFormUserRoles({});
   };
 
   const handleTransferSubmit = async (e) => {
@@ -303,20 +254,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccRib(acc.rib || '');
     setAccInitial(acc.initialBalance.toString());
     setAccRate(acc.rate ? acc.rate.toString() : '');
-    const accountOwner = acc.ownerId || acc.creatorId || user?.uid;
-    setSharedFriendUids(acc.allowedUsers ? acc.allowedUsers.filter(uid => uid !== accountOwner) : []);
-    setFormUserRoles(acc.userRoles || {});
     setAccountFormOpen(true);
   };
 
   const handleDeleteAccount = async (accId) => {
     const acc = accounts?.find(a => a.id === accId);
     if (!acc) return;
-    const isOwner = acc.ownerId === user?.uid || !acc.ownerId || (acc.allowedUsers && acc.allowedUsers[0] === user?.uid);
-    if (!isOwner) {
-      alert("Vous n'êtes pas le propriétaire de ce compte.");
-      return;
-    }
     const confirmDelete = window.confirm(
       "Es-tu sûr de vouloir supprimer ce compte ? Cela supprimera également toutes ses transactions et budgets liés."
     );
@@ -324,35 +267,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
     await db.accounts.delete(accId);
     setSelectedAccountId(null);
-  };
-
-  const handleLeaveAccount = async (acc) => {
-    const confirmLeave = window.confirm("Es-tu sûr de vouloir quitter ce compte partagé ?");
-    if (!confirmLeave) return;
-
-    try {
-      const myUsername = username || 'Habitant';
-      const updatedAllowedUsers = (acc.allowedUsers || []).filter(uid => uid !== user?.uid);
-      
-      const updatedUserRoles = { ...(acc.userRoles || {}) };
-      delete updatedUserRoles[user?.uid];
-
-      const updatedSharedWithNames = (acc.sharedWithNames || []).filter(
-        name => name.toLowerCase() !== myUsername.toLowerCase()
-      );
-
-      await db.accounts.update(acc.id, {
-        allowedUsers: updatedAllowedUsers,
-        userRoles: updatedUserRoles,
-        sharedWithNames: updatedSharedWithNames
-      });
-
-      setSelectedAccountId(null);
-      alert("Vous avez quitté le compte.");
-    } catch (err) {
-      console.error(err);
-      alert("Erreur lors de la sortie du compte.");
-    }
   };
 
   const handleAddTransactionFromBudget = (budgetId) => {
@@ -677,14 +591,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               <div>
                 <h2 className="text-2xl font-black text-ac-brown flex items-center gap-2">
                   {activeAccount.name}
-                  <AvatarStackPopover
-                    allowedUsers={activeAccount.allowedUsers || []}
-                    userRoles={activeAccount.userRoles || {}}
-                    ownerId={activeAccount.creatorId || activeAccount.ownerId}
-                    docId={activeAccount.id}
-                    collectionName="accounts"
-                    size="md"
-                  />
                   {activeAccount.bankName && (
                     <span className="text-xs font-black text-ac-brown-light bg-ac-cream px-2 py-0.5 rounded-md border border-ac-brown/15">
                       {activeAccount.bankName}
@@ -693,9 +599,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 </h2>
                 <div className="flex flex-wrap gap-2 items-center text-xs font-bold text-ac-brown-light mt-1">
                   <span className="bg-ac-gold-light border border-ac-gold/30 text-ac-gold-dark px-2.5 py-0.5 rounded-full font-black uppercase text-[9px]">
-                    {activeAccount.sharedWithNames && activeAccount.sharedWithNames.length > 0 
-                      ? `Partagé avec ${activeAccount.sharedWithNames.join(', ')}` 
-                      : activeAccount.type}
+                    {activeAccount.type}
                   </span>
                   {activeAccount.rate > 0 && (
                     <span className="bg-ac-green-light border border-ac-green/20 text-ac-green px-2.5 py-0.5 rounded-full">
@@ -769,14 +673,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
           {/* Account Edit/Export/Import/Delete Controls */}
           <div className="flex flex-wrap gap-3 items-center">
-            {myRole !== 'viewer' && (
-              <button
-                onClick={() => handleEditAccount(activeAccount)}
-                className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
-              >
-                <Edit className="w-4 h-4" /> Modifier le Compte
-              </button>
-            )}
+            <button
+              onClick={() => handleEditAccount(activeAccount)}
+              className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
+            >
+              <Edit className="w-4 h-4" /> Modifier le Compte
+            </button>
 
             {/* 📤 Exporter en CSV */}
             <button
@@ -788,38 +690,26 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             </button>
 
             {/* 📥 Importer un CSV */}
-            {myRole !== 'viewer' && (
-              <label className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer">
-                <Upload className="w-4 h-4 text-ac-sky" /> 📥 Importer un CSV
-                <input 
-                  type="file" 
-                  accept=".csv" 
-                  className="hidden" 
-                  onChange={handleFileInput} 
-                />
-              </label>
-            )}
+            <label className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer">
+              <Upload className="w-4 h-4 text-ac-sky" /> 📥 Importer un CSV
+              <input 
+                type="file" 
+                accept=".csv" 
+                className="hidden" 
+                onChange={handleFileInput} 
+              />
+            </label>
 
-            {(activeAccount.ownerId === user?.uid || !activeAccount.ownerId || (activeAccount.allowedUsers && activeAccount.allowedUsers[0] === user?.uid)) ? (
-              <button
-                onClick={() => handleDeleteAccount(activeAccount.id)}
-                className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" /> Supprimer le Compte
-              </button>
-            ) : (
-              <button
-                onClick={() => handleLeaveAccount(activeAccount)}
-                className="bg-ac-red/10 hover:bg-ac-red/20 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
-                title="Quitter ce compte partagé"
-              >
-                <X className="w-4 h-4" /> Quitter le compte
-              </button>
-            )}
+            <button
+              onClick={() => handleDeleteAccount(activeAccount.id)}
+              className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" /> Supprimer le Compte
+            </button>
           </div>
 
           {/* Nested Pocket Section */}
-          <PocketManager accountId={activeAccount.id} role={myRole} />
+          <PocketManager accountId={activeAccount.id} role="owner" />
 
           {/* Transactions CRUD Card */}
           <div className="ac-card p-6 bg-white border-ac-brown">
@@ -833,18 +723,15 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 self-start sm:self-auto">
-
-                {myRole !== 'viewer' && (
-                  <button
-                    onClick={() => {
-                      setEditingTransaction(null);
-                      setTxModalOpen(true);
-                    }}
-                    className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" /> Nouvelle Transaction
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    setEditingTransaction(null);
+                    setTxModalOpen(true);
+                  }}
+                  className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Nouvelle Transaction
+                </button>
               </div>
             </div>
 
@@ -1140,8 +1027,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     onDragEnd={handleAccountDragEnd}
                     onClick={() => setSelectedAccountId(acc.id)}
                     className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
-                      isPopoverOpen ? 'z-30' : 'z-0'
-                    } ${
                       isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                     }`}
                   >
@@ -1150,9 +1035,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         <h4 className="font-extrabold text-sm text-ac-brown leading-tight flex items-center gap-1.5 flex-wrap">
                           {acc.name}
                           <span className="text-[8px] font-black uppercase tracking-wider bg-ac-cream-dark/50 border border-ac-brown/10 text-ac-brown-light px-2 py-0.5 rounded-full">
-                            {acc.sharedWithNames && acc.sharedWithNames.length > 0 
-                              ? `Partagé avec ${acc.sharedWithNames.join(', ')}` 
-                              : acc.type}
+                            {acc.type}
                           </span>
                         </h4>
                         {acc.bankName && (
@@ -1163,17 +1046,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       </div>
 
                       <div className="flex gap-1.5 shrink-0 items-center">
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <AvatarStackPopover
-                            allowedUsers={acc.allowedUsers || []}
-                            userRoles={acc.userRoles || {}}
-                            ownerId={acc.creatorId || acc.ownerId}
-                            docId={acc.id}
-                            collectionName="accounts"
-                            size="sm"
-                            onOpenChange={(open) => setOpenPopoverAccountId(open ? acc.id : null)}
-                          />
-                        </div>
                         <div 
                           onMouseDown={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
                           onTouchStart={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
@@ -1434,18 +1306,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                 />
               </div>
-
-              {(!editingAccount || editingAccount.ownerId === user?.uid || editingAccount.creatorId === user?.uid) && (
-                <InlineShareSelector
-                  allowedUsers={sharedFriendUids}
-                  userRoles={formUserRoles}
-                  onChange={(newAllowed, newUserRoles) => {
-                    setSharedFriendUids(newAllowed);
-                    setFormUserRoles(newUserRoles);
-                  }}
-                  ownerId={editingAccount?.ownerId || user?.uid}
-                />
-              )}
 
               {/* Section: Historique & Gestion des imports CSV */}
               {editingAccount && (
