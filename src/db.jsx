@@ -1531,16 +1531,42 @@ export const DbProvider = ({ children }) => {
     });
     unsubscribes.push(unsubAllMeta);
 
-    // Helpers for snapshot listeners targeting document owner (userId)
+    // Helpers for snapshot listeners targeting document owner (userId or legacy fields: creatorId, ownerId, allowedUsers)
     const subscribeCollectionOwned = (colName, setList) => {
-      const q = query(collection(firestoreDb, colName), where('userId', '==', currentUser.uid));
-      return onSnapshot(q, (snapshot) => {
-        const list = snapshot.docs.map(d => ({
-          id: d.id,
-          ...d.data()
-        }));
+      const docsMap = {};
+      const notify = () => {
+        const list = Object.values(docsMap);
+        if (colName === 'debts') {
+          console.log("Dettes brutes Firestore :", list);
+        }
         setList(list);
-      });
+      };
+
+      const handleSnapshot = (snapshot) => {
+        snapshot.docs.forEach(d => {
+          docsMap[d.id] = { id: d.id, ...d.data() };
+        });
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'removed') {
+            delete docsMap[change.doc.id];
+          }
+        });
+        notify();
+      };
+
+      const qUserId = query(collection(firestoreDb, colName), where('userId', '==', currentUser.uid));
+      const qCreatorId = query(collection(firestoreDb, colName), where('creatorId', '==', currentUser.uid));
+      const qOwnerId = query(collection(firestoreDb, colName), where('ownerId', '==', currentUser.uid));
+      const qAllowed = query(collection(firestoreDb, colName), where('allowedUsers', 'array-contains', currentUser.uid));
+
+      const unsubs = [
+        onSnapshot(qUserId, handleSnapshot, err => console.error(`[${colName}] qUserId error:`, err)),
+        onSnapshot(qCreatorId, handleSnapshot, err => console.error(`[${colName}] qCreatorId error:`, err)),
+        onSnapshot(qOwnerId, handleSnapshot, err => console.error(`[${colName}] qOwnerId error:`, err)),
+        onSnapshot(qAllowed, handleSnapshot, err => console.error(`[${colName}] qAllowed error:`, err)),
+      ];
+
+      return () => unsubs.forEach(unsub => unsub());
     };
 
     unsubscribes.push(subscribeCollectionOwned('accounts', setAccounts));

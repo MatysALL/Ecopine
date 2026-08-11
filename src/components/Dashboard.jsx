@@ -108,7 +108,12 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   }, [pockets, favoriteId]);
 
   const activeDebts = useMemo(() => {
-    return debts ? debts.filter(d => d.status === 'pending') : [];
+    if (!debts) return [];
+    return debts.filter(d => {
+      if (d.status === 'resolved' || d.status === 'settled' || d.status === 'paid') return false;
+      if (d.isPaid === true || d.isSettled === true) return false;
+      return true;
+    });
   }, [debts]);
 
   // Card background and text color calculation based on annoyance state
@@ -440,7 +445,10 @@ export default function Dashboard({ onViewAccountDetails, username }) {
               ) : (
                 <div className="space-y-3">
                   {activeDebts.slice(0, 2).map((debt) => {
-                    const isToPay = debt.type === 'to_pay';
+                    const rawType = (debt.type || '').toLowerCase().trim();
+                    const isToPay = ['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(rawType) || (typeof debt.amount === 'number' && debt.amount < 0);
+                    const personName = debt.person || debt.name || debt.associatedFriendName || 'Dette';
+                    const amountVal = Math.abs(debt.amount || 0);
                     return (
                       <div 
                         key={debt.id} 
@@ -455,7 +463,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                             }`}>
                               {isToPay ? 'Je dois' : 'On me doit'}
                             </span>
-                            <h4 className="font-extrabold text-xs text-ac-brown truncate">{debt.person}</h4>
+                            <h4 className="font-extrabold text-xs text-ac-brown truncate">{personName}</h4>
                           </div>
                           {debt.description && (
                             <p className="text-[10px] text-ac-brown-light truncate mt-0.5">{debt.description}</p>
@@ -463,7 +471,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                         </div>
                         <div className="text-right ml-3 shrink-0">
                           <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs font-black">
-                            {debt.amount.toLocaleString('fr-FR')} 🔔
+                            {amountVal.toLocaleString('fr-FR')} 🔔
                           </span>
                         </div>
                       </div>

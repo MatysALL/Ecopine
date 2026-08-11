@@ -8,37 +8,43 @@ service cloud.firestore {
         (request.auth.token.admin == true || request.auth.uid == "admin");
     }
 
-    // Accounts collection (Owned by author userId)
+    // Helper to check if user owns or is legacy member of a document
+    function isDocOwner(docData) {
+      return request.auth != null && (
+        docData == null || 
+        docData.userId == request.auth.uid || 
+        docData.creatorId == request.auth.uid || 
+        docData.ownerId == request.auth.uid || 
+        (docData.allowedUsers != null && request.auth.uid in docData.allowedUsers)
+      );
+    }
+
+    // Accounts collection
     match /accounts/{accountId} {
-      allow read, write: if request.auth != null && 
-        (resource == null || resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read, write: if request.auth != null && (isDocOwner(resource) || isAdmin());
     }
 
-    // Debts collection (Owned by author userId)
+    // Debts collection
     match /debts/{debtId} {
-      allow read, write: if request.auth != null && 
-        (resource == null || resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read, write: if request.auth != null && (isDocOwner(resource) || isAdmin());
     }
 
-    // Wishlist collection (Owned by author userId)
+    // Wishlist collection
     match /wishlist/{wishId} {
-      allow read, write: if request.auth != null && 
-        (resource == null || resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read, write: if request.auth != null && (isDocOwner(resource) || isAdmin());
     }
 
-    // Transactions collection (Owned by author userId)
+    // Transactions collection
     match /transactions/{transactionId} {
-      allow read, write: if request.auth != null && 
-        (resource == null || resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read, write: if request.auth != null && (isDocOwner(resource) || isAdmin());
     }
 
     // Pockets collection
     match /pockets/{pocketId} {
-      allow read, write: if request.auth != null && 
-        (resource == null || resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid || isAdmin());
+      allow read, write: if request.auth != null && (isDocOwner(resource) || isAdmin());
     }
 
-    // Friendships collection (Friend requests & relationships)
+    // Friendships collection
     match /friendships/{friendshipId} {
       allow read, write: if request.auth != null && 
         (resource == null || resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());

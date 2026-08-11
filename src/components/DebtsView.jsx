@@ -28,18 +28,32 @@ export default function DebtsView() {
   const [isSettling, setIsSettling] = useState(false);
   const [activeDebtTab, setActiveDebtTab] = useState('payables'); // 'payables' or 'receivables' on mobile
 
-  // Filter pending debts
+  // Filter active (non-settled / non-resolved) debts
   const pendingDebts = useMemo(() => {
-    return debts.filter(d => d.status !== 'resolved');
+    return (debts || []).filter(d => {
+      if (d.status === 'resolved' || d.status === 'settled' || d.status === 'paid') return false;
+      if (d.isPaid === true || d.isSettled === true) return false;
+      return true;
+    });
   }, [debts]);
 
-  // Split into two categories
+  // Split into two categories (Je dois vs On me doit) with multi-key type tolerance
   const payables = useMemo(() => {
-    return pendingDebts.filter(d => d.type === 'to_pay');
+    return pendingDebts.filter(d => {
+      const type = (d.type || '').toLowerCase().trim();
+      if (['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(type)) return true;
+      if (['owed_to_me', 'claim', 'on_me_doit', 'to_collect', 'creance'].includes(type)) return false;
+      return typeof d.amount === 'number' && d.amount < 0;
+    });
   }, [pendingDebts]);
 
   const receivables = useMemo(() => {
-    return pendingDebts.filter(d => d.type === 'to_collect');
+    return pendingDebts.filter(d => {
+      const type = (d.type || '').toLowerCase().trim();
+      if (['owed_to_me', 'claim', 'on_me_doit', 'to_collect', 'creance'].includes(type)) return true;
+      if (['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(type)) return false;
+      return typeof d.amount === 'number' && d.amount >= 0;
+    });
   }, [pendingDebts]);
 
   // Form submit handler
@@ -343,12 +357,15 @@ export default function DebtsView() {
           ) : (
             <div className="space-y-4">
               {payables.map((debt) => {
+                const personName = debt.person || debt.name || debt.associatedFriendName || 'Créancier / Dette';
+                const formattedDate = debt.date ? (isNaN(new Date(debt.date).getTime()) ? debt.date : new Date(debt.date).toLocaleDateString('fr-FR')) : 'Date non spécifiée';
+                const formattedAmount = Math.abs(debt.amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
                 return (
                   <div key={debt.id} className="p-4 bg-ac-red-light/10 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible">
                     <div className="space-y-1">
                       <div className="flex items-baseline gap-1.5 flex-wrap">
-                        <span className="font-extrabold text-sm text-ac-brown">{debt.person}</span>
-                        <span className="text-[9px] font-bold text-ac-brown-light">({new Date(debt.date).toLocaleDateString('fr-FR')})</span>
+                        <span className="font-extrabold text-sm text-ac-brown">{personName}</span>
+                        <span className="text-[9px] font-bold text-ac-brown-light">({formattedDate})</span>
                       </div>
                       {debt.description ? (
                         <p className="text-xs text-ac-brown-light leading-relaxed">"{debt.description}"</p>
@@ -359,7 +376,7 @@ export default function DebtsView() {
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-ac-brown/10 sm:border-t-0 pt-3 sm:pt-0 shrink-0">
                       <span className="font-black text-ac-red text-sm bg-white border border-ac-brown/25 px-2.5 py-1 rounded-full shadow-ac-xs">
-                        -{debt.amount.toLocaleString('fr-FR')} 🔔
+                        -{formattedAmount} 🔔
                       </span>
 
                       <div className="flex gap-1.5">
@@ -406,12 +423,15 @@ export default function DebtsView() {
           ) : (
             <div className="space-y-4">
               {receivables.map((debt) => {
+                const personName = debt.person || debt.name || debt.associatedFriendName || 'Débiteurs / Créance';
+                const formattedDate = debt.date ? (isNaN(new Date(debt.date).getTime()) ? debt.date : new Date(debt.date).toLocaleDateString('fr-FR')) : 'Date non spécifiée';
+                const formattedAmount = Math.abs(debt.amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
                 return (
                   <div key={debt.id} className="p-4 bg-ac-green-light/20 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible">
                     <div className="space-y-1">
                       <div className="flex items-baseline gap-1.5 flex-wrap">
-                        <span className="font-extrabold text-sm text-ac-brown">{debt.person}</span>
-                        <span className="text-[9px] font-bold text-ac-brown-light">({new Date(debt.date).toLocaleDateString('fr-FR')})</span>
+                        <span className="font-extrabold text-sm text-ac-brown">{personName}</span>
+                        <span className="text-[9px] font-bold text-ac-brown-light">({formattedDate})</span>
                       </div>
                       {debt.description ? (
                         <p className="text-xs text-ac-brown-light leading-relaxed">"{debt.description}"</p>
@@ -422,7 +442,7 @@ export default function DebtsView() {
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-ac-brown/10 sm:border-t-0 pt-3 sm:pt-0 shrink-0">
                       <span className="font-black text-ac-green text-sm bg-white border border-ac-brown/25 px-2.5 py-1 rounded-full shadow-ac-xs">
-                        +{debt.amount.toLocaleString('fr-FR')} 🔔
+                        +{formattedAmount} 🔔
                       </span>
 
                       <div className="flex gap-1.5">
