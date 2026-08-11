@@ -1,7 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useDb } from '../db';
-import { db as firestoreDb } from '../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
   ChevronRight, Gift, Activity, Smile, Handshake
@@ -10,7 +8,7 @@ import AvatarStackPopover from './AvatarStackPopover';
 
 export default function Dashboard({ onViewAccountDetails, username }) {
   const { 
-    userMeta, userProfile, accountsData, favoriteAccountDetails, globalLatestTransactions, 
+    userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, 
     wishlist, pockets, categories, debts, user 
   } = useDb();
 
@@ -24,30 +22,9 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     "Gère bien tes comptes pour garder un solde toujours positif, oui oui !"
   ];
 
-  const userStorageKey = user?.uid ? `tomNookSold_${user.uid}` : null;
-
-  // Cleanup old global residual keys
-  useEffect(() => {
-    localStorage.removeItem('tomNookSold');
-    localStorage.removeItem('ecopine_tom_nook_sold');
-  }, []);
-
-  // Primary source of truth: Firestore userProfile.tomNookSold, fallback: scoped localStorage
-  const isSold = userProfile?.tomNookSold === true || 
-    userMeta?.find(m => m.key === 'tomNookSold')?.value === true || 
-    (userStorageKey ? localStorage.getItem(userStorageKey) === 'true' : false);
-
-  // Sync scoped localStorage backup when Firestore updates
-  useEffect(() => {
-    if (!userStorageKey) return;
-    if (userProfile?.tomNookSold === true) {
-      localStorage.setItem(userStorageKey, 'true');
-    } else if (userProfile?.tomNookSold === false) {
-      localStorage.removeItem(userStorageKey);
-    }
-  }, [userProfile?.tomNookSold, userStorageKey]);
-
+  // In-memory state for Tom Nook Easter Egg (no DB / localStorage persistence)
   const [nookStep, setNookStep] = useState(0);
+  const [isSold, setIsSold] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [isNookCollapsed, setIsNookCollapsed] = useState(false);
   const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
@@ -59,7 +36,13 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     };
   }, []);
 
-  const handleBannerClick = async () => {
+  // Reset function to clear Easter Egg state in RAM
+  const resetTomNookState = () => {
+    setNookStep(0);
+    setIsSold(false);
+  };
+
+  const handleBannerClick = () => {
     if (isSold) return;
 
     const nextStep = nookStep + 1;
@@ -77,25 +60,16 @@ export default function Dashboard({ onViewAccountDetails, username }) {
       }, 10);
     }
 
-    // ÉTAPE 5 : Le Panneau VENDU (1 dernier clic après l'étape 13)
+    // ÉTAPE 5 : Le Panneau VENDU (dernier clic après l'étape 13) - purement en mémoire
     if (nextStep >= 14) {
-      if (userStorageKey) {
-        localStorage.setItem(userStorageKey, 'true');
-      }
-      if (user?.uid) {
-        try {
-          await updateDoc(doc(firestoreDb, 'users_meta', user.uid), { tomNookSold: true });
-        } catch (err) {
-          console.error("Could not persist tomNookSold to Firestore:", err);
-        }
-      }
+      setIsSold(true);
     }
   };
 
   const handleToggleCollapse = () => {
-    if (!isNookCollapsed && !isSold) {
-      // Reset step when user closes/reduces the bubble (unless sold permanently)
-      setNookStep(0);
+    if (!isNookCollapsed) {
+      // Reset Easter Egg state on collapse/reopen
+      resetTomNookState();
     }
     setIsNookCollapsed(!isNookCollapsed);
   };
