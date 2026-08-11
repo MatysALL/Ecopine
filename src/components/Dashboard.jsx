@@ -26,7 +26,6 @@ export default function Dashboard({ onViewAccountDetails, username }) {
   const [isSold, setIsSold] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [isNookCollapsed, setIsNookCollapsed] = useState(false);
-  const [openPopoverAccountId, setOpenPopoverAccountId] = useState(null);
   const shakeTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -373,14 +372,11 @@ export default function Dashboard({ onViewAccountDetails, username }) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {otherAccounts.map((acc) => {
-                  const isPopoverOpen = openPopoverAccountId === acc.id;
                   return (
                     <div 
                       key={acc.id}
                       onClick={() => onViewAccountDetails(acc.id)}
-                      className={`p-4 bg-ac-cream-dark/40 hover:bg-ac-cream-dark/80 transition-colors border-2 border-ac-brown rounded-2xl cursor-pointer flex justify-between items-center group relative ${
-                        isPopoverOpen ? 'z-30' : 'z-0'
-                      }`}
+                      className="p-4 bg-ac-cream-dark/40 hover:bg-ac-cream-dark/80 transition-colors border-2 border-ac-brown rounded-2xl cursor-pointer flex justify-between items-center group relative"
                     >
                       <div>
                         <h4 className="font-extrabold text-xs text-ac-brown">{acc.name}</h4>

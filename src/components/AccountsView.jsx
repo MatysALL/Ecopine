@@ -1016,7 +1016,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {sortedAccounts.map((acc, index) => {
                 const isDragging = draggableAccountId === acc.id;
-                const isPopoverOpen = openPopoverAccountId === acc.id;
                 return (
                   <div 
                     key={acc.id}
