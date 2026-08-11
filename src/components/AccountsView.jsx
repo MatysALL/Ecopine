@@ -38,10 +38,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [transferDesc, setTransferDesc] = useState('');
 
   // CSV Dropzone state
-  const [isDragActive, setIsDragActive] = useState(false);
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
+  const [importHistoryModalOpen, setImportHistoryModalOpen] = useState(false);
 
   const { accountsData: accounts, transactions: allTransactions, categories, user, acceptedFriends, username } = useDb();
 
@@ -378,30 +378,62 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
   };
 
-  // CSV Drag and Drop Parser
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setIsDragActive(true);
-    } else if (e.type === "dragleave") {
-      setIsDragActive(false);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processCSVFile(e.dataTransfer.files[0]);
-    }
-  };
-
   const handleFileInput = (e) => {
     if (e.target.files && e.target.files[0]) {
       processCSVFile(e.target.files[0]);
+    }
+  };
+
+  // Group imported transactions by importBatchId
+  const accountImportBatches = useMemo(() => {
+    if (!transactions) return [];
+    
+    const imported = transactions.filter(t => t.isImported || t.importBatchId);
+    
+    const batchesMap = {};
+    imported.forEach(tx => {
+      const batchId = tx.importBatchId || 'batch_legacy';
+      if (!batchesMap[batchId]) {
+        batchesMap[batchId] = {
+          batchId,
+          fileName: tx.importFileName || 'Import CSV',
+          importedAt: tx.importedAt || tx.date || new Date().toISOString(),
+          transactionsCount: 0,
+          txIds: []
+        };
+      }
+      batchesMap[batchId].transactionsCount += 1;
+      batchesMap[batchId].txIds.push(tx.id);
+    });
+
+    return Object.values(batchesMap).sort((a, b) => (b.importedAt || '').localeCompare(a.importedAt || ''));
+  }, [transactions]);
+
+  // Delete all transactions linked to a specific importBatchId via writeBatch
+  const handleDeleteImportBatch = async (batch) => {
+    if (!batch || !batch.txIds || batch.txIds.length === 0) return;
+
+    const count = batch.transactionsCount;
+    const confirmMsg = `Voulez-vous vraiment supprimer cet import "${batch.fileName}" et ses ${count} transaction(s) ?`;
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const chunkSize = 450;
+      for (let i = 0; i < batch.txIds.length; i += chunkSize) {
+        const chunk = batch.txIds.slice(i, i + chunkSize);
+        const batchObj = writeBatch(firestoreDb);
+        chunk.forEach(txId => {
+          batchObj.delete(doc(firestoreDb, 'transactions', txId));
+        });
+        await batchObj.commit();
+      }
+
+      setToastMessage(`Import "${batch.fileName}" (${count} transactions) supprimé avec succès !`);
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err) {
+      console.error("Error deleting import batch:", err);
+      alert("Erreur lors de la suppression du lot d'importation.");
     }
   };
 
@@ -488,6 +520,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const processCSVFile = (file) => {
     setCsvError('');
     if (!file) return;
+
+    const currentFileName = file.name || 'Import_CSV.csv';
+    const currentBatchId = 'import_' + Date.now();
+    const currentImportDate = new Date().toISOString();
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -589,7 +625,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             isRecurring: false,
             recurrencePeriod: 'none',
             recurrenceEnd: '',
-            note: rawNote || ''
+            note: rawNote || '',
+            isImported: true,
+            importBatchId: currentBatchId,
+            importFileName: currentFileName,
+            importedAt: currentImportDate
           });
         }
       }
@@ -808,37 +848,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               </div>
             </div>
 
-            {/* CSV Synchro zone */}
-            {myRole !== 'viewer' && (
-              <div className="mb-6">
-                <h4 className="text-xs font-black uppercase text-ac-brown-light mb-2 flex items-center gap-1">
-                  <FileSpreadsheet className="w-3.5 h-3.5" /> Importation relevé bancaire (CSV)
-                </h4>
-                <div 
-                  onDragEnter={handleDrag}
-                  onDragOver={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDrop={handleDrop}
-                  className={`border-3 border-dashed rounded-2xl p-6 text-center transition-colors flex flex-col items-center justify-center cursor-pointer select-none ${
-                    isDragActive 
-                      ? 'border-ac-green bg-ac-green-light/40' 
-                      : 'border-ac-brown/20 bg-ac-cream/20 hover:bg-ac-cream/40'
-                  }`}
-                >
-                  <Upload className="w-8 h-8 text-ac-brown-light mb-2" />
-                  <p className="text-xs font-bold text-ac-brown">
-                    Dépose ton fichier CSV bancaire ici ou <label className="text-ac-green underline cursor-pointer">recherche un fichier<input type="file" accept=".csv" className="hidden" onChange={handleFileInput} /></label>
-                  </p>
-                  <p className="text-[10px] text-ac-brown-light mt-1">
-                    Les colonnes Date, Description et Montant seront détectées automatiquement.
-                  </p>
-                </div>
-
-                {csvError && (
-                  <div className="mt-2 text-xs font-bold text-ac-red bg-ac-red-light px-3 py-2 rounded-xl border border-ac-red/25 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4" /> {csvError}
-                  </div>
-                )}
+            {/* CSV Error Banner */}
+            {csvError && (
+              <div className="mb-4 text-xs font-bold text-ac-red bg-ac-red-light px-4 py-3 rounded-2xl border border-ac-red/25 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> {csvError}
+              </div>
+            )}
 
                 {/* CSV Preview panel */}
                 {csvPreviewTxs && (
@@ -881,8 +896,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     </div>
                   </div>
                 )}
-              </div>
-            )}
 
             {/* Transactions List */}
             {transactions === undefined ? (
@@ -1432,6 +1445,51 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   }}
                   ownerId={editingAccount?.ownerId || user?.uid}
                 />
+              )}
+
+              {/* Section: Historique & Gestion des imports CSV */}
+              {editingAccount && (
+                <div className="border-t border-ac-brown/10 pt-4 space-y-3">
+                  <h4 className="text-xs font-black uppercase text-ac-brown flex items-center gap-1.5">
+                    <FileSpreadsheet className="w-4 h-4 text-ac-green" /> Historique &amp; Gestion des imports CSV
+                  </h4>
+                  {accountImportBatches.length === 0 ? (
+                    <p className="text-xs text-ac-brown-light italic bg-ac-cream/50 p-3 rounded-2xl border border-ac-brown/10">
+                      Aucun lot d'importation CSV enregistré pour ce compte.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {accountImportBatches.map(batch => (
+                        <div 
+                          key={batch.batchId} 
+                          className="bg-white border-2 border-ac-brown/20 rounded-2xl p-3 flex justify-between items-center shadow-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="bg-ac-green-light p-2 rounded-xl border border-ac-green/30 text-ac-green shrink-0">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-extrabold text-ac-brown truncate max-w-[180px] sm:max-w-[240px]">
+                                {batch.fileName}
+                              </p>
+                              <p className="text-[10px] font-bold text-ac-brown-light">
+                                {batch.transactionsCount} transaction{batch.transactionsCount > 1 ? 's' : ''} • {new Date(batch.importedAt).toLocaleDateString('fr-FR')}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteImportBatch(batch)}
+                            className="bg-ac-red-light hover:bg-ac-red/20 text-ac-red p-2 rounded-xl border border-ac-red/30 transition-transform active:scale-95 cursor-pointer shrink-0 ml-2"
+                            title="Supprimer cet import et ses transactions"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
               <div className="flex gap-4 pt-4 border-t border-ac-brown/10">
