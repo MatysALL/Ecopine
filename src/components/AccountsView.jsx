@@ -101,6 +101,17 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   // Fetch transactions for the active account
   const activeAccount = accounts?.find(a => a.id === selectedAccountId);
 
+  // Determine role for active account
+  const myRole = useMemo(() => {
+    if (!activeAccount) return 'owner';
+    if (activeAccount.role) return activeAccount.role;
+    const ownerId = activeAccount.userId || activeAccount.creatorId;
+    if (ownerId && user?.uid && ownerId !== user.uid) {
+      return 'viewer';
+    }
+    return 'owner';
+  }, [activeAccount, user]);
+
   const transactions = useMemo(() => {
     if (!selectedAccountId || !allTransactions) return [];
     return allTransactions
@@ -709,7 +720,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
           </div>
 
           {/* Nested Pocket Section */}
-          <PocketManager accountId={activeAccount.id} role="owner" />
+          <PocketManager accountId={activeAccount.id} role={myRole} />
 
           {/* Transactions CRUD Card */}
           <div className="ac-card p-6 bg-white border-ac-brown">
