@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { db, useDb, calculateLivretInterests } from '../db';
 import { doc, writeBatch } from 'firebase/firestore';
-import { db as firestoreDb } from '../firebase';
+import { auth, db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
   Coins, PiggyBank, HelpCircle, AlertTriangle, 
@@ -568,21 +568,46 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     reader.readAsText(file, 'UTF-8');
   };
 
-  const handleConfirmCSVImport = async () => {
+  const handleConfirmCSVImport = async (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     if (!csvPreviewTxs || !selectedAccountId) return;
     
+    const currentUid = user?.uid || auth.currentUser?.uid;
+    const nowIso = new Date().toISOString();
+
+    console.log(`Validation de l'importation de ${csvPreviewTxs.length} transactions...`);
+
     const preparedTxs = csvPreviewTxs.map(tx => ({
       ...tx,
-      accountId: selectedAccountId
+      accountId: String(selectedAccountId),
+      userId: currentUid,
+      allowedUsers: currentUid ? [currentUid] : [],
+      name: String(tx.name || tx.description || 'Transaction sans nom'),
+      description: String(tx.description || tx.name || 'Transaction sans nom'),
+      title: String(tx.name || tx.description || 'Transaction sans nom'),
+      amount: Math.abs(Number(tx.amount) || 0),
+      type: tx.type === 'credit' ? 'credit' : 'debit',
+      date: String(tx.date),
+      executionType: 'spontaneous',
+      createdAt: tx.createdAt || nowIso
     }));
 
-    await db.transactions.bulkAdd(preparedTxs);
-    const count = preparedTxs.length;
-    setCsvPreviewTxs(null);
-    setToastMessage(`${count} transactions importées avec succès ! 🎉`);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
+    try {
+      await db.transactions.bulkAdd(preparedTxs);
+      const count = preparedTxs.length;
+      console.log(`Validation de l'importation de ${count} transactions réussie.`);
+      setCsvPreviewTxs(null);
+      setToastMessage(`${count} transactions importées avec succès ! 🎉`);
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+    } catch (err) {
+      console.error("Erreur lors de l'importation des transactions CSV :", err);
+      setCsvError(`Erreur lors de l'importation : ${err.message || err}`);
+      alert(`Erreur lors de l'importation des transactions : ${err.message || err}`);
+    }
   };
 
   return (
@@ -786,7 +811,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         Annuler
                       </button>
                       <button 
-                        onClick={handleConfirmCSVImport}
+                        type="button"
+                        onClick={(e) => handleConfirmCSVImport(e)}
                         className="bg-ac-green text-white font-extrabold text-xs px-3 py-1.5 rounded-xl border border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
                       >
                         <CheckCircle className="w-4 h-4" /> Importer

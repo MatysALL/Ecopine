@@ -875,6 +875,8 @@ export const db = {
     },
     bulkAdd: async (txs) => {
       if (!auth.currentUser || !txs || txs.length === 0) return;
+      const currentUid = auth.currentUser.uid;
+      const nowIso = new Date().toISOString();
       const chunkSize = 450;
       for (let i = 0; i < txs.length; i += chunkSize) {
         const chunk = txs.slice(i, i + chunkSize);
@@ -884,7 +886,9 @@ export const db = {
           const { id, ...rest } = tx;
           batch.set(ref, {
             ...rest,
-            userId: auth.currentUser.uid
+            userId: currentUid,
+            allowedUsers: rest.allowedUsers || [currentUid],
+            createdAt: rest.createdAt || nowIso
           });
         });
         await batch.commit();
