@@ -10,14 +10,8 @@ export default function Settings() {
   // Profile states
   const [username, setUsername] = useState('');
   const [photoURL, setPhotoURL] = useState('');
-  const [favAccountId, setFavAccountId] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [themePreference, setThemePreference] = useState('default');
-
-  // Custom Category states
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatEmoji, setNewCatEmoji] = useState('🍎');
-  const [newCatColor, setNewCatColor] = useState('#FFB3B3');
 
   const predefinedAvatars = [
     '/pfp-ac.jpg',
@@ -151,48 +145,7 @@ export default function Settings() {
     }
   };
 
-  const handleAddCategory = async (e) => {
-    e.preventDefault();
-    if (!newCatName.trim()) return;
 
-    // Check duplicate
-    const normalizedNew = newCatName.trim().toLowerCase();
-    const duplicate = categoriesList?.some(c => c.name.toLowerCase() === normalizedNew);
-    if (duplicate) {
-      alert("Cette catégorie existe déjà !");
-      return;
-    }
-
-    try {
-      await db.categories.add({
-        name: newCatName.trim(),
-        emoji: newCatEmoji,
-        color: newCatColor
-      });
-      setNewCatName('');
-      setNewCatEmoji('🍎');
-      setNewCatColor('#FFB3B3');
-    } catch (err) {
-      console.error(err);
-      alert("Impossible de créer la catégorie.");
-    }
-  };
-
-  const handleDeleteCategory = async (catId) => {
-    const cat = categoriesList?.find(c => c.id === catId);
-    if (!cat) return;
-
-    if (window.confirm(`Supprimer la catégorie "${cat.name}" ? Les transactions associées perdront leur étiquette de catégorie.`)) {
-      await db.transaction('rw', [db.categories, db.transactions], async () => {
-        await db.categories.delete(catId);
-        // Dissociate from transactions sequentially
-        const txsToModify = allTransactions.filter(t => t.categoryId === catId);
-        for (const t of txsToModify) {
-          await db.transactions.update(t.id, { categoryId: null, category: '' });
-        }
-      });
-    }
-  };
 
 
 
@@ -399,92 +352,7 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Categories Editor Card (Moved outside top grid to be full-width) */}
-      <div className="ac-card p-6 bg-white border-ac-brown">
-          <div>
-            <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-4">
-              <Tag className="w-5 h-5 text-ac-gold" /> Gestion des Catégories
-            </h3>
-            
-            {/* Form to add custom category */}
-            <form onSubmit={handleAddCategory} className="space-y-3 mb-4 bg-ac-cream p-3.5 rounded-2xl border-2 border-ac-brown">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newCatEmoji}
-                  onChange={(e) => setNewCatEmoji(e.target.value)}
-                  placeholder="🍎"
-                  className="w-12 bg-white border-2 border-ac-brown rounded-xl px-2 py-1.5 text-center text-xs font-bold focus:outline-none"
-                  maxLength={2}
-                  required
-                />
-                <input
-                  type="text"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  placeholder="Nom de la catégorie..."
-                  className="w-full bg-white border-2 border-ac-brown rounded-xl px-3 py-1.5 text-xs font-bold focus:outline-none"
-                  required
-                />
-              </div>
 
-              {/* Color tiles picker */}
-              <div className="space-y-1">
-                <label className="block text-[9px] font-black uppercase text-ac-brown-light">Couleur pastel</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    '#FFB3B3', '#B3D9FF', '#B3FFB3', '#FFE0B3', '#E0B3FF',
-                    '#FFEAA7', '#FAB1A0', '#55EFC4', '#81ECEC', '#DFE6E9'
-                  ].map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setNewCatColor(color)}
-                      className={`w-6 h-6 rounded-full border-2 transition-all ${
-                        newCatColor === color ? 'border-ac-brown scale-110 shadow-ac-xs' : 'border-transparent'
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <button 
-                type="submit" 
-                className="w-full bg-ac-green text-white font-extrabold text-xs py-2 rounded-xl border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> Créer la catégorie
-              </button>
-            </form>
-
-            {/* List of categories */}
-            <div className="max-h-36 overflow-y-auto border border-ac-brown/10 rounded-xl divide-y divide-ac-brown/10 bg-white p-2">
-              {categoriesList?.map(cat => (
-                <div key={cat.id} className="py-2.5 flex justify-between items-center text-xs px-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs border border-ac-brown/15 shadow-ac-xs" style={{ backgroundColor: cat.color }}>
-                      {cat.emoji || '🍃'}
-                    </span>
-                    <span className="font-extrabold">{cat.name}</span>
-                  </div>
-                  {cat.isDefault ? (
-                    <span className="text-[7px] font-black uppercase tracking-wider bg-ac-cream-dark/50 border border-ac-brown/10 text-ac-brown-light px-1.5 py-0.5 rounded">
-                      Défaut
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleDeleteCategory(cat.id)}
-                      className="p-1 hover:bg-ac-red-light rounded text-ac-brown-light hover:text-ac-red transition-colors cursor-pointer border border-transparent hover:border-ac-red/20"
-                      title="Supprimer la catégorie"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
 
         {/* Registre des Habitants (Amitiés) */}
       <div className="ac-card p-6 bg-white border-ac-brown space-y-6">

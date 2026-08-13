@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 export default function PocketManager({ accountId, role }) {
-  const { pockets: allPockets, categories } = useDb();
+  const { pockets: allPockets } = useDb();
   
   // UI states
   const [formOpen, setFormOpen] = useState(false);
@@ -20,7 +20,6 @@ export default function PocketManager({ accountId, role }) {
   const [renewalFrequency, setRenewalFrequency] = useState('monthly'); // 'weekly', 'monthly', 'none'
   const [renewalDay, setRenewalDay] = useState(''); // 1-7 for weekly, 1-31 for monthly
   const [accumulate, setAccumulate] = useState(false);
-  const [categoryId, setCategoryId] = useState('');
 
   // Quick Debit Pop-in state
   const [debitModalOpen, setDebitModalOpen] = useState(false);
@@ -65,8 +64,7 @@ export default function PocketManager({ accountId, role }) {
         renewalFrequency,
         nextRenewalDate: nextDate,
         renewalDay: rDay,
-        accumulate: renewalFrequency !== 'none' ? accumulate : false,
-        categoryId: categoryId || null
+        accumulate: renewalFrequency !== 'none' ? accumulate : false
       };
 
       if (editingPocket) {
@@ -97,7 +95,6 @@ export default function PocketManager({ accountId, role }) {
           nextRenewalDate: finalNextDate,
           renewalDay: pocketData.renewalDay,
           accumulate: pocketData.accumulate,
-          categoryId: pocketData.categoryId,
           currentAmount: newCurrentAmount
         });
       } else {
@@ -125,7 +122,6 @@ export default function PocketManager({ accountId, role }) {
     setRenewalFrequency(pocket.renewalFrequency || 'none');
     setRenewalDay(pocket.renewalDay !== undefined && pocket.renewalDay !== null ? pocket.renewalDay.toString() : '');
     setAccumulate(pocket.accumulate || false);
-    setCategoryId(pocket.categoryId || '');
     setFormOpen(true);
   };
 
@@ -186,7 +182,6 @@ export default function PocketManager({ accountId, role }) {
     setRenewalFrequency('monthly');
     setRenewalDay('');
     setAccumulate(false);
-    setCategoryId('');
     setEditingPocket(null);
     setFormOpen(false);
   };
@@ -302,21 +297,7 @@ export default function PocketManager({ accountId, role }) {
                 />
               </div>
 
-              <div>
-                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Catégorie associée</label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold focus:outline-none focus:bg-white cursor-pointer"
-                >
-                  <option value="">-- Aucune catégorie --</option>
-                  {categories?.map(cat => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.emoji || '🍃'} {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
 
               <div>
                 <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Fréquence de renouvellement</label>
@@ -434,11 +415,6 @@ export default function PocketManager({ accountId, role }) {
             if (percentage < 25) progressBg = 'bg-ac-red';
             else if (percentage < 60) progressBg = 'bg-ac-gold';
 
-            // Find associated category to apply dynamic colors
-            const cat = categories?.find(c => c.id === pocket.categoryId);
-            const cardBgStyle = cat 
-              ? { borderColor: cat.color, backgroundColor: cat.color + '12' }
-              : {};
             const isDragging = draggablePocketId === pocket.id;
 
             return (
@@ -452,7 +428,6 @@ export default function PocketManager({ accountId, role }) {
                 className={`border-3 rounded-3xl p-5 shadow-ac-sm transition-all flex flex-col justify-between space-y-4 bg-white border-ac-brown ${
                   isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                 }`}
-                style={cardBgStyle}
               >
                 {/* Header info */}
                 <div className="flex justify-between items-start gap-2">
@@ -469,17 +444,12 @@ export default function PocketManager({ accountId, role }) {
                       }`}
                       title={role !== 'viewer' ? "Glisser-déposer (clic long)" : undefined}
                     >
-                      <span className="text-lg">{cat?.emoji || '🍃'}</span>
+                      <span className="text-lg">🍃</span>
                     </div>
 
                     <div>
                       <h4 className="font-black text-sm text-ac-brown flex items-center gap-1.5">
                         {pocket.name}
-                        {cat && (
-                          <span className="text-[8px] font-black px-2 py-0.5 rounded-full border border-ac-brown/10 uppercase" style={{ backgroundColor: cat.color + '25', color: cat.color }}>
-                            {cat.name}
-                          </span>
-                        )}
                       </h4>
                       
                       {pocket.renewalFrequency && pocket.renewalFrequency !== 'none' && pocket.nextRenewalDate ? (

@@ -295,16 +295,11 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                       if (percentage < 25) progressBg = 'bg-ac-red';
                       else if (percentage < 60) progressBg = 'bg-ac-gold';
 
-                      const cat = categories?.find(c => c.id === pocket.categoryId);
-                      const cardStyle = cat 
-                        ? { borderColor: cat.color, backgroundColor: cat.color + '09' }
-                        : {};
-
                       return (
-                        <div key={pocket.id} className="bg-white border-2 border-ac-brown/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-ac-xs" style={cardStyle}>
+                        <div key={pocket.id} className="bg-white border-2 border-ac-brown/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-ac-xs">
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-xs shrink-0">{cat?.emoji || '🍃'}</span>
+                              <span className="text-xs shrink-0">🍃</span>
                               <span className="font-extrabold text-[10px] text-ac-brown leading-tight truncate" title={pocket.name}>
                                 {pocket.name}
                               </span>
@@ -518,14 +513,6 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                             <span className="bg-ac-cream border border-ac-brown/10 px-1 rounded truncate max-w-[80px]">
                               {matchingAccount?.name || 'Inconnu'}
                             </span>
-                            {tx.category && (
-                              <>
-                                <span>•</span>
-                                <span className="text-ac-green bg-ac-green-light px-1 rounded">
-                                  {tx.category}
-                                </span>
-                              </>
-                            )}
                           </div>
                           
                           {/* Badges for Execution Types */}

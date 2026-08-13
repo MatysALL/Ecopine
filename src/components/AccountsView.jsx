@@ -255,8 +255,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       amount: amount,
       type: 'debit',
       date: dateStr,
-      categoryId: null,
-      category: 'Virement',
       executionType: 'spontaneous',
       isRecurring: false,
       recurrencePeriod: 'none',
@@ -270,8 +268,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       amount: amount,
       type: 'credit',
       date: dateStr,
-      categoryId: null,
-      category: 'Virement',
       executionType: 'spontaneous',
       isRecurring: false,
       recurrencePeriod: 'none',
@@ -410,12 +406,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const handleExportCSV = () => {
     if (!activeAccount || !transactions) return;
 
-    // Required columns: Date;Libellé;Montant;Type;Catégorie;Note
-    const headers = ['Date', 'Libellé', 'Montant', 'Type', 'Catégorie', 'Note'];
+    // Required columns: Date;Libellé;Montant;Type;Note
+    const headers = ['Date', 'Libellé', 'Montant', 'Type', 'Note'];
     const rows = transactions.map(tx => {
       const typeLabel = tx.type === 'credit' ? 'Recette' : 'Dépense';
       const amountVal = Math.abs(Number(tx.amount) || 0).toFixed(2);
-      const catName = tx.category || categories?.find(c => c.id === tx.categoryId)?.name || '';
       const noteVal = tx.note || tx.description || '';
 
       return [
@@ -423,7 +418,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         escapeCSV(tx.name || tx.description || 'Transaction'),
         escapeCSV(amountVal),
         escapeCSV(typeLabel),
-        escapeCSV(catName),
         escapeCSV(noteVal)
       ].join(';');
     });
@@ -577,8 +571,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             description: rawDesc || 'Transaction sans nom',
             amount: Math.abs(amount),
             type: isIncome ? 'credit' : 'debit',
-            category: rawCat || 'Import CSV',
-            categoryId: null,
             budgetId: null,
             executionType: 'spontaneous',
             isRecurring: false,
@@ -875,7 +867,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       <tr className="border-b-2 border-ac-brown text-ac-brown-light font-black text-xs uppercase">
                         <th className="pb-3 pt-2 pl-2">Date</th>
                         <th className="pb-3 pt-2">Nom</th>
-                        <th className="pb-3 pt-2">Catégorie</th>
                         <th className="pb-3 pt-2">Exécution</th>
                         <th className="pb-3 pt-2 text-right">Montant</th>
                         <th className="pb-3 pt-2 text-center">Actions</th>
@@ -893,22 +884,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {tx.name || tx.description}
                                 {tx.isRecurring && (
-                                  <span className="text-[9px] font-black bg-ac-gold-light border border-ac-gold/20 text-ac-gold-dark px-1.5 py-0.2 rounded" title="Transaction récurrente">
+                                  <span className="text-[8px] font-black bg-ac-gold-light border border-ac-gold/20 text-ac-gold-dark px-1.5 py-0.2 rounded" title="Transaction récurrente">
                                     ♻️ {tx.recurrencePeriod === 'weekly' ? 'Hebdo' : 'Mensuel'}
                                   </span>
                                 )}
                               </div>
-                            </td>
-                            <td className="py-3.5">
-                              {tx.category ? (
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-ac-green-light text-ac-green border border-ac-green/10">
-                                  {tx.category}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-ac-cream-dark/50 text-ac-brown-light">
-                                  Aucun
-                                </span>
-                              )}
                             </td>
                             <td className="py-3.5">
                               <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
@@ -981,15 +961,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 items-center mt-1">
-                          {tx.category ? (
-                            <span className="text-[9px] font-black px-2 py-0.5 rounded bg-ac-green-light text-ac-green border border-ac-green/10">
-                              {tx.category}
-                            </span>
-                          ) : (
-                            <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-ac-cream-dark/55 text-ac-brown-light">
-                              Aucun
-                            </span>
-                          )}
                           <span className={`text-[9px] font-black px-2 py-0.5 rounded border ${
                             tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
                             tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :

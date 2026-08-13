@@ -1131,55 +1131,10 @@ export const db = {
     }
   },
   categories: {
-    add: async (data) => {
-      if (!auth.currentUser) throw new Error("Non connecté");
-      const docData = {
-        ...data,
-        userId: auth.currentUser.uid
-      };
-      if (db._activeBatch) {
-        const ref = doc(collection(firestoreDb, 'categories'));
-        db._activeBatch.set(ref, docData);
-        return ref.id;
-      }
-      const docRef = await addDoc(collection(firestoreDb, 'categories'), docData);
-      return docRef.id;
-    },
-    delete: async (id) => {
-      const ref = doc(firestoreDb, 'categories', id);
-      if (db._activeBatch) {
-        db._activeBatch.delete(ref);
-      } else {
-        await deleteDoc(ref);
-      }
-    },
-    clear: async () => {
-      if (!auth.currentUser) return;
-      const q = query(collection(firestoreDb, 'categories'), where('userId', '==', auth.currentUser.uid));
-      const snap = await getDocs(q);
-      const batch = db._activeBatch || writeBatch(firestoreDb);
-      snap.docs.forEach(docSnap => {
-        batch.delete(doc(firestoreDb, 'categories', docSnap.id));
-      });
-      if (!db._activeBatch) {
-        await batch.commit();
-      }
-    },
-    bulkAdd: async (cats) => {
-      if (!auth.currentUser) return;
-      const batch = db._activeBatch || writeBatch(firestoreDb);
-      cats.forEach(cat => {
-        const ref = doc(collection(firestoreDb, 'categories'));
-        const { id, ...rest } = cat;
-        batch.set(ref, {
-          ...rest,
-          userId: auth.currentUser.uid
-        });
-      });
-      if (!db._activeBatch) {
-        await batch.commit();
-      }
-    }
+    add: async () => {},
+    delete: async () => {},
+    clear: async () => {},
+    bulkAdd: async () => {}
   },
   transaction: async (...args) => {
     const fn = args[args.length - 1];
@@ -1329,29 +1284,6 @@ export const DbProvider = ({ children }) => {
       }
     });
     
-    // Create default categories (pastel-colored) if none exist in Firestore
-    const defaultCategories = [
-      { name: 'Alimentation', emoji: '🍎', color: '#FFB3B3' },
-      { name: 'Transport', emoji: '🚗', color: '#B3D9FF' },
-      { name: 'Loisirs', emoji: '🎈', color: '#B3FFB3' },
-      { name: 'Logement', emoji: '🏠', color: '#FFE0B3' },
-      { name: 'Santé', emoji: '💊', color: '#E0B3FF' }
-    ];
-    
-    const q = query(collection(firestoreDb, 'categories'), where('userId', '==', user.uid));
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) {
-      const batch = writeBatch(firestoreDb);
-      defaultCategories.forEach(cat => {
-        const catRef = doc(collection(firestoreDb, 'categories'));
-        batch.set(catRef, {
-          ...cat,
-          userId: user.uid
-        });
-      });
-      await batch.commit();
-    }
-
     return user;
   };
 
@@ -1382,28 +1314,6 @@ export const DbProvider = ({ children }) => {
           },
           createdAt: new Date().toISOString()
         });
-
-        // Initialize default categories for new user
-        const defaultCategories = [
-          { name: 'Alimentation', emoji: '🍎', color: '#FFB3B3' },
-          { name: 'Transport', emoji: '🚗', color: '#B3D9FF' },
-          { name: 'Loisirs', emoji: '🎈', color: '#B3FFB3' },
-          { name: 'Logement', emoji: '🏠', color: '#FFE0B3' },
-          { name: 'Santé', emoji: '💊', color: '#E0B3FF' }
-        ];
-        const q = query(collection(firestoreDb, 'categories'), where('userId', '==', user.uid));
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) {
-          const batch = writeBatch(firestoreDb);
-          defaultCategories.forEach(cat => {
-            const catRef = doc(collection(firestoreDb, 'categories'));
-            batch.set(catRef, {
-              ...cat,
-              userId: user.uid
-            });
-          });
-          await batch.commit();
-        }
       } else {
         await setDoc(metaRef, {
           email: user.email,
@@ -1438,40 +1348,6 @@ export const DbProvider = ({ children }) => {
     });
     return unsubscribeAuth;
   }, []);
-
-  // Auto-generate default categories if empty
-  useEffect(() => {
-    const isLoading = authLoading || dataLoading;
-    if (!currentUser || isLoading) return;
-
-    if (categories.length === 0) {
-      const defaultCategories = [
-        { name: 'Alimentation', emoji: '🍎', color: '#FFB3B3' },
-        { name: 'Transport', emoji: '🚗', color: '#B3D9FF' },
-        { name: 'Loisirs', emoji: '🎈', color: '#B3FFB3' },
-        { name: 'Logement', emoji: '🏠', color: '#FFE0B3' },
-        { name: 'Santé', emoji: '💊', color: '#E0B3FF' }
-      ];
-
-      const createDefaults = async () => {
-        const q = query(collection(firestoreDb, 'categories'), where('userId', '==', currentUser.uid));
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) {
-          const batch = writeBatch(firestoreDb);
-          defaultCategories.forEach(cat => {
-            const catRef = doc(collection(firestoreDb, 'categories'));
-            batch.set(catRef, {
-              ...cat,
-              userId: currentUser.uid
-            });
-          });
-          await batch.commit();
-        }
-      };
-
-      createDefaults().catch(err => console.error("Error creating default categories:", err));
-    }
-  }, [categories, currentUser, authLoading, dataLoading]);
 
   // Data Subscription (only when logged in)
   useEffect(() => {
@@ -1576,9 +1452,7 @@ export const DbProvider = ({ children }) => {
     unsubscribes.push(subscribeCollectionOwned('accounts', setAccounts));
     unsubscribes.push(subscribeCollectionOwned('wishlist', setWishlist));
     unsubscribes.push(subscribeCollectionOwned('debts', setDebts));
-    unsubscribes.push(onSnapshot(query(collection(firestoreDb, 'categories'), where('userId', '==', currentUser.uid)), (snapshot) => {
-      setCategories(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    }));
+
 
     // Friendships Subscriptions (both senderId and receiverId)
     const qFriendshipsSender = query(collection(firestoreDb, 'friendships'), where('senderId', '==', currentUser.uid));

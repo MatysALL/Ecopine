@@ -29,7 +29,6 @@ const TABLES = [
   { id: 'accounts', name: 'Comptes', icon: CreditCard, ownerField: 'creatorId' },
   { id: 'transactions', name: 'Transactions', icon: Database, ownerField: 'userId' },
   { id: 'pockets', name: 'Poches', icon: FolderOpen, ownerField: 'userId' },
-  { id: 'categories', name: 'Catégories', icon: Tags, ownerField: 'userId' },
   { id: 'debts', name: 'Dettes', icon: Handshake, ownerField: 'creatorId' },
   { id: 'wishlist', name: 'Souhaits', icon: Gift, ownerField: 'creatorId' },
   { id: 'friendships', name: 'Amitiés', icon: UserPlus, ownerField: 'senderId' }
