@@ -16,11 +16,11 @@ export default function WishlistView() {
   
   // Form fields
   const [wishName, setWishName] = useState('');
-  const [wishPrice, setWishPrice] = useState('');
   const [wishDescription, setWishDescription] = useState('');
 
   // Purchase flow state
   const [buyingWish, setBuyingWish] = useState(null);
+  const [realPrice, setRealPrice] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,19 +84,12 @@ export default function WishlistView() {
   // Handlers for Wish Form
   const handleWishSubmit = async (e) => {
     e.preventDefault();
-    if (!wishName || !wishPrice || isSubmitting) return;
-
-    const priceValue = parseFloat(wishPrice);
-    if (isNaN(priceValue) || priceValue <= 0) {
-      alert("Veuillez entrer un prix valide supérieur à 0.");
-      return;
-    }
+    if (!wishName || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
       const wishData = {
         name: wishName.trim(),
-        price: priceValue,
         description: wishDescription.trim()
       };
 
@@ -121,8 +114,7 @@ export default function WishlistView() {
 
   const handleEditWish = (wish) => {
     setEditingWish(wish);
-    setWishName(wish.name);
-    setWishPrice(wish.price.toString());
+    setWishName(wish.name || '');
     setWishDescription(wish.description || '');
     setFormOpen(true);
   };
@@ -135,7 +127,6 @@ export default function WishlistView() {
 
   const resetForm = () => {
     setWishName('');
-    setWishPrice('');
     setWishDescription('');
     setFormOpen(false);
     setEditingWish(null);
@@ -144,6 +135,7 @@ export default function WishlistView() {
   // Handlers for Purchase flow
   const openPurchaseModal = (wish) => {
     setBuyingWish(wish);
+    setRealPrice(wish.price ? wish.price.toString() : '');
     setSelectedAccountId('');
     setPurchaseSuccess(false);
   };
@@ -151,6 +143,12 @@ export default function WishlistView() {
   const handleConfirmPurchase = async (e) => {
     e.preventDefault();
     if (!buyingWish || !selectedAccountId || isBuying) return;
+
+    const priceValue = parseFloat(realPrice);
+    if (isNaN(priceValue) || priceValue <= 0) {
+      alert("Veuillez entrer un prix réel valide supérieur à 0.");
+      return;
+    }
 
     const selectedAccount = accounts?.find(a => a.id === selectedAccountId);
     if (!selectedAccount) {
@@ -162,12 +160,12 @@ export default function WishlistView() {
     try {
       const todayStr = new Date().toISOString().split('T')[0];
 
-      // Create the debit transaction (simplified structure)
+      // Create the debit transaction
       const newTx = {
         accountId: selectedAccountId,
         name: `Achat : ${buyingWish.name}`,
         description: buyingWish.description || `Achat depuis le Catalogue : ${buyingWish.name}`,
-        amount: buyingWish.price,
+        amount: priceValue,
         type: 'debit',
         date: todayStr,
         pocketId: null
@@ -236,8 +234,8 @@ export default function WishlistView() {
             {editingWish ? 'Modifier le souhait' : 'Ajouter un nouveau souhait au catalogue'}
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Nom du projet d'achat *</label>
               <input
                 type="text"
@@ -250,32 +248,15 @@ export default function WishlistView() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Prix (Clochettes) *</label>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={wishPrice}
-                  onChange={(e) => setWishPrice(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold text-ac-brown focus:outline-none"
-                  required
-                />
-                <span className="absolute left-3 top-2.5 text-xs font-black">🔔</span>
-              </div>
+              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Description / Notes (optionnel)</label>
+              <input
+                type="text"
+                value={wishDescription}
+                onChange={(e) => setWishDescription(e.target.value)}
+                placeholder="Ex: Couleur bleu et rouge, à acheter à la Boutique Nook..."
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none"
+              />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Description / Notes</label>
-            <input
-              type="text"
-              value={wishDescription}
-              onChange={(e) => setWishDescription(e.target.value)}
-              placeholder="Ex: Couleur bleu et rouge, à acheter à la Boutique Nook..."
-              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none"
-            />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
@@ -350,14 +331,6 @@ export default function WishlistView() {
                       Aucune description renseignée.
                     </p>
                   )}
-
-                  {/* Price Display */}
-                  <div className="bg-ac-gold-light border-2 border-ac-gold rounded-2xl px-4 py-2 inline-flex items-center gap-1.5 shadow-ac-xs">
-                    <Coins className="w-4 h-4 text-ac-gold" />
-                    <span className="font-black text-ac-gold-dark text-sm">
-                      {wish.price.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                    </span>
-                  </div>
                 </div>
 
                 {/* Action Buttons Group */}
@@ -385,7 +358,7 @@ export default function WishlistView() {
                     onClick={() => openPurchaseModal(wish)}
                     className="bg-ac-green text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer flex items-center gap-1.5"
                   >
-                    <Sparkles className="w-3.5 h-3.5 fill-white" /> Acheter
+                    <Sparkles className="w-3.5 h-3.5 fill-white" /> Solder le souhait
                   </button>
                 </div>
               </div>
@@ -432,12 +405,33 @@ export default function WishlistView() {
                 </h3>
 
                 <div className="bg-ac-cream border-2 border-ac-brown/30 rounded-xl p-3.5 mb-4 text-xs font-semibold space-y-1">
-                  <p className="text-[10px] text-ac-brown-light uppercase font-black">Produit à acheter</p>
+                  <p className="text-[10px] text-ac-brown-light uppercase font-black">Souhait à solder</p>
                   <p className="text-sm font-extrabold">{buyingWish.name}</p>
-                  <p className="text-xs text-ac-gold-dark font-black">Prix : {buyingWish.price.toLocaleString('fr-FR')} 🔔</p>
+                  {buyingWish.description && (
+                    <p className="text-xs text-ac-brown-light italic">{buyingWish.description}</p>
+                  )}
                 </div>
 
                 <form onSubmit={handleConfirmPurchase} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5">
+                      Prix réel payé (Clochettes) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={realPrice}
+                        onChange={(e) => setRealPrice(e.target.value)}
+                        placeholder="Ex: 299.99"
+                        className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-10 pr-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                        required
+                      />
+                      <span className="absolute left-3.5 top-3 text-sm font-black">🔔</span>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5">
                       Déduire l'achat depuis le compte *
@@ -451,7 +445,7 @@ export default function WishlistView() {
                       <option value="">-- Choisir le compte de débit --</option>
                       {accounts?.map(acc => (
                         <option key={acc.id} value={acc.id}>
-                          {acc.name} ({acc.visibleBalance.toLocaleString('fr-FR')} 🔔 disponible)
+                          {acc.name} (Solde : {(acc.visibleBalance ?? acc.currentBalance ?? 0).toLocaleString('fr-FR')} 🔔)
                         </option>
                       ))}
                     </select>

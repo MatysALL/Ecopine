@@ -417,11 +417,6 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                           <p className="text-[10px] text-ac-brown-light truncate">{wish.description}</p>
                         )}
                       </div>
-                      <div className="text-right ml-3 shrink-0 flex items-center gap-2">
-                        <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs">
-                          {wish.price.toLocaleString('fr-FR')} 🔔
-                        </span>
-                      </div>
                     </div>
                   ))}
                 </div>
