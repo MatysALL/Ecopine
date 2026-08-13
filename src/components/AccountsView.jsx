@@ -5,7 +5,7 @@ import { auth, db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
   Coins, PiggyBank, HelpCircle, AlertTriangle, 
-  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X, Mail
+  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X, Mail, Star
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import PocketManager from './PocketManager';
@@ -15,12 +15,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [accountFormOpen, setAccountFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [accName, setAccName] = useState('');
-  const [accType, setAccType] = useState('Courant');
   const [accBankName, setAccBankName] = useState('');
   const [accDescription, setAccDescription] = useState('');
-  const [accRib, setAccRib] = useState('');
-  const [accInitial, setAccInitial] = useState('');
-  const [accRate, setAccRate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Transaction Modal state
@@ -41,32 +37,34 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [toastMessage, setToastMessage] = useState(null);
   const [importHistoryModalOpen, setImportHistoryModalOpen] = useState(false);
 
-  const { accountsData: accounts, transactions: allTransactions, categories, user, username } = useDb();
+  const { accountsData: accounts, transactions: allTransactions, categories, user, username, usersMetaDoc, userMeta } = useDb();
+
+  // Favorite account calculation
+  const currentFavoriteId = useMemo(() => {
+    return usersMetaDoc?.favoriteAccountId || userMeta?.find(m => m.key === 'favorite_account_id')?.value || null;
+  }, [usersMetaDoc, userMeta]);
+
+  const handleToggleFavorite = async (e, accId) => {
+    e.stopPropagation();
+    try {
+      await db.user_meta.put({ key: 'favorite_account_id', value: accId });
+    } catch (err) {
+      console.error("Erreur lors de la définition du compte favori :", err);
+    }
+  };
 
   // Drag & Drop state for Accounts
   const [draggableAccountId, setDraggableAccountId] = useState(null);
-  const longPressTimer = useRef(null);
+  const isDraggingRef = useRef(false);
+  const touchStartIndexRef = useRef(null);
 
   const sortedAccounts = useMemo(() => {
     if (!accounts) return [];
     return [...accounts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [accounts]);
 
-  // Drag & Drop handlers for Accounts
-  const handleAccountDragStart = (e, index) => {
-    e.dataTransfer.setData('text/plain', index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleAccountDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  const handleAccountDrop = async (e, hoverIndex) => {
-    e.preventDefault();
-    const dragIndex = Number(e.dataTransfer.getData('text/plain'));
-    if (dragIndex === hoverIndex || isNaN(dragIndex)) return;
-
+  const reorderAccounts = async (dragIndex, hoverIndex) => {
+    if (dragIndex === hoverIndex || isNaN(dragIndex) || isNaN(hoverIndex)) return;
     const reordered = [...sortedAccounts];
     const [dragged] = reordered.splice(dragIndex, 1);
     reordered.splice(hoverIndex, 0, dragged);
@@ -79,23 +77,68 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     });
     
     await batch.commit();
+  };
+
+  // Drag & Drop handlers for Accounts
+  const handleAccountDragStart = (e, index) => {
+    e.dataTransfer.setData('text/plain', index);
+    e.dataTransfer.effectAllowed = 'move';
+    isDraggingRef.current = true;
+  };
+
+  const handleAccountDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleAccountDrop = async (e, hoverIndex) => {
+    e.preventDefault();
+    const dragIndex = Number(e.dataTransfer.getData('text/plain'));
+    await reorderAccounts(dragIndex, hoverIndex);
     setDraggableAccountId(null);
+    isDraggingRef.current = false;
   };
 
   const handleAccountDragEnd = () => {
     setDraggableAccountId(null);
+    isDraggingRef.current = false;
   };
 
-  const handleStartLongPress = (id) => {
-    longPressTimer.current = setTimeout(() => {
-      setDraggableAccountId(id);
-    }, 850);
+  const handleTouchStartHandle = (e, index, accId) => {
+    setDraggableAccountId(accId);
+    touchStartIndexRef.current = index;
+    isDraggingRef.current = true;
   };
 
-  const handleCancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
+  const handleTouchMoveHandle = (e) => {
+    if (!isDraggingRef.current || touchStartIndexRef.current === null) return;
+    const touch = e.touches[0];
+    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!targetEl) return;
+    const cardEl = targetEl.closest('[data-account-index]');
+    if (cardEl) {
+      const hoverIndex = Number(cardEl.getAttribute('data-account-index'));
+      if (!isNaN(hoverIndex)) {
+        cardEl.classList.add('ring-2', 'ring-ac-green');
+      }
     }
+  };
+
+  const handleTouchEndHandle = async (e, index) => {
+    if (!isDraggingRef.current) return;
+    const touch = e.changedTouches[0];
+    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+    isDraggingRef.current = false;
+    setDraggableAccountId(null);
+    if (targetEl) {
+      const cardEl = targetEl.closest('[data-account-index]');
+      if (cardEl) {
+        const hoverIndex = Number(cardEl.getAttribute('data-account-index'));
+        if (!isNaN(hoverIndex) && hoverIndex !== touchStartIndexRef.current) {
+          await reorderAccounts(touchStartIndexRef.current, hoverIndex);
+        }
+      }
+    }
+    touchStartIndexRef.current = null;
   };
 
   // Fetch transactions for the active account
@@ -133,21 +176,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
     e.preventDefault();
-    if (!accName || !accInitial || isSubmitting) return;
+    if (!accName.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
-      const initial = parseFloat(accInitial);
-      const rate = accRate ? parseFloat(accRate) : 0;
-
       const data = {
         name: accName.trim(),
-        type: accType,
         bankName: accBankName.trim(),
         description: accDescription.trim(),
-        rib: accRib.trim(),
-        initialBalance: isNaN(initial) ? 0 : initial,
-        rate: isNaN(rate) ? 0 : rate,
       };
 
       if (editingAccount) {
@@ -156,9 +192,15 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       } else {
         const newId = await db.accounts.add({
           ...data,
-          currentBalance: data.initialBalance
+          initialBalance: 0,
+          currentBalance: 0
         });
         setSelectedAccountId(newId);
+
+        // Règle par défaut : Si un utilisateur crée son TOUT PREMIER compte (et qu'aucun favori n'existe), définis-le automatiquement comme le compte favori par défaut.
+        if (!currentFavoriteId || !accounts || accounts.length === 0) {
+          await db.user_meta.put({ key: 'favorite_account_id', value: newId });
+        }
       }
 
       setAccountFormOpen(false);
@@ -173,12 +215,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   const resetAccountForm = () => {
     setAccName('');
-    setAccType('Courant');
     setAccBankName('');
     setAccDescription('');
-    setAccRib('');
-    setAccInitial('');
-    setAccRate('');
   };
 
   const handleTransferSubmit = async (e) => {
@@ -258,13 +296,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   const handleEditAccount = (acc) => {
     setEditingAccount(acc);
-    setAccName(acc.name);
-    setAccType(acc.type || 'Courant');
+    setAccName(acc.name || '');
     setAccBankName(acc.bankName || '');
     setAccDescription(acc.description || '');
-    setAccRib(acc.rib || '');
-    setAccInitial(acc.initialBalance.toString());
-    setAccRate(acc.rate ? acc.rate.toString() : '');
     setAccountFormOpen(true);
   };
 
@@ -633,21 +667,25 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     </span>
                   )}
                 </h2>
-                <div className="flex flex-wrap gap-2 items-center text-xs font-bold text-ac-brown-light mt-1">
-                  <span className="bg-ac-gold-light border border-ac-gold/30 text-ac-gold-dark px-2.5 py-0.5 rounded-full font-black uppercase text-[9px]">
-                    {activeAccount.type}
-                  </span>
-                  {activeAccount.rate > 0 && (
-                    <span className="bg-ac-green-light border border-ac-green/20 text-ac-green px-2.5 py-0.5 rounded-full">
-                      Taux: {activeAccount.rate}%
-                    </span>
-                  )}
-                  {activeAccount.rib && (
-                    <span className="bg-ac-cream-dark/40 px-2.5 py-0.5 rounded-full border border-ac-brown/10 font-mono text-[10px]">
-                      RIB: {activeAccount.rib}
-                    </span>
-                  )}
-                </div>
+                {(activeAccount.type || activeAccount.rate > 0 || activeAccount.rib) && (
+                  <div className="flex flex-wrap gap-2 items-center text-xs font-bold text-ac-brown-light mt-1">
+                    {activeAccount.type && (
+                      <span className="bg-ac-gold-light border border-ac-gold/30 text-ac-gold-dark px-2.5 py-0.5 rounded-full font-black uppercase text-[9px]">
+                        {activeAccount.type}
+                      </span>
+                    )}
+                    {activeAccount.rate > 0 && (
+                      <span className="bg-ac-green-light border border-ac-green/20 text-ac-green px-2.5 py-0.5 rounded-full">
+                        Taux: {activeAccount.rate}%
+                      </span>
+                    )}
+                    {activeAccount.rib && (
+                      <span className="bg-ac-cream-dark/40 px-2.5 py-0.5 rounded-full border border-ac-brown/10 font-mono text-[10px]">
+                        RIB: {activeAccount.rib}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {activeAccount.description && (
                   <p className="text-[11px] font-semibold text-ac-brown-light mt-2 italic">
                     "{activeAccount.description}"
@@ -1053,10 +1091,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {sortedAccounts.map((acc, index) => {
                 const isDragging = draggableAccountId === acc.id;
+                const isFavorite = currentFavoriteId === acc.id;
+
                 return (
                   <div 
                     key={acc.id}
-                    draggable={isDragging}
+                    data-account-index={index}
+                    draggable={draggableAccountId === acc.id}
                     onDragStart={(e) => handleAccountDragStart(e, index)}
                     onDragOver={handleAccountDragOver}
                     onDrop={(e) => handleAccountDrop(e, index)}
@@ -1070,9 +1111,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       <div>
                         <h4 className="font-extrabold text-sm text-ac-brown leading-tight flex items-center gap-1.5 flex-wrap">
                           {acc.name}
-                          <span className="text-[8px] font-black uppercase tracking-wider bg-ac-cream-dark/50 border border-ac-brown/10 text-ac-brown-light px-2 py-0.5 rounded-full">
-                            {acc.type}
-                          </span>
                         </h4>
                         {acc.bankName && (
                           <span className="text-[9px] font-bold text-ac-brown-light/80 block mt-1">
@@ -1082,15 +1120,25 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       </div>
 
                       <div className="flex gap-1.5 shrink-0 items-center">
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleFavorite(e, acc.id)}
+                          className="w-9 h-9 bg-ac-cream hover:bg-amber-100 rounded-full border border-ac-brown/20 flex items-center justify-center transition-colors cursor-pointer"
+                          title={isFavorite ? "Compte favori actuel" : "Définir comme compte favori"}
+                        >
+                          <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-400 fill-amber-400' : 'text-ac-brown-light/40 hover:text-amber-400'}`} />
+                        </button>
+
                         <div 
-                          onMouseDown={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
-                          onTouchStart={(e) => { e.stopPropagation(); handleStartLongPress(acc.id); }}
-                          onMouseUp={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
-                          onTouchEnd={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
-                          onMouseLeave={(e) => { e.stopPropagation(); handleCancelLongPress(); }}
+                          onMouseDown={(e) => { e.stopPropagation(); setDraggableAccountId(acc.id); isDraggingRef.current = true; }}
+                          onMouseEnter={() => { setDraggableAccountId(acc.id); }}
+                          onMouseLeave={() => { if (!isDraggingRef.current) setDraggableAccountId(null); }}
+                          onTouchStart={(e) => { e.stopPropagation(); handleTouchStartHandle(e, index, acc.id); }}
+                          onTouchMove={handleTouchMoveHandle}
+                          onTouchEnd={(e) => handleTouchEndHandle(e, index)}
                           onClick={(e) => e.stopPropagation()}
                           className="w-9 h-9 bg-ac-cream rounded-full border border-ac-brown/20 flex items-center justify-center group-hover:bg-ac-gold/10 transition-colors cursor-grab active:cursor-grabbing"
-                          title="Glisser-déposer (clic long sur la tirelire)"
+                          title="Déplacer le compte (glisser-déposer)"
                         >
                           <PiggyBank className="w-5 h-5 text-ac-gold" />
                         </div>
@@ -1245,91 +1293,27 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             </h3>
 
             <form onSubmit={handleAccountSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom du compte *</label>
-                  <input
-                    type="text"
-                    value={accName}
-                    onChange={(e) => setAccName(e.target.value)}
-                    placeholder="Ex: Livret A, Poche principale"
-                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Type de Compte</label>
-                  <select
-                    value={accType}
-                    onChange={(e) => setAccType(e.target.value)}
-                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
-                  >
-                    <option value="Courant">Courant (Dépenses courantes)</option>
-                    <option value="Livret A">Livret A (Épargne)</option>
-                    <option value="LDDS">LDDS (Épargne)</option>
-                    <option value="LEP">LEP (Épargne pop.)</option>
-                    <option value="Autre Livret">Autre Livret d'épargne</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom du compte *</label>
+                <input
+                  type="text"
+                  value={accName}
+                  onChange={(e) => setAccName(e.target.value)}
+                  placeholder="Ex: Compte Principal, Poche d'épargne..."
+                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                  required
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Banque / Établissement</label>
-                  <input
-                    type="text"
-                    value={accBankName}
-                    onChange={(e) => setAccBankName(e.target.value)}
-                    placeholder="Ex: Nook Banque, Caisse d'Épargne"
-                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Numéro de Compte / RIB</label>
-                  <input
-                    type="text"
-                    value={accRib}
-                    onChange={(e) => setAccRib(e.target.value)}
-                    placeholder="Ex: FR76 3000..."
-                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white font-mono text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Solde Initial *</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={accInitial}
-                      onChange={(e) => setAccInitial(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
-                      disabled={!!editingAccount}
-                      required
-                    />
-                    <span className="absolute left-2.5 top-3.5 text-xs font-black">🔔</span>
-                  </div>
-                  {editingAccount && <p className="text-[9px] text-ac-brown-light/60 mt-1">Le solde initial ne peut pas être modifié après création.</p>}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Taux d'intérêt annuel (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={accRate}
-                    onChange={(e) => setAccRate(e.target.value)}
-                    placeholder="0.00"
-                    disabled={accType === 'Courant'}
-                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white disabled:opacity-40"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Banque / Établissement</label>
+                <input
+                  type="text"
+                  value={accBankName}
+                  onChange={(e) => setAccBankName(e.target.value)}
+                  placeholder="Ex: Nook Banque, Caisse d'Épargne..."
+                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                />
               </div>
 
               <div>

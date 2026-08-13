@@ -1778,9 +1778,8 @@ export const DbProvider = ({ children }) => {
     if (accountsData.length === 0) return null;
     
     let favId = usersMetaDoc?.favoriteAccountId;
-    if (!favId) {
-      const courant = accountsData.find(a => a.type === 'Courant');
-      favId = courant ? courant.id : accountsData[0].id;
+    if (!favId || !accountsData.some(a => a.id === favId)) {
+      favId = accountsData[0].id;
     }
 
     const favAccount = accountsData.find(a => a.id === favId);

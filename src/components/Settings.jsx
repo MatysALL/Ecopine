@@ -94,11 +94,9 @@ export default function Settings() {
   useEffect(() => {
     if (userMeta) {
       const nameMeta = userMeta.find(m => m.key === 'username');
-      const favMeta = userMeta.find(m => m.key === 'favorite_account_id');
       const photoMeta = userMeta.find(m => m.key === 'photoURL');
       const themeMeta = userMeta.find(m => m.key === 'theme_preference');
       setUsername(nameMeta?.value || '');
-      setFavAccountId(favMeta?.value || '');
       setPhotoURL(photoMeta?.value || user?.photoURL || '/pfp-ac.jpg');
       setThemePreference(themeMeta?.value || 'default');
     }
@@ -117,7 +115,6 @@ export default function Settings() {
     e.preventDefault();
     try {
       await db.user_meta.put({ key: 'username', value: username.trim() });
-      await db.user_meta.put({ key: 'favorite_account_id', value: favAccountId });
       await db.user_meta.put({ key: 'photoURL', value: (photoURL || '/pfp-ac.jpg').trim() });
       await db.user_meta.put({ key: 'theme_preference', value: themePreference });
       
@@ -316,21 +313,7 @@ export default function Settings() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Compte Favori (Mise en avant)</label>
-                <select
-                  value={favAccountId}
-                  onChange={(e) => setFavAccountId(e.target.value)}
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold focus:outline-none focus:bg-white cursor-pointer"
-                >
-                  <option value="">-- Sélectionner un compte favori --</option>
-                  {accountsList?.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.type})
-                    </option>
-                  ))}
-                </select>
-              </div>
+
 
               <div className="pt-2 flex items-center gap-3 flex-wrap">
                 <button
