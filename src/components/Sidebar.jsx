@@ -1,5 +1,5 @@
 import React from 'react';
-import { Leaf, PiggyBank, Calendar, Settings, Gift, LogOut, Handshake } from 'lucide-react';
+import { Leaf, PiggyBank, Calendar, Settings, Gift, LogOut, Handshake, Users } from 'lucide-react';
 import { useDb } from '../db';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
@@ -21,6 +21,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     { id: 'calendar', label: 'Calendrier', icon: Calendar, color: 'text-ac-sky' },
     { id: 'debts', label: 'Dettes', icon: Handshake, color: 'text-ac-orange' },
     { id: 'wishlist', label: 'Souhaits', icon: Gift, color: 'text-ac-red' },
+    { id: 'social', label: 'Social', icon: Users, color: 'text-[#5C9440]' },
     { id: 'settings', label: 'Paramètres', icon: Settings, color: 'text-ac-brown-light' },
   ];
 
@@ -77,7 +78,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 my-6 flex flex-col gap-3 justify-start">
+        <nav className="flex-1 my-6 flex flex-col gap-2.5 justify-start overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -85,7 +86,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-3 font-extrabold text-sm transition-all duration-150 text-left ac-btn ${
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border-3 font-extrabold text-sm transition-all duration-150 text-left ac-btn ${
                   isActive
                     ? 'bg-ac-green text-white border-ac-brown shadow-none translate-y-1'
                     : 'bg-white text-ac-brown border-ac-brown hover:bg-ac-green-light hover:translate-y-[-2px]'
@@ -93,7 +94,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
               >
                 <div className="relative">
                   <Icon className={`w-5 h-5 ${isActive ? 'text-white' : item.color}`} />
-                  {item.id === 'settings' && pendingRequestsCount > 0 && (
+                  {item.id === 'social' && pendingRequestsCount > 0 && (
                     <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#E57373] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white animate-pulse shadow-sm">
                       {pendingRequestsCount}
                     </div>

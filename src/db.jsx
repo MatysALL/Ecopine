@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { auth, googleProvider, db as firestoreDb } from './firebase';
 import { 
   collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, 
-  setDoc, query, where, onSnapshot, writeBatch, runTransaction 
+  setDoc, query, where, onSnapshot, writeBatch, runTransaction,
+  arrayUnion, arrayRemove
 } from 'firebase/firestore';
 import { 
   createUserWithEmailAndPassword, 
@@ -1010,23 +1011,51 @@ export const db = {
     }
   },
   friendships: {
-    sendRequest: async (email) => {
+    sendRequest: async (targetIdentifier) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const targetEmail = email.trim().toLowerCase();
-      if (targetEmail === auth.currentUser.email.toLowerCase()) {
+      const cleanTarget = (targetIdentifier || '').trim();
+      if (!cleanTarget) throw new Error("Identifiant invalide");
+
+      if (
+        cleanTarget.toLowerCase() === auth.currentUser.email?.toLowerCase() ||
+        cleanTarget === auth.currentUser.uid
+      ) {
         throw new Error("Tu ne peux pas t'envoyer une demande d'ami à toi-même !");
       }
 
-      // 1. Find user by email in users_meta
-      const q = query(collection(firestoreDb, 'users_meta'), where('email', '==', targetEmail));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        throw new Error("Aucun habitant trouvé avec cet e-mail sur l'île.");
+      let friendDoc = null;
+      let friendId = '';
+      let friendData = null;
+
+      // 1. Try finding target by UID in users_meta first
+      const directDocRef = doc(firestoreDb, 'users_meta', cleanTarget);
+      const directSnap = await getDoc(directDocRef);
+
+      if (directSnap.exists()) {
+        friendDoc = directSnap;
+        friendId = directSnap.id;
+        friendData = directSnap.data();
+      } else {
+        // Search by email
+        const q = query(collection(firestoreDb, 'users_meta'), where('email', '==', cleanTarget.toLowerCase()));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          throw new Error("Aucun habitant trouvé sur l'île.");
+        }
+        friendDoc = snap.docs[0];
+        friendId = friendDoc.id;
+        friendData = friendDoc.data();
       }
 
-      const friendDoc = snap.docs[0];
-      const friendData = friendDoc.data();
-      const friendId = friendDoc.id;
+      if (friendId === auth.currentUser.uid) {
+        throw new Error("Tu ne peux pas t'envoyer une demande d'ami à toi-même !");
+      }
+
+      // Check if target user has put currentUser in their Redlist
+      const targetRedlist = Array.isArray(friendData.redlist) ? friendData.redlist : [];
+      if (targetRedlist.includes(auth.currentUser.uid)) {
+        throw new Error("Demande impossible : cet habitant a restreint ses invitations.");
+      }
 
       // 2. Check if a friendship already exists or is pending
       const qExist1 = query(
@@ -1053,10 +1082,10 @@ export const db = {
       // 4. Add friendship request
       const docData = {
         senderId: auth.currentUser.uid,
-        senderEmail: auth.currentUser.email.toLowerCase(),
+        senderEmail: (auth.currentUser.email || '').toLowerCase(),
         senderName: myName,
         receiverId: friendId,
-        receiverEmail: targetEmail,
+        receiverEmail: (friendData.email || '').toLowerCase(),
         receiverName: friendData.username || 'Habitant',
         status: 'pending',
         createdAt: new Date().toISOString()
@@ -1067,6 +1096,41 @@ export const db = {
     acceptRequest: async (id) => {
       const ref = doc(firestoreDb, 'friendships', id);
       await updateDoc(ref, { status: 'accepted' });
+    },
+    rejectAndRedlist: async (id, senderUid) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      if (senderUid) {
+        const myMetaRef = doc(firestoreDb, 'users_meta', auth.currentUser.uid);
+        try {
+          await updateDoc(myMetaRef, {
+            redlist: arrayUnion(senderUid)
+          });
+        } catch (err) {
+          await setDoc(myMetaRef, { redlist: arrayUnion(senderUid) }, { merge: true });
+        }
+      }
+      if (id) {
+        const ref = doc(firestoreDb, 'friendships', id);
+        await deleteDoc(ref);
+      }
+    },
+    addToRedlist: async (uid) => {
+      if (!auth.currentUser || !uid) return;
+      const myMetaRef = doc(firestoreDb, 'users_meta', auth.currentUser.uid);
+      try {
+        await updateDoc(myMetaRef, {
+          redlist: arrayUnion(uid)
+        });
+      } catch (err) {
+        await setDoc(myMetaRef, { redlist: arrayUnion(uid) }, { merge: true });
+      }
+    },
+    removeFromRedlist: async (uid) => {
+      if (!auth.currentUser || !uid) return;
+      const myMetaRef = doc(firestoreDb, 'users_meta', auth.currentUser.uid);
+      await updateDoc(myMetaRef, {
+        redlist: arrayRemove(uid)
+      });
     },
     delete: async (id) => {
       const ref = doc(firestoreDb, 'friendships', id);
@@ -1696,7 +1760,7 @@ export const DbProvider = ({ children }) => {
       .slice(0, 5);
   }, [transactions]);
 
-  // Derived state: acceptedFriends (friends with status === 'accepted')
+  // Derived state: acceptedFriends (friends with status === 'accepted', strictly sorted alphabetically by name)
   const acceptedFriends = useMemo(() => {
     if (!friendships || !currentUser) return [];
     return friendships
@@ -1712,7 +1776,8 @@ export const DbProvider = ({ children }) => {
           name: meta?.username || (isSender ? f.receiverName : f.senderName) || (isSender ? f.receiverEmail : f.senderEmail) || 'Habitant',
           photoURL: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg'
         };
-      });
+      })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
   }, [friendships, currentUser, allUsersMeta]);
 
   // Derived state: count of received pending friend requests
@@ -1736,6 +1801,7 @@ export const DbProvider = ({ children }) => {
     debts,
     friendships,
     acceptedFriends,
+    redlist: Array.isArray(usersMetaDoc?.redlist) ? usersMetaDoc.redlist : [],
     accountsData,
     favoriteAccountDetails,
     globalLatestTransactions,

@@ -10,8 +10,9 @@ import WishlistView from './components/WishlistView';
 import AuthView from './components/AuthView';
 import DebtsView from './components/DebtsView';
 import AdminView from './components/AdminView';
+import SocialView from './components/SocialView';
 import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './components/TutorialComponents';
-import { Leaf, PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon } from 'lucide-react';
+import { Leaf, PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users } from 'lucide-react';
 import TransactionModal from './components/TransactionModal';
 
 export default function App() {
@@ -147,6 +148,8 @@ export default function App() {
         return <DebtsView />;
       case 'wishlist':
         return <WishlistView />;
+      case 'social':
+        return <SocialView />;
       case 'settings':
         return <Settings />;
       case 'admin':
@@ -203,7 +206,7 @@ export default function App() {
               </span>
             )}
           </span>
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
             <div 
               onClick={() => setActiveTab(isAdmin ? 'admin' : 'settings')}
               className={`w-10 h-10 rounded-full border-2 border-[#5C3A41] overflow-hidden bg-ac-green flex items-center justify-center text-white text-xs font-black shadow-ac-xs shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all ${
@@ -218,9 +221,13 @@ export default function App() {
             </div>
             {/* Mobile Friend Requests Badge */}
             {pendingRequestsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-ac-red border border-white rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-ac-xs animate-pulse">
+              <button 
+                onClick={() => setActiveTab('social')}
+                className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-ac-red border border-white rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-ac-xs animate-pulse cursor-pointer"
+                title="Invitations d'amis reçues"
+              >
                 {pendingRequestsCount}
-              </span>
+              </button>
             )}
           </div>
         </header>
@@ -252,12 +259,13 @@ export default function App() {
       {/* Mobile Bottom Navigation Bar (NookPhone Dock) */}
       {user && !needsOnboarding && (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FFF9FA]/95 backdrop-blur-md border-t-2 border-[#5C3A41] pb-[env(safe-area-inset-bottom)]">
-          <nav className="flex justify-around items-center h-16 px-2">
+          <nav className="flex justify-around items-center h-16 px-1">
             {[
               { id: 'accounts', label: 'Comptes', icon: PiggyBank },
               { id: 'calendar', label: 'Calendrier', icon: Calendar },
               { id: 'debts', label: 'Dettes', icon: Handshake },
               { id: 'wishlist', label: 'Souhaits', icon: Gift },
+              { id: 'social', label: 'Social', icon: Users },
               { id: 'settings', label: 'Paramètres', icon: SettingsIcon }
             ].map(item => {
               const Icon = item.icon;
@@ -266,24 +274,24 @@ export default function App() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex flex-col items-center justify-center flex-1 h-full transition-all gap-1 cursor-pointer select-none ${
+                  className={`flex flex-col items-center justify-center flex-1 h-full transition-all gap-0.5 cursor-pointer select-none ${
                     isActive 
                       ? 'text-ac-green scale-105 font-black animate-bounce-once' 
                       : 'text-ac-brown/65 hover:text-ac-brown font-bold'
                   }`}
                   style={{ minHeight: '44px' }}
                 >
-                  <div className={`relative p-1.5 rounded-xl border transition-all ${
+                  <div className={`relative p-1 rounded-xl border transition-all ${
                     isActive ? 'bg-[#78B159]/15 border-[#78B159]/40 shadow-xs' : 'border-transparent'
                   }`}>
                     <Icon className="w-5 h-5" />
-                    {item.id === 'settings' && pendingRequestsCount > 0 && (
+                    {item.id === 'social' && pendingRequestsCount > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-ac-red border border-white rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-ac-xs animate-pulse">
                         {pendingRequestsCount}
                       </span>
                     )}
                   </div>
-                  <span className="text-[9px] tracking-tight">{item.label}</span>
+                  <span className="text-[8px] tracking-tight">{item.label}</span>
                 </button>
               );
             })}
