@@ -358,8 +358,8 @@ export default function DebtsView() {
             <div className="space-y-4">
               {payables.map((debt) => {
                 const personName = debt.person || debt.name || debt.associatedFriendName || 'Créancier / Dette';
-                const formattedDate = debt.date ? (isNaN(new Date(debt.date).getTime()) ? debt.date : new Date(debt.date).toLocaleDateString('fr-FR')) : 'Date non spécifiée';
-                const formattedAmount = Math.abs(debt.amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
+                const formattedDate = debt.date ? (debt.date?.toDate ? debt.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(debt.date).getTime()) ? String(debt.date) : new Date(debt.date).toLocaleDateString('fr-FR'))) : 'Date non spécifiée';
+                const formattedAmount = Math.abs(debt.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
                 return (
                   <div key={debt.id} className="p-4 bg-ac-red-light/10 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible">
                     <div className="space-y-1">
@@ -389,7 +389,7 @@ export default function DebtsView() {
                         </button>
                         <button
                           onClick={() => openSettleModal(debt)}
-                          className="bg-ac-red hover:bg-ac-red/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
+                          className="bg-ac-green hover:bg-ac-green/95 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer"
                           title="Régler / Solder"
                         >
                           Solder
@@ -424,8 +424,8 @@ export default function DebtsView() {
             <div className="space-y-4">
               {receivables.map((debt) => {
                 const personName = debt.person || debt.name || debt.associatedFriendName || 'Débiteurs / Créance';
-                const formattedDate = debt.date ? (isNaN(new Date(debt.date).getTime()) ? debt.date : new Date(debt.date).toLocaleDateString('fr-FR')) : 'Date non spécifiée';
-                const formattedAmount = Math.abs(debt.amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
+                const formattedDate = debt.date ? (debt.date?.toDate ? debt.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(debt.date).getTime()) ? String(debt.date) : new Date(debt.date).toLocaleDateString('fr-FR'))) : 'Date non spécifiée';
+                const formattedAmount = Math.abs(debt.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
                 return (
                   <div key={debt.id} className="p-4 bg-ac-green-light/20 border-2 border-ac-brown rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:translate-y-[-1px] transition-transform shadow-ac-xs relative overflow-visible">
                     <div className="space-y-1">
@@ -519,7 +519,7 @@ export default function DebtsView() {
                   </p>
                   <p className="text-sm font-extrabold">{settlingDebt.person}</p>
                   <p className={`text-xs font-black ${settlingDebt.type === 'to_pay' ? 'text-ac-red' : 'text-ac-green'}`}>
-                    Montant : {settlingDebt.amount.toLocaleString('fr-FR')} 🔔
+                    Montant : {(settlingDebt.amount ?? 0).toLocaleString('fr-FR')} 🔔
                   </p>
                 </div>
 
@@ -537,8 +537,11 @@ export default function DebtsView() {
                       <option value="">-- Choisir le compte concerné --</option>
                       {accounts.map(acc => (
                         <option key={acc.id} value={acc.id}>
-                          {acc.name} ({acc.visibleBalance.toLocaleString('fr-FR')} 🔔 disponible)
+                          {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR')} 🔔 disponible)
                         </option>
+                      ))}
+                    </select>
+                  </div>ion>
                       ))}
                     </select>
                   </div>
