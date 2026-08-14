@@ -200,7 +200,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                   {isSold && `"Ce terrain est désormais réservé / VENDU ! Merci pour tes clochettes !"`}
                   {!isSold && (
                     <>
-                      {nookStep === 0 && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${totalBalance.toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
+                      {nookStep === 0 && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${(totalBalance ?? 0).toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
                       {nookStep >= 1 && nookStep <= 6 && `"${nookAdvices[nookStep - 1]}"`}
                       {nookStep >= 7 && nookStep <= 9 && `"Je n’ai plus de conseil à te donner"`}
                       {nookStep >= 10 && nookStep <= 12 && `"je n’ai vraiment plus de conseil, maintenant arrête"`}
@@ -254,7 +254,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
 
               <div className="mt-4 flex items-baseline gap-2">
                 <span className="text-4xl font-black tracking-tight text-ac-brown">
-                  {favoriteAccountDetails.account.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                  {(favoriteAccountDetails.account.visibleBalance ?? favoriteAccountDetails.account.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                 </span>
                 <span className="text-lg font-black text-ac-brown-light">🔔</span>
 
@@ -265,7 +265,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                     : 'bg-ac-red-light border-ac-red/20 text-ac-red'
                 }`}>
                   {favoriteAccountDetails.variationPct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                  {favoriteAccountDetails.variationPct >= 0 ? '+' : ''}{favoriteAccountDetails.variationPct.toFixed(1)}% (30j)
+                  {favoriteAccountDetails.variationPct >= 0 ? '+' : ''}{(favoriteAccountDetails.variationPct ?? 0).toFixed(1)}% (30j)
                 </span>
               </div>
 
@@ -274,7 +274,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                 <div className="mt-4 flex items-center gap-2 bg-white/85 border border-ac-gold rounded-xl px-3 py-2 text-[10px] font-bold text-ac-gold-dark">
                   <Shield className="w-3.5 h-3.5" />
                   <span>
-                    Solde réel : <strong>{favoriteAccountDetails.account.balance.toLocaleString('fr-FR')} 🔔</strong> (dont <strong>{(favoriteAccountDetails.account.balance - favoriteAccountDetails.account.visibleBalance).toLocaleString('fr-FR')} 🔔</strong> bloqués dans des objectifs).
+                    Solde réel : <strong>{(favoriteAccountDetails.account.balance ?? 0).toLocaleString('fr-FR')} 🔔</strong> (dont <strong>{((favoriteAccountDetails.account.balance ?? 0) - (favoriteAccountDetails.account.visibleBalance ?? 0)).toLocaleString('fr-FR')} 🔔</strong> bloqués dans des objectifs).
                   </span>
                 </div>
               )}
@@ -305,7 +305,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                               </span>
                             </div>
                             <span className="text-[9px] font-black text-ac-brown-light/75 whitespace-nowrap">
-                              {Math.round(current).toLocaleString('fr-FR')} / {allocated.toLocaleString('fr-FR')} 🔔
+                              {(Math.round(current) ?? 0).toLocaleString('fr-FR')} / {(allocated ?? 0).toLocaleString('fr-FR')} 🔔
                             </span>
                           </div>
 
@@ -333,14 +333,15 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                   <div className="divide-y divide-ac-cream-dark">
                     {favoriteAccountDetails.latestTxs.map((tx) => {
                       const isIncome = tx.type === 'credit';
+                      const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
                       return (
                         <div key={tx.id} className="py-2 flex justify-between items-center text-xs">
                           <div>
                             <p className="font-extrabold text-ac-brown truncate max-w-[150px]">{tx.name}</p>
-                            <span className="text-[8px] font-bold text-ac-brown-light block">{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
+                            <span className="text-[8px] font-bold text-ac-brown-light block">{formattedDate}</span>
                           </div>
                           <span className={`font-black ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                            {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR')} 🔔
+                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR')} 🔔
                           </span>
                         </div>
                       );
@@ -386,7 +387,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <span className="font-black text-sm text-ac-brown block">
-                          {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
+                          {(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
                         </span>
                       </div>
                     </div>
@@ -438,7 +439,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                     const rawType = (debt.type || '').toLowerCase().trim();
                     const isToPay = ['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(rawType) || (typeof debt.amount === 'number' && debt.amount < 0);
                     const personName = debt.person || debt.name || debt.associatedFriendName || 'Dette';
-                    const amountVal = Math.abs(debt.amount || 0);
+                    const amountVal = Math.abs(debt.amount ?? 0);
                     return (
                       <div 
                         key={debt.id} 
@@ -461,7 +462,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                         </div>
                         <div className="text-right ml-3 shrink-0">
                           <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs font-black">
-                            {amountVal.toLocaleString('fr-FR')} 🔔
+                            {(amountVal ?? 0).toLocaleString('fr-FR')} 🔔
                           </span>
                         </div>
                       </div>
@@ -492,6 +493,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                   {globalLatestTransactions.map((tx) => {
                     const matchingAccount = accountsData.find(a => a.id === tx.accountId);
                     const isIncome = tx.type === 'credit';
+                    const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
                     return (
                       <div key={tx.id} className="flex gap-3 items-start border-b border-ac-cream pb-3 last:border-b-0">
                         <span className={`w-7 h-7 rounded-full border-2 border-ac-brown flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
@@ -503,7 +505,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                           <h4 className="font-extrabold text-xs text-ac-brown truncate">{tx.name}</h4>
                           
                           <div className="flex flex-wrap gap-1 items-center mt-1 text-[8px] font-black text-ac-brown-light">
-                            <span>{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
+                            <span>{formattedDate}</span>
                             <span>•</span>
                             <span className="bg-ac-cream border border-ac-brown/10 px-1 rounded truncate max-w-[80px]">
                               {matchingAccount?.name || 'Inconnu'}
@@ -524,7 +526,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
 
                         <div className="text-right whitespace-nowrap shrink-0">
                           <span className={`font-black text-xs ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                            {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR')} 🔔
+                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR')} 🔔
                           </span>
                         </div>
                       </div>

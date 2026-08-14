@@ -243,7 +243,7 @@ export default function PocketManager({ accountId, role }) {
             <Coins className="w-4 h-4 text-ac-gold fill-ac-gold" /> Pochettes virtuelles de l'habitant
           </h3>
           <p className="text-[11px] font-bold text-ac-brown-light leading-relaxed">
-            Alloué : <strong>{totalAllocated.toLocaleString('fr-FR')} 🔔</strong> | Restant : <strong>{totalCurrent.toLocaleString('fr-FR')} 🔔</strong>
+            Alloué : <strong>{(totalAllocated ?? 0).toLocaleString('fr-FR')} 🔔</strong> | Restant : <strong>{(totalCurrent ?? 0).toLocaleString('fr-FR')} 🔔</strong>
           </p>
         </div>
         {role !== 'viewer' && (
@@ -455,7 +455,7 @@ export default function PocketManager({ accountId, role }) {
                       {pocket.renewalFrequency && pocket.renewalFrequency !== 'none' && pocket.nextRenewalDate ? (
                         <span className="text-[9px] font-black text-ac-brown-light/75 flex items-center gap-1 mt-0.5">
                           <Clock className="w-3 h-3" />
-                          Renouvellement automatique le {new Date(pocket.nextRenewalDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} ({
+                          Renouvellement automatique le {(pocket.nextRenewalDate?.toDate ? pocket.nextRenewalDate.toDate() : new Date(pocket.nextRenewalDate)).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} ({
                             pocket.renewalFrequency === 'weekly' ? `hebdomadaire${pocket.renewalDay ? `, jour ${pocket.renewalDay}` : ''}` : `mensuel${pocket.renewalDay ? `, jour ${pocket.renewalDay}` : ''}`
                           })
                           {pocket.accumulate && <span className="text-[8px] text-ac-green font-black"> [Accumulée]</span>}
@@ -501,10 +501,10 @@ export default function PocketManager({ accountId, role }) {
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-baseline text-xs font-black">
                     <span className="text-ac-brown text-base">
-                      {Math.round(current).toLocaleString('fr-FR')} 🔔
+                      {(Math.round(current) ?? 0).toLocaleString('fr-FR')} 🔔
                     </span>
                     <span className="text-ac-brown-light text-[10px]">
-                      sur {allocated.toLocaleString('fr-FR')} 🔔
+                      sur {(allocated ?? 0).toLocaleString('fr-FR')} 🔔
                     </span>
                   </div>
 

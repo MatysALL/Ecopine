@@ -541,9 +541,6 @@ export default function DebtsView() {
                         </option>
                       ))}
                     </select>
-                  </div>ion>
-                      ))}
-                    </select>
                   </div>
 
                   <div className="flex gap-4 pt-4 border-t border-ac-brown/10">

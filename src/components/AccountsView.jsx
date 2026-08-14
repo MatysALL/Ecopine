@@ -690,7 +690,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               <div className="text-left md:text-right bg-ac-cream-dark/20 border-2 border-ac-brown rounded-2xl px-6 py-2.5 min-w-[200px]">
                 <span className="text-[9px] font-black text-ac-brown-light uppercase block">Solde Réel Principal</span>
                 <span className="text-2xl font-black text-ac-brown">
-                  {activeAccount.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                  {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                 </span>
               </div>
               
@@ -700,7 +700,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     Solde Disponible <Sparkles className="w-3 h-3 fill-ac-gold" />
                   </span>
                   <span className="text-2xl font-black text-ac-gold-dark">
-                    {activeAccount.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                    {(activeAccount.visibleBalance ?? activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                   </span>
                 </div>
               )}
@@ -723,14 +723,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 <div className="bg-white border-2 border-ac-brown rounded-xl px-4 py-2 text-center shadow-ac-sm">
                   <span className="text-[8px] font-black text-ac-brown-light uppercase block">Capitalisés (Années antérieures)</span>
                   <span className="text-sm font-black text-ac-brown">
-                    +{activeAccountInterests.capitalized.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                    +{(activeAccountInterests.capitalized ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                   </span>
                 </div>
 
                 <div className="bg-white border-2 border-ac-brown rounded-xl px-4 py-2 text-center shadow-ac-sm">
                   <span className="text-[8px] font-black text-ac-sky uppercase block">Courus (Année en cours)</span>
                   <span className="text-sm font-black text-ac-sky">
-                    +{activeAccountInterests.accrued.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                    +{(activeAccountInterests.accrued ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                   </span>
                 </div>
               </div>
@@ -815,17 +815,20 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       <FileText className="w-4 h-4 text-ac-gold" /> Aperçu de l'importation ({csvPreviewTxs.length} transactions détectées)
                     </h5>
                     <div className="max-h-60 overflow-y-auto border border-ac-brown/10 rounded-xl divide-y divide-ac-brown/10 bg-white">
-                      {csvPreviewTxs.slice(0, 10).map((tx, idx) => (
-                        <div key={idx} className="p-3 text-xs flex justify-between items-center">
-                          <div>
-                            <p className="font-extrabold text-ac-brown">{tx.name}</p>
-                            <span className="text-[10px] font-bold text-ac-brown-light">{new Date(tx.date).toLocaleDateString('fr-FR')}</span>
+                      {csvPreviewTxs.slice(0, 10).map((tx, idx) => {
+                        const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
+                        return (
+                          <div key={idx} className="p-3 text-xs flex justify-between items-center">
+                            <div>
+                              <p className="font-extrabold text-ac-brown">{tx.name}</p>
+                              <span className="text-[10px] font-bold text-ac-brown-light">{formattedDate}</span>
+                            </div>
+                            <span className={`font-black ${tx.type === 'credit' ? 'text-ac-green' : 'text-ac-brown'}`}>
+                              {tx.type === 'credit' ? '+' : '-'}{(Number(tx.amount) || 0).toFixed(2)} 🔔
+                            </span>
                           </div>
-                          <span className={`font-black ${tx.type === 'credit' ? 'text-ac-green' : 'text-ac-brown'}`}>
-                            {tx.type === 'credit' ? '+' : '-'}{tx.amount.toFixed(2)} 🔔
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {csvPreviewTxs.length > 10 && (
                         <div className="p-2 text-center text-[10px] font-bold text-ac-brown-light italic">
                           Et {csvPreviewTxs.length - 10} autres transactions...
@@ -875,10 +878,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     <tbody className="divide-y divide-ac-cream-dark">
                       {transactions.map((tx) => {
                         const isIncome = tx.type === 'credit';
+                        const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
                         return (
                           <tr key={tx.id} className="hover:bg-ac-cream-light/35 transition-colors group">
                             <td className="py-3.5 pl-2 text-xs font-bold text-ac-brown-light">
-                              {new Date(tx.date).toLocaleDateString('fr-FR')}
+                              {formattedDate}
                             </td>
                             <td className="py-3.5 font-extrabold text-sm text-ac-brown">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -902,7 +906,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                             </td>
                             <td className="py-3.5 text-right font-black text-sm">
                               <span className={isIncome ? 'text-ac-green' : 'text-ac-brown'}>
-                                {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                                {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                               </span>
                             </td>
                             <td className="py-3.5 text-center">
@@ -939,12 +943,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 <div className="md:hidden flex flex-col gap-3">
                   {transactions.map((tx) => {
                     const isIncome = tx.type === 'credit';
+                    const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
                     return (
                       <div key={tx.id} className="bg-ac-cream/20 border-2 border-ac-brown rounded-2xl p-4 flex flex-col gap-2 relative">
                         <div className="flex justify-between items-start">
                           <div>
                             <span className="text-[10px] font-black text-ac-brown-light">
-                              {new Date(tx.date).toLocaleDateString('fr-FR')}
+                              {formattedDate}
                             </span>
                             <h4 className="font-extrabold text-sm text-ac-brown mt-0.5">
                               {tx.name || tx.description}
@@ -956,7 +961,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                             </h4>
                           </div>
                           <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                            {isIncome ? '+' : '-'}{tx.amount.toLocaleString('fr-FR')} 🔔
+                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR')} 🔔
                           </span>
                         </div>
 
@@ -1119,7 +1124,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     <div className="mt-4 pt-3 border-t border-ac-brown/10 flex justify-between items-baseline">
                       <span className="text-[10px] font-black uppercase tracking-wide text-ac-brown-light/60">Solde Disponible</span>
                       <span className="font-black text-base text-ac-brown">
-                        {acc.visibleBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                        {(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                       </span>
                     </div>
                   </div>
@@ -1164,7 +1169,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   <option value="">-- Sélectionner le compte à débiter --</option>
                   {accounts?.map(acc => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.visibleBalance.toLocaleString('fr-FR')} 🔔 dispo)
+                      {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR')} 🔔 dispo)
                     </option>
                   ))}
                 </select>
@@ -1181,7 +1186,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   <option value="">-- Sélectionner le compte à créditer --</option>
                   {accounts?.map(acc => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.visibleBalance.toLocaleString('fr-FR')} 🔔 dispo)
+                      {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR')} 🔔 dispo)
                     </option>
                   ))}
                 </select>
@@ -1310,34 +1315,37 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     </p>
                   ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {accountImportBatches.map(batch => (
-                        <div 
-                          key={batch.batchId} 
-                          className="bg-white border-2 border-ac-brown/20 rounded-2xl p-3 flex justify-between items-center shadow-xs"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="bg-ac-green-light p-2 rounded-xl border border-ac-green/30 text-ac-green shrink-0">
-                              <FileText className="w-4 h-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-extrabold text-ac-brown truncate max-w-[180px] sm:max-w-[240px]">
-                                {batch.fileName}
-                              </p>
-                              <p className="text-[10px] font-bold text-ac-brown-light">
-                                {batch.transactionsCount} transaction{batch.transactionsCount > 1 ? 's' : ''} • {new Date(batch.importedAt).toLocaleDateString('fr-FR')}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteImportBatch(batch)}
-                            className="bg-ac-red-light hover:bg-ac-red/20 text-ac-red p-2 rounded-xl border border-ac-red/30 transition-transform active:scale-95 cursor-pointer shrink-0 ml-2"
-                            title="Supprimer cet import et ses transactions"
+                      {accountImportBatches.map(batch => {
+                        const formattedDate = batch.importedAt ? (batch.importedAt?.toDate ? batch.importedAt.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(batch.importedAt).getTime()) ? String(batch.importedAt) : new Date(batch.importedAt).toLocaleDateString('fr-FR'))) : '';
+                        return (
+                          <div 
+                            key={batch.batchId} 
+                            className="bg-white border-2 border-ac-brown/20 rounded-2xl p-3 flex justify-between items-center shadow-xs"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="bg-ac-green-light p-2 rounded-xl border border-ac-green/30 text-ac-green shrink-0">
+                                <FileText className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-extrabold text-ac-brown truncate max-w-[180px] sm:max-w-[240px]">
+                                  {batch.fileName}
+                                </p>
+                                <p className="text-[10px] font-bold text-ac-brown-light">
+                                  {batch.transactionsCount} transaction{batch.transactionsCount > 1 ? 's' : ''} • {formattedDate}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteImportBatch(batch)}
+                              className="bg-ac-red-light hover:bg-ac-red/20 text-ac-red p-2 rounded-xl border border-ac-red/30 transition-transform active:scale-95 cursor-pointer shrink-0 ml-2"
+                              title="Supprimer cet import et ses transactions"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

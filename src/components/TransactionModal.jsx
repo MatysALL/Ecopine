@@ -168,11 +168,14 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                 className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold focus:outline-none focus:bg-white appearance-none cursor-pointer"
               >
                 <option value="">-- Aucune Poche liée --</option>
-                {pocketsList.map(p => (
-                  <option key={p.id} value={p.id}>
-                    🍃 {p.name} ({(p.currentAmount !== undefined ? Number(p.currentAmount) : Number(p.allocatedAmount)).toLocaleString('fr-FR')} 🔔 dispo)
-                  </option>
-                ))}
+                {pocketsList.map(p => {
+                  const pAmt = p.currentAmount !== undefined ? Number(p.currentAmount) : Number(p.allocatedAmount);
+                  return (
+                    <option key={p.id} value={p.id}>
+                      🍃 {p.name} ({(!isNaN(pAmt) ? pAmt : 0).toLocaleString('fr-FR')} 🔔 dispo)
+                    </option>
+                  );
+                })}
               </select>
               <div className="absolute right-4 top-3.5 pointer-events-none">
                 <Layers className="w-4 h-4 text-ac-brown-light" />

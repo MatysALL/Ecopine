@@ -445,7 +445,7 @@ export default function WishlistView() {
                       <option value="">-- Choisir le compte de débit --</option>
                       {accounts?.map(acc => (
                         <option key={acc.id} value={acc.id}>
-                          {acc.name} (Solde : {(acc.visibleBalance ?? acc.currentBalance ?? 0).toLocaleString('fr-FR')} 🔔)
+                          {acc.name} (Solde : {(acc.visibleBalance ?? acc.currentBalance ?? acc.balance ?? 0).toLocaleString('fr-FR')} 🔔)
                         </option>
                       ))}
                     </select>

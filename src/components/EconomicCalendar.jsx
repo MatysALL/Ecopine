@@ -272,7 +272,7 @@ export default function EconomicCalendar() {
                     }`}></div>
 
                     <h4 className="font-black text-xs text-ac-brown border-b border-ac-brown/10 pb-2 mb-2">
-                      Détails du {new Date(hoveredDay).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      Détails du {(hoveredDay?.toDate ? hoveredDay.toDate() : new Date(hoveredDay || Date.now())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </h4>
 
                     {/* Transactions list */}
@@ -303,7 +303,7 @@ export default function EconomicCalendar() {
                               </div>
 
                               <span className={`font-black whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                                {isIncome ? '+' : '-'}{Number(tx.amount).toFixed(2)} 🔔
+                                {isIncome ? '+' : '-'}{(Number(tx.amount) || 0).toFixed(2)} 🔔
                               </span>
                             </div>
                           );
@@ -323,7 +323,7 @@ export default function EconomicCalendar() {
         <div className="ac-card p-4 md:p-6 bg-white border-ac-brown animate-fade-in space-y-4">
           <div className="flex justify-between items-center pb-3 border-b border-ac-brown/10">
             <h4 className="text-sm md:text-base font-black text-ac-brown flex items-center gap-2">
-              🗓️ Opérations du {new Date(selectedDay.dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              🗓️ Opérations du {(selectedDay.dateStr?.toDate ? selectedDay.dateStr.toDate() : new Date(selectedDay.dateStr || Date.now())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
             </h4>
             <button
               onClick={() => setSelectedDay(null)}
@@ -360,7 +360,7 @@ export default function EconomicCalendar() {
                       </div>
                     </div>
                     <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                      {isIncome ? '+' : '-'}{Number(tx.amount).toFixed(2)} 🔔
+                      {isIncome ? '+' : '-'}{(Number(tx.amount) || 0).toFixed(2)} 🔔
                     </span>
                   </div>
                 );
@@ -382,7 +382,7 @@ export default function EconomicCalendar() {
             
             <div className="flex justify-between items-center pb-3 border-b border-ac-brown/10 mb-4 shrink-0">
               <h3 className="text-base font-black text-ac-brown">
-                🗓️ Opérations du {new Date(selectedDayForBottomSheet.dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                🗓️ Opérations du {(selectedDayForBottomSheet.dateStr?.toDate ? selectedDayForBottomSheet.dateStr.toDate() : new Date(selectedDayForBottomSheet.dateStr || Date.now())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
               </h3>
               <button 
                 onClick={() => setSelectedDayForBottomSheet(null)}
