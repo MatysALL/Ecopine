@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useDb, db } from '../db';
+import { db as firestoreDb } from '../firebase';
+import { collection, query, where, getDocs, addDoc, doc, getDoc } from 'firebase/firestore';
 import { 
-  Users, Search, UserPlus, UserMinus, Check, X, Flag, 
-  Trash2, ShieldAlert, HeartHandshake, AlertCircle, Sparkles,
-  Clock, CheckCircle, ShieldCheck
+  Users, UserPlus, UserMinus, Check, X, Flag, 
+  Trash2, HeartHandshake, AlertCircle, Sparkles,
+  CheckCircle, ShieldCheck, Mail
 } from 'lucide-react';
 
 export default function SocialView() {
@@ -15,8 +17,8 @@ export default function SocialView() {
     redlist = [] 
   } = useDb();
 
-  // Search state
-  const [searchQuery, setSearchQuery] = useState('');
+  // Invite by email state
+  const [emailInput, setEmailInput] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -51,48 +53,92 @@ export default function SocialView() {
       });
   }, [friendships, user, allUsersMeta]);
 
-  // 2. Sent pending requests map for fast lookup
-  const sentRequestsMap = useMemo(() => {
-    const map = new Set();
-    if (!friendships || !user) return map;
-    friendships
-      .filter(f => f.status === 'pending' && f.senderId === user.uid)
-      .forEach(f => map.add(f.receiverId));
-    return map;
-  }, [friendships, user]);
-
-  // 3. Accepted friends UID set
-  const acceptedFriendsUidSet = useMemo(() => {
-    return new Set(acceptedFriends.map(f => f.uid));
-  }, [acceptedFriends]);
-
-  // 4. Received requests sender UID set
-  const receivedRequestsUidSet = useMemo(() => {
-    return new Set(receivedRequests.map(r => r.senderId));
-  }, [receivedRequests]);
-
-  // 5. Search filtering on allUsersMeta
-  const searchResults = useMemo(() => {
-    if (!user || !allUsersMeta) return [];
-    const queryNorm = searchQuery.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-
-    return allUsersMeta
-      .filter(u => u.uid !== user.uid) // Exclude current user
-      .filter(u => {
-        if (!queryNorm) return true; // Show list if empty or show matches
-        const nameNorm = (u.username || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const emailNorm = (u.email || '').toLowerCase();
-        return nameNorm.includes(queryNorm) || emailNorm.includes(queryNorm);
-      })
-      .sort((a, b) => (a.username || '').localeCompare(b.username || '', undefined, { sensitivity: 'base' }));
-  }, [allUsersMeta, user, searchQuery]);
-
   // Handlers for friendship actions
-  const handleSendFriendRequest = async (targetUser) => {
-    setActionLoading(targetUser.uid);
+  const handleSendInviteByEmail = async (e) => {
+    if (e) e.preventDefault();
+    const cleanEmail = emailInput.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      showToast("Veuillez saisir une adresse e-mail.", true);
+      return;
+    }
+
+    if (cleanEmail === (user?.email || '').toLowerCase()) {
+      showToast("Tu ne peux pas t'envoyer une demande d'ami à toi-même !", true);
+      return;
+    }
+
+    setActionLoading('invite');
     try {
-      await db.friendships.sendRequest(targetUser.uid);
-      showToast(`Demande d'ami envoyée à ${targetUser.username || 'cet habitant'} ! 🍃`);
+      // 3. Recherche dans Firestore si un compte correspond exactement à cet email
+      const q = query(collection(firestoreDb, 'users_meta'), where('email', '==', cleanEmail));
+      const snap = await getDocs(q);
+
+      // CAS A : Aucun utilisateur trouvé
+      if (snap.empty) {
+        showToast("Aucun habitant trouvé avec cette adresse e-mail.", true);
+        return;
+      }
+
+      // CAS B : Utilisateur trouvé
+      const targetDoc = snap.docs[0];
+      const targetUser = targetDoc.data();
+      const targetUid = targetUser.uid || targetDoc.id;
+
+      if (targetUid === user?.uid) {
+        showToast("Tu ne peux pas t'envoyer une demande d'ami à toi-même !", true);
+        return;
+      }
+
+      // Vérifie si vous êtes déjà amis
+      const isAlreadyFriend = acceptedFriends.some(f => f.uid === targetUid) ||
+        friendships.some(f => f.status === 'accepted' && (
+          (f.senderId === user.uid && f.receiverId === targetUid) ||
+          (f.senderId === targetUid && f.receiverId === user.uid)
+        ));
+
+      if (isAlreadyFriend) {
+        showToast("Vous êtes déjà amis avec cet habitant.", true);
+        return;
+      }
+
+      // Vérifie si une demande est déjà en attente
+      const isPending = friendships.some(f => f.status === 'pending' && (
+        (f.senderId === user.uid && f.receiverId === targetUid) ||
+        (f.senderId === targetUid && f.receiverId === user.uid)
+      ));
+
+      if (isPending) {
+        showToast("Une demande est déjà en attente avec cet habitant.", true);
+        return;
+      }
+
+      // Vérifie si la cible nous a placé dans sa Redlist
+      const targetRedlist = Array.isArray(targetUser.redlist) ? targetUser.redlist : [];
+      if (targetRedlist.includes(user?.uid)) {
+        showToast("Impossible d'envoyer une demande à cet habitant.", true);
+        return;
+      }
+
+      // Si tout est valide ➔ Crée le document dans friendships
+      const myMetaDoc = await getDoc(doc(firestoreDb, 'users_meta', user.uid));
+      const myName = myMetaDoc.exists() ? (myMetaDoc.data().username || user.displayName || 'Habitant') : (user.displayName || 'Habitant');
+
+      const docData = {
+        senderId: user.uid,
+        senderEmail: (user.email || '').toLowerCase(),
+        senderName: myName,
+        receiverId: targetUid,
+        receiverEmail: (targetUser.email || cleanEmail).toLowerCase(),
+        receiverName: targetUser.username || 'Habitant',
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      await addDoc(collection(firestoreDb, 'friendships'), docData);
+
+      setEmailInput('');
+      showToast("Demande d'amitié envoyée avec succès ! 🍃");
     } catch (err) {
       console.error(err);
       showToast(err.message || "Erreur lors de l'envoi de la demande.", true);
@@ -309,112 +355,52 @@ export default function SocialView() {
         <div className="lg:col-span-5 flex flex-col gap-6">
           
           {/* ======================================================================= */}
-          {/* WIDGET 2 : RECHERCHER UN HABITANT (Haut Droite)                         */}
+          {/* WIDGET 2 : AJOUTER UN AMI PAR EMAIL (Haut Droite)                       */}
           {/* ======================================================================= */}
           <div className="ac-card p-5 bg-white border-3 border-ac-brown space-y-4">
             <div className="flex items-center justify-between border-b-2 border-ac-brown/10 pb-2.5">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-ac-gold/20 border-2 border-ac-gold/40 flex items-center justify-center">
-                  <Search className="w-3.5 h-3.5 text-ac-brown" />
+                <div className="w-7 h-7 rounded-xl bg-ac-green/20 border-2 border-ac-green/40 flex items-center justify-center">
+                  <UserPlus className="w-3.5 h-3.5 text-ac-green" />
                 </div>
-                <h3 className="text-sm font-black text-ac-brown">Rechercher un habitant</h3>
+                <h3 className="text-sm font-black text-ac-brown">Ajouter un ami</h3>
               </div>
-              <span className="text-[10px] font-black text-ac-brown-light">
-                {searchResults.length} trouvé{searchResults.length > 1 ? 's' : ''}
+              <span className="text-[10px] font-black text-ac-brown-light bg-ac-cream px-2 py-0.5 rounded-full border border-ac-brown/15">
+                Invitation par e-mail
               </span>
             </div>
 
-            {/* Real-time search bar */}
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tape un pseudo ou un email..."
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-9 pr-8 py-2.5 text-xs font-bold text-ac-brown placeholder:text-ac-brown-light/60 focus:outline-none focus:bg-white transition-all shadow-inner"
-              />
-              <Search className="w-4 h-4 text-ac-brown-light absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ac-brown-light hover:text-ac-brown p-0.5 rounded-full cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+            <p className="text-xs font-semibold text-ac-brown-light leading-relaxed">
+              Saisis l'adresse e-mail exacte de l'habitant pour lui faire parvenir une demande d'amitié.
+            </p>
 
-            {/* Search results list */}
-            <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-              {searchResults.length === 0 ? (
-                <div className="py-6 text-center text-xs font-bold text-ac-brown-light/70 bg-ac-cream/40 rounded-2xl border border-dashed border-ac-brown/20">
-                  Aucun habitant correspondant trouvé 🍃
-                </div>
-              ) : (
-                searchResults.map(targetUser => {
-                  const targetRedlist = Array.isArray(targetUser.redlist) ? targetUser.redlist : [];
-                  const isRedlistedByTarget = targetRedlist.includes(user.uid);
-                  const isAlreadyFriend = acceptedFriendsUidSet.has(targetUser.uid);
-                  const isPendingSent = sentRequestsMap.has(targetUser.uid);
-                  const isPendingReceived = receivedRequestsUidSet.has(targetUser.uid);
+            {/* Email invitation form */}
+            <form onSubmit={handleSendInviteByEmail} className="space-y-3">
+              <div className="relative">
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="Adresse e-mail exacte de l'ami..."
+                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-9 pr-4 py-2.5 text-xs font-bold text-ac-brown placeholder:text-ac-brown-light/60 focus:outline-none focus:bg-white transition-all shadow-inner"
+                  required
+                />
+                <Mail className="w-4 h-4 text-ac-brown-light absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-                  return (
-                    <div
-                      key={targetUser.uid}
-                      className="p-2.5 bg-ac-cream/60 hover:bg-white border-2 border-ac-brown/20 rounded-2xl flex items-center justify-between gap-2 transition-all shadow-xs"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0 pr-1">
-                        <div className="w-9 h-9 rounded-full overflow-hidden border border-ac-brown shrink-0 bg-white shadow-xs">
-                          <img
-                            src={targetUser.photoURL || targetUser.avatarUrl || '/pfp-ac.jpg'}
-                            alt={targetUser.username}
-                            className="w-full h-full object-cover object-center block"
-                            onError={(e) => { e.currentTarget.src = '/pfp-ac.jpg'; }}
-                          />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-xs font-black text-ac-brown truncate">
-                            {targetUser.username || 'Habitant'}
-                          </span>
-                          <span className="text-[9px] font-semibold text-ac-brown-light truncate">
-                            {targetUser.email || ''}
-                          </span>
-                        </div>
-                      </div>
+              <button
+                type="submit"
+                disabled={actionLoading === 'invite' || !emailInput.trim()}
+                className="w-full bg-ac-green hover:bg-[#689E4B] active:scale-98 text-white font-black text-xs py-2.5 px-4 rounded-2xl border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Mail className="w-4 h-4 text-white" />
+                {actionLoading === 'invite' ? "Envoi en cours..." : "Envoyer la demande ✉️"}
+              </button>
+            </form>
 
-                      {/* Status / Action Button depending on Redlist & State */}
-                      <div className="shrink-0">
-                        {isRedlistedByTarget ? (
-                          <span className="text-[10px] font-black px-2.5 py-1 rounded-xl bg-gray-200/80 text-gray-600 border border-gray-400/40 cursor-not-allowed inline-flex items-center gap-1 shadow-xs">
-                            <ShieldAlert className="w-3 h-3 text-gray-500" /> Demande impossible
-                          </span>
-                        ) : isAlreadyFriend ? (
-                          <span className="text-[10px] font-black px-2.5 py-1 rounded-xl bg-[#78B159]/20 text-[#3C6E1F] border border-ac-green/40 inline-flex items-center gap-1 shadow-xs">
-                            <Check className="w-3 h-3 text-ac-green" /> Déjà ami
-                          </span>
-                        ) : isPendingSent ? (
-                          <span className="text-[10px] font-black px-2.5 py-1 rounded-xl bg-ac-gold/20 text-ac-brown border border-ac-gold/50 inline-flex items-center gap-1 shadow-xs">
-                            <Clock className="w-3 h-3 text-ac-brown-light" /> Envoyée
-                          </span>
-                        ) : isPendingReceived ? (
-                          <span className="text-[10px] font-black px-2.5 py-1 rounded-xl bg-ac-sky/20 text-ac-brown border border-ac-sky/50 inline-flex items-center gap-1 shadow-xs">
-                            <Sparkles className="w-3 h-3 text-ac-green" /> Reçue
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => handleSendFriendRequest(targetUser)}
-                            disabled={actionLoading === targetUser.uid}
-                            className="bg-ac-green hover:bg-[#689E4B] active:scale-95 text-white font-black text-[10px] px-3 py-1.5 rounded-xl border-2 border-ac-brown shadow-ac-xs flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
-                          >
-                            <UserPlus className="w-3 h-3 text-white" />
-                            {actionLoading === targetUser.uid ? "..." : "Ajouter"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+            <div className="p-3 bg-ac-cream/50 rounded-2xl border border-dashed border-ac-brown/20 text-[10px] font-semibold text-ac-brown-light leading-relaxed flex items-start gap-2">
+              <span className="text-xs">🔒</span>
+              <span>Par souci de confidentialité, la recherche publique est désactivée. L'invitation se fait uniquement par adresse e-mail complète.</span>
             </div>
           </div>
 

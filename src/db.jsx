@@ -1040,7 +1040,7 @@ export const db = {
         const q = query(collection(firestoreDb, 'users_meta'), where('email', '==', cleanTarget.toLowerCase()));
         const snap = await getDocs(q);
         if (snap.empty) {
-          throw new Error("Aucun habitant trouvé sur l'île.");
+          throw new Error("Aucun habitant trouvé avec cette adresse e-mail.");
         }
         friendDoc = snap.docs[0];
         friendId = friendDoc.id;
@@ -1054,7 +1054,7 @@ export const db = {
       // Check if target user has put currentUser in their Redlist
       const targetRedlist = Array.isArray(friendData.redlist) ? friendData.redlist : [];
       if (targetRedlist.includes(auth.currentUser.uid)) {
-        throw new Error("Demande impossible : cet habitant a restreint ses invitations.");
+        throw new Error("Impossible d'envoyer une demande à cet habitant.");
       }
 
       // 2. Check if a friendship already exists or is pending
@@ -1071,8 +1071,12 @@ export const db = {
       const snapExist1 = await getDocs(qExist1);
       const snapExist2 = await getDocs(qExist2);
 
-      if (!snapExist1.empty || !snapExist2.empty) {
-        throw new Error("Une demande d'ami existe déjà ou vous êtes déjà amis !");
+      const existingDocs = [...snapExist1.docs, ...snapExist2.docs].map(d => d.data());
+      if (existingDocs.some(f => f.status === 'accepted')) {
+        throw new Error("Vous êtes déjà amis avec cet habitant.");
+      }
+      if (existingDocs.some(f => f.status === 'pending')) {
+        throw new Error("Une demande est déjà en attente avec cet habitant.");
       }
 
       // 3. Fetch current user meta to get their username
