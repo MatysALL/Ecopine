@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useDb } from '../db';
-import { Leaf, Mail, Lock, User, AlertCircle } from 'lucide-react';
+import { Leaf, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function AuthView() {
   const { signUpUser, logInUser, loginWithGoogle } = useDb();
@@ -15,6 +15,15 @@ export default function AuthView() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successToast, setSuccessToast] = useState(() => {
+    const msg = sessionStorage.getItem('auth_toast') || localStorage.getItem('auth_toast');
+    if (msg) {
+      sessionStorage.removeItem('auth_toast');
+      localStorage.removeItem('auth_toast');
+      return msg;
+    }
+    return '';
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -124,6 +133,14 @@ export default function AuthView() {
           </p>
           <div className="w-3.5 h-3.5 bg-ac-gold-light border-b-3 border-r-3 border-ac-brown absolute bottom-[-9.5px] left-1/2 transform -translate-x-1/2 rotate-45 hidden md:block"></div>
         </div>
+
+        {/* Success toast notification */}
+        {successToast && (
+          <div className="w-full bg-ac-green-light border-2 border-ac-green rounded-2xl p-3 text-xs font-bold text-ac-green flex items-center gap-2 animate-bounce-in">
+            <CheckCircle className="w-4 h-4 flex-shrink-0 text-ac-green" />
+            <span>{successToast}</span>
+          </div>
+        )}
 
         {/* Error message */}
         {error && (

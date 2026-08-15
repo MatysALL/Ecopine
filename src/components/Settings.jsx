@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { db, useDb } from '../db';
 import { 
   Trash2, ShieldAlert, CheckCircle, AlertCircle, 
-  User, Tag, FileSpreadsheet, Palette 
+  User, Tag, FileSpreadsheet, Palette, RotateCcw, AlertTriangle, X
 } from 'lucide-react';
 
 export default function Settings() {
-
   // Profile states
   const [username, setUsername] = useState('');
   const [photoURL, setPhotoURL] = useState('');
@@ -31,8 +30,22 @@ export default function Settings() {
     user,
     logOutUser,
     unlockedThemes,
-    activeTheme
+    activeTheme,
+    resetMyAccount,
+    deleteMyAccount
   } = useDb();
+
+  // Danger zone state
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
+  const [isProcessingDanger, setIsProcessingDanger] = useState(false);
+  const [dangerToast, setDangerToast] = useState(null); // { type: 'success' | 'error', message: string }
+
+  const showDangerToast = (message, type = 'success') => {
+    setDangerToast({ message, type });
+    setTimeout(() => setDangerToast(null), 4000);
+  };
 
   // Initial load of metadata
   useEffect(() => {
@@ -95,30 +108,6 @@ export default function Settings() {
     }
   };
 
-
-
-
-
-  const handleReset = async () => {
-    const confirmWipe = window.confirm(
-      "ATTENTION : Es-tu absolument sûr de vouloir réinitialiser l'application ? Tout ton historique de clochettes sera effacé définitivement."
-    );
-    if (!confirmWipe) return;
-
-    await db.transaction('rw', db.accounts, db.transactions, db.pockets, db.wishlist, db.debts, db.categories, db.user_meta, async () => {
-      await db.accounts.clear();
-      await db.transactions.clear();
-      await db.pockets.clear();
-      await db.wishlist.clear();
-      await db.debts.clear();
-      await db.categories.clear();
-      await db.user_meta.clear();
-    });
-
-    alert("Application réinitialisée avec succès !");
-    window.location.reload();
-  };
-
   const handleLogout = async () => {
     if (window.confirm("Es-tu sûr de vouloir quitter ton île budgétaire ?")) {
       try {
@@ -127,6 +116,39 @@ export default function Settings() {
         console.error(err);
         alert("Erreur lors de la déconnexion.");
       }
+    }
+  };
+
+  const handleExecuteReset = async () => {
+    setIsProcessingDanger(true);
+    try {
+      await resetMyAccount();
+      setResetModalOpen(false);
+      showDangerToast("Ton île a été réinitialisée avec succès ! Redirection vers l'installation...", 'success');
+      setTimeout(() => {
+        window.location.reload();
+      }, 800);
+    } catch (err) {
+      console.error("Erreur lors de la réinitialisation :", err);
+      showDangerToast("Erreur lors de la réinitialisation : " + (err.message || "Erreur inconnue"), 'error');
+      setIsProcessingDanger(false);
+    }
+  };
+
+  const handleExecuteDelete = async () => {
+    if (deleteInput.trim() !== 'SUPPRIMER') {
+      showDangerToast("Veuillez saisir 'SUPPRIMER' exactement pour confirmer.", 'error');
+      return;
+    }
+
+    setIsProcessingDanger(true);
+    try {
+      await deleteMyAccount();
+      // deleteMyAccount handles storage clearing and window reload to login
+    } catch (err) {
+      console.error("Erreur lors de la suppression :", err);
+      showDangerToast("Erreur lors de la suppression : " + (err.message || "Erreur inconnue"), 'error');
+      setIsProcessingDanger(false);
     }
   };
 
@@ -142,14 +164,24 @@ export default function Settings() {
 
   return (
     <div className="space-y-8 animate-fade-in text-ac-brown select-none">
-      {/* Title */}
+      {/* Toast Notification */}
+      {dangerToast && (
+        <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-2xl border-3 border-ac-brown shadow-ac-md flex items-center gap-2.5 font-black text-xs text-white animate-bounce-in ${
+          dangerToast.type === 'error' ? 'bg-ac-red' : 'bg-ac-green'
+        }`}>
+          {dangerToast.type === 'error' ? <AlertCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+          <span>{dangerToast.message}</span>
+        </div>
+      )}
+
+      {/* Title Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm">
         <div>
           <h2 className="text-2xl font-black text-ac-brown flex items-center gap-2">
-            Paramètres & Île
+            Paramètres &amp; Île
           </h2>
           <p className="text-xs font-semibold text-ac-brown-light mt-0.5">
-            Gère ton profil d'habitant, tes catégories, tes sauvegardes et tes exports.
+            Gère ton profil d'habitant, tes thèmes pastel et le cycle de vie de tes données.
           </p>
         </div>
       </div>
@@ -215,8 +247,6 @@ export default function Settings() {
                   </button>
                 </div>
               )}
-
-
 
               <div className="pt-2 flex items-center gap-3 flex-wrap">
                 <button
@@ -302,27 +332,191 @@ export default function Settings() {
         </div>
       </div>
 
-
-
-
-
-
-
       {/* Danger Zone Card */}
-      <div className="ac-card p-6 bg-white border-ac-brown">
-        <h3 className="text-lg font-black text-ac-red flex items-center gap-2 mb-2">
-          <ShieldAlert className="w-5 h-5" /> Zone de Danger
-        </h3>
+      <div className="bg-[#FFFDF9] border-3 border-ac-red/60 rounded-3xl p-6 shadow-ac-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-16 h-16 bg-ac-red/10 rounded-bl-3xl border-l-2 border-b-2 border-ac-red/20 pointer-events-none"></div>
+
+        <div className="flex items-center gap-2.5 mb-2 text-ac-red">
+          <div className="w-9 h-9 rounded-2xl bg-ac-red/10 border-2 border-ac-red/30 flex items-center justify-center">
+            <ShieldAlert className="w-5 h-5 text-ac-red" />
+          </div>
+          <div>
+            <h3 className="text-base font-black text-ac-red">Zone de Danger</h3>
+            <span className="text-[10px] font-bold text-ac-brown-light">Actions destructives et irréversibles</span>
+          </div>
+        </div>
+
         <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-6">
-          Efface tout ton historique définitivement pour repartir à zéro. Tes données seront effacées et la base de données recréée.
+          Gère le cycle de vie de tes données. Tu peux soit réinitialiser l'ensemble de ton île (pour repartir de zéro tout en restant connecté), soit supprimer définitivement ton compte et toutes les données associées.
         </p>
-        <button
-          onClick={handleReset}
-          className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red border-3 border-ac-brown font-extrabold text-xs px-5 py-3 rounded-2xl shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center gap-2 cursor-pointer"
-        >
-          <Trash2 className="w-4 h-4" /> Réinitialiser toute l'application
-        </button>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Action 1 : Reset */}
+          <div className="bg-amber-50/60 border-2 border-amber-300/80 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 font-black text-xs text-amber-900 mb-1">
+                <RotateCcw className="w-4 h-4 text-amber-700" />
+                <span>Réinitialiser mes données</span>
+              </div>
+              <p className="text-[11px] font-semibold text-amber-800/80 leading-relaxed">
+                Purge tous tes comptes, transactions, poches, dettes, souhaits et amitiés. Tu resteras connecté et pourras recommencer la configuration de ton île.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setResetModalOpen(true)}
+              className="bg-amber-100 hover:bg-amber-200 active:bg-amber-300 text-amber-900 border-2 border-amber-900/30 font-black text-xs px-4 py-2.5 rounded-xl shadow-ac-xs active:translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Réinitialiser mon île</span>
+            </button>
+          </div>
+
+          {/* Action 2 : Delete Account */}
+          <div className="bg-ac-red/5 border-2 border-ac-red/40 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 font-black text-xs text-ac-red mb-1">
+                <Trash2 className="w-4 h-4 text-ac-red" />
+                <span>Supprimer mon compte</span>
+              </div>
+              <p className="text-[11px] font-semibold text-ac-brown-light leading-relaxed">
+                Supprime définitivement ton profil, tes accès et l'ensemble de tes données Firestore. Tu seras déconnecté et renvoyé sur l'écran d'identification.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteInput('');
+                setDeleteModalOpen(true);
+              }}
+              className="bg-ac-red hover:bg-ac-red/90 active:bg-ac-red text-white border-2 border-ac-brown font-black text-xs px-4 py-2.5 rounded-xl shadow-ac-xs active:translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer transition-transform"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Supprimer définitivement</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Modal 1 : Confirmation Réinitialisation */}
+      {resetModalOpen && (
+        <div className="fixed inset-0 bg-ac-brown/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown select-none">
+          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in">
+            <button
+              onClick={() => !isProcessingDanger && setResetModalOpen(false)}
+              disabled={isProcessingDanger}
+              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-transform hover:scale-110 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 text-amber-700 mb-3">
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center border-2 border-amber-400">
+                <RotateCcw className="w-5 h-5 text-amber-700" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-ac-brown">Réinitialiser mon île</h3>
+                <span className="text-[10px] font-bold text-ac-brown-light">Remise à zéro des données</span>
+              </div>
+            </div>
+
+            <p className="text-xs font-bold text-ac-brown-light leading-relaxed mb-6">
+              Êtes-vous sûr de vouloir réinitialiser toutes vos données ? Vos comptes, transactions, dettes, souhaits et amitiés seront effacés. <strong>Vous resterez connecté et pourrez repartir de zéro.</strong>
+            </p>
+
+            <div className="flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setResetModalOpen(false)}
+                disabled={isProcessingDanger}
+                className="bg-white border-2 border-ac-brown text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-xl hover:bg-ac-cream cursor-pointer disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteReset}
+                disabled={isProcessingDanger}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl border-2 border-ac-brown shadow-ac-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isProcessingDanger ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <RotateCcw className="w-4 h-4" />
+                )}
+                <span>Confirmer la réinitialisation</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2 : Confirmation Suppression Définitive */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-ac-brown/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown select-none">
+          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-md w-full shadow-ac-lg relative animate-bounce-in">
+            <button
+              onClick={() => !isProcessingDanger && setDeleteModalOpen(false)}
+              disabled={isProcessingDanger}
+              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1 transition-transform hover:scale-110 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 text-ac-red mb-3">
+              <div className="w-10 h-10 bg-ac-red/10 rounded-full flex items-center justify-center border-2 border-ac-red/30">
+                <AlertTriangle className="w-5 h-5 text-ac-red" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-ac-red">Suppression Définitive</h3>
+                <span className="text-[10px] font-bold text-ac-brown-light">Action irréversible</span>
+              </div>
+            </div>
+
+            <p className="text-xs font-bold text-ac-brown-light leading-relaxed mb-4">
+              Attention : Tu t'apprêtes à <strong>supprimer définitivement ton compte et l'ensemble de tes données</strong>. Tu seras immédiatement déconnecté. Cette action est irréversible.
+            </p>
+
+            <div className="bg-ac-cream-dark/30 border-2 border-ac-brown/30 rounded-2xl p-3.5 mb-5">
+              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1.5">
+                Pour confirmer, saisis le mot <strong className="text-ac-red">SUPPRIMER</strong> :
+              </label>
+              <input
+                type="text"
+                value={deleteInput}
+                onChange={(e) => setDeleteInput(e.target.value)}
+                placeholder="SUPPRIMER"
+                disabled={isProcessingDanger}
+                className="w-full bg-white border-2 border-ac-brown rounded-xl px-3 py-2 text-xs font-black text-ac-brown focus:outline-none focus:ring-2 focus:ring-ac-red uppercase"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={isProcessingDanger}
+                className="bg-white border-2 border-ac-brown text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-xl hover:bg-ac-cream cursor-pointer disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteDelete}
+                disabled={deleteInput.trim() !== 'SUPPRIMER' || isProcessingDanger}
+                className="bg-ac-red hover:bg-ac-red/90 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl border-2 border-ac-brown shadow-ac-sm flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isProcessingDanger ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>Supprimer mon compte</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

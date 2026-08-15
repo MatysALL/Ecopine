@@ -1335,6 +1335,49 @@ export async function adminDeleteUser(targetUid) {
 }
 
 /**
+ * ACTION 1 (Paramètres) : RÉINITIALISER MON ÎLE / MES DONNÉES
+ * Purge toutes les sous-données et réinitialise users_meta sans déconnecter l'utilisateur.
+ */
+export async function resetMyAccount() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Aucun habitant connecté");
+  await adminResetUser(user.uid);
+}
+
+/**
+ * ACTION 2 (Paramètres) : SUPPRIMER DÉFINITIVEMENT MON COMPTE
+ * Purge toutes les sous-données, supprime users_meta, supprime l'authentification (ou signOut) et vide le stockage.
+ */
+export async function deleteMyAccount() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Aucun habitant connecté");
+  const uid = user.uid;
+
+  // 1. Purge all cascade data
+  await purgeUserCascadeData(uid);
+
+  // 2. Delete users_meta document
+  const userRef = doc(firestoreDb, 'users_meta', uid);
+  await deleteDoc(userRef);
+
+  // 3. Try to delete the Firebase Auth user, fallback to signOut
+  try {
+    await user.delete();
+  } catch (err) {
+    console.warn("Impossible de supprimer le compte Auth directement (re-authentification requise), déconnexion fallback:", err);
+    await signOut(auth);
+  }
+
+  // 4. Clear storage & set feedback message for login screen
+  localStorage.clear();
+  sessionStorage.clear();
+  sessionStorage.setItem('auth_toast', 'Votre compte a été supprimé avec succès.');
+
+  // 5. Reload to return to login screen
+  window.location.reload();
+}
+
+/**
  * Firebase React Context & Hook definition
  */
 const DbContext = createContext(null);
@@ -1922,6 +1965,8 @@ export const DbProvider = ({ children }) => {
     adminResetUser,
     adminDeleteUser,
     purgeUserCascadeData,
+    resetMyAccount,
+    deleteMyAccount,
     isAdmin: usersMetaDoc?.role === 'admin' || currentUser?.email?.toLowerCase() === 'matysallanet@gmail.com',
     tutorialProgress: {
       isCompleted: usersMetaDoc?.tutorialProgress?.isCompleted ?? false,
