@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { db, useDb } from '../db';
-import { Plus, Trash2, Handshake, X, Coins, Sparkles, Edit2, AlertCircle, CheckCircle, Users, User } from 'lucide-react';
+import { Plus, Trash2, Handshake, X, Coins, Sparkles, Edit2, AlertCircle, CheckCircle, Users, User, Lock } from 'lucide-react';
 
 export default function DebtsView() {
   const { debts = [], accountsData: accounts = [], user, acceptedFriends = [], username } = useDb();
@@ -69,21 +69,37 @@ export default function DebtsView() {
     });
   }, [pendingDebts]);
 
+  // Selected friend helper
+  const selectedFriend = useMemo(() => {
+    if (entityMode !== 'friend' || !associatedFriendId) return null;
+    return (acceptedFriends || []).find(f => f.uid === associatedFriendId) || null;
+  }, [entityMode, associatedFriendId, acceptedFriends]);
+
   // Form submit handler
   const handleDebtSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
 
     let targetEntityName = '';
-    let selectedFriend = null;
+    let targetFriend = null;
 
     if (entityMode === 'friend') {
-      selectedFriend = (acceptedFriends || []).find(f => f.uid === associatedFriendId);
-      if (!selectedFriend) {
+      targetFriend = (acceptedFriends || []).find(f => f.uid === associatedFriendId);
+      if (!targetFriend) {
         setToast({ type: 'error', message: "Veuillez sélectionner un ami dans la liste." });
         return;
       }
-      targetEntityName = selectedFriend.name;
+      
+      // Check if friend allows mirror debt creation
+      if (targetFriend.allowDebts === false) {
+        setToast({ 
+          type: 'error', 
+          message: `${targetFriend.name} n'autorise pas la création automatique de dettes.` 
+        });
+        return;
+      }
+
+      targetEntityName = targetFriend.name;
     } else {
       targetEntityName = debtPerson.trim();
       if (!targetEntityName) {
@@ -116,27 +132,27 @@ export default function DebtsView() {
           status: editingDebt.status || 'pending',
           date: editingDebt.date || todayStr,
           createdAt: editingDebt.createdAt || todayStr,
-          associatedFriendId: selectedFriend ? selectedFriend.uid : (editingDebt.associatedFriendId || null),
-          associatedFriendName: selectedFriend ? selectedFriend.name : (editingDebt.associatedFriendName || null)
+          associatedFriendId: targetFriend ? targetFriend.uid : (editingDebt.associatedFriendId || null),
+          associatedFriendName: targetFriend ? targetFriend.name : (editingDebt.associatedFriendName || null)
         });
         setToast({ type: 'success', message: "Dette modifiée avec succès ! 🍃" });
       } else {
-        if (selectedFriend) {
-          // CAS 2 : Sélection d'un ami
+        if (targetFriend) {
+          // CAS 2 : Sélection d'un ami (création autorisée)
           // 1. Dette pour User A (utilisateur connecté)
           await db.debts.add({
             userId: user?.uid,
-            entityName: selectedFriend.name,
-            person: selectedFriend.name,
-            name: selectedFriend.name,
+            entityName: targetFriend.name,
+            person: targetFriend.name,
+            name: targetFriend.name,
             amount: amt,
             type: debtType,
             description: debtDescription.trim(),
             status: 'pending',
             date: todayStr,
             createdAt: createdAt,
-            associatedFriendId: selectedFriend.uid,
-            associatedFriendName: selectedFriend.name
+            associatedFriendId: targetFriend.uid,
+            associatedFriendName: targetFriend.name
           });
 
           // 2. Dette miroir automatique pour User B (l'ami sélectionné)
@@ -149,7 +165,7 @@ export default function DebtsView() {
           }
 
           await db.debts.add({
-            userId: selectedFriend.uid,
+            userId: targetFriend.uid,
             entityName: currentUserPseudo,
             person: currentUserPseudo,
             name: currentUserPseudo,
@@ -165,7 +181,7 @@ export default function DebtsView() {
 
           setToast({ 
             type: 'success', 
-            message: `Dette enregistrée (et ajoutée sur le compte de ${selectedFriend.name}) ! 🍃` 
+            message: `Dette enregistrée (et ajoutée sur le compte de ${targetFriend.name}) ! 🍃` 
           });
         } else {
           // CAS 1 : Saisie manuelle classique
@@ -402,8 +418,9 @@ export default function DebtsView() {
                   onClick={() => {
                     setEntityMode('friend');
                     if (acceptedFriends.length > 0 && !associatedFriendId) {
-                      setAssociatedFriendId(acceptedFriends[0].uid);
-                      setDebtPerson(acceptedFriends[0].name);
+                      const firstAllowed = acceptedFriends.find(f => f.allowDebts !== false) || acceptedFriends[0];
+                      setAssociatedFriendId(firstAllowed.uid);
+                      setDebtPerson(firstAllowed.name);
                     }
                   }}
                   className={`px-3 py-1 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
@@ -444,38 +461,50 @@ export default function DebtsView() {
                     required
                   >
                     <option value="">-- Sélectionner un ami --</option>
-                    {acceptedFriends.map((friend) => (
-                      <option key={friend.uid || friend.id} value={friend.uid}>
-                        {friend.name} ({friend.email})
-                      </option>
-                    ))}
+                    {acceptedFriends.map((friend) => {
+                      const isAllowed = friend.allowDebts !== false;
+                      return (
+                        <option 
+                          key={friend.uid || friend.id} 
+                          value={friend.uid}
+                          disabled={!isAllowed}
+                          className={!isAllowed ? "text-ac-brown-light italic" : ""}
+                        >
+                          {friend.name} ({friend.email}) {!isAllowed ? '— (Non autorisé 🔒)' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
 
-                  {associatedFriendId && (
-                    <div className="flex items-center gap-2.5 p-2.5 bg-ac-green/10 border-2 border-dashed border-ac-green/30 rounded-2xl">
-                      {(() => {
-                        const f = acceptedFriends.find(fr => fr.uid === associatedFriendId);
-                        if (!f) return null;
-                        return (
-                          <>
-                            <img 
-                              src={f.photoURL || '/pfp-ac.jpg'} 
-                              alt={f.name} 
-                              className="w-8 h-8 rounded-full border-2 border-ac-brown object-cover shrink-0"
-                              onError={(e) => { e.target.src = '/pfp-ac.jpg'; }}
-                            />
-                            <div className="text-xs min-w-0">
-                              <p className="font-black text-ac-brown truncate">
-                                Ami sélectionné : <span className="text-ac-green">{f.name}</span>
-                              </p>
-                              <p className="text-[10px] text-ac-brown-light font-semibold">
-                                🍃 Une dette miroir automatique sera enregistrée sur le compte de {f.name}.
-                              </p>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
+                  {selectedFriend && (
+                    selectedFriend.allowDebts !== false ? (
+                      <div className="flex items-center gap-2.5 p-2.5 bg-ac-green/10 border-2 border-dashed border-ac-green/30 rounded-2xl">
+                        <img 
+                          src={selectedFriend.photoURL || '/pfp-ac.jpg'} 
+                          alt={selectedFriend.name} 
+                          className="w-8 h-8 rounded-full border-2 border-ac-brown object-cover shrink-0"
+                          onError={(e) => { e.target.src = '/pfp-ac.jpg'; }}
+                        />
+                        <div className="text-xs min-w-0">
+                          <p className="font-black text-ac-brown truncate">
+                            Ami sélectionné : <span className="text-ac-green">{selectedFriend.name}</span>
+                          </p>
+                          <p className="text-[10px] text-ac-brown-light font-semibold">
+                            🍃 Une dette miroir automatique sera enregistrée sur le compte de {selectedFriend.name}.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2.5 p-3 bg-ac-red/10 border-2 border-dashed border-ac-red/30 rounded-2xl text-xs font-bold text-ac-red">
+                        <Lock className="w-5 h-5 shrink-0" />
+                        <div>
+                          <p className="font-black">Création de dette partagée bloquée</p>
+                          <p className="text-[10px] text-ac-brown-light font-semibold">
+                            {selectedFriend.name} n'autorise pas la création automatique de dettes sur son compte.
+                          </p>
+                        </div>
+                      </div>
+                    )
                   )}
                 </div>
               ) : (
@@ -531,11 +560,12 @@ export default function DebtsView() {
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || (entityMode === 'friend' && selectedFriend?.allowDebts === false)}
               className={`bg-ac-green text-white font-extrabold text-xs px-4 py-2.5 rounded-xl border border-ac-brown shadow-ac-sm transition-all ${
-                isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:translate-y-[1px]'
+                isSubmitting || (entityMode === 'friend' && selectedFriend?.allowDebts === false)
+                  ? 'opacity-60 cursor-not-allowed bg-gray-400'
+                  : 'cursor-pointer hover:translate-y-[1px]'
               }`}
-              style={isSubmitting ? { cursor: 'not-allowed' } : {}}
             >
               {isSubmitting ? 'Enregistrement...' : (editingDebt ? 'Mettre à jour' : 'Enregistrer')}
             </button>

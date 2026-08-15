@@ -5,7 +5,7 @@ import { collection, query, where, getDocs, addDoc, doc, getDoc } from 'firebase
 import { 
   Users, UserPlus, UserMinus, Check, X, Flag, 
   Trash2, HeartHandshake, AlertCircle, Sparkles,
-  CheckCircle, ShieldCheck, Mail
+  CheckCircle, ShieldCheck, Mail, Shield, Handshake
 } from 'lucide-react';
 
 export default function SocialView() {
@@ -26,6 +26,48 @@ export default function SocialView() {
   // Modals state
   const [friendToDelete, setFriendToDelete] = useState(null);
   const [isRedlistModalOpen, setIsRedlistModalOpen] = useState(false);
+  const [friendForPermissions, setFriendForPermissions] = useState(null);
+  const [permAllowDebts, setPermAllowDebts] = useState(true);
+  const [isSavingPerms, setIsSavingPerms] = useState(false);
+
+  const openPermissionsModal = (friend) => {
+    setFriendForPermissions(friend);
+    setPermAllowDebts(friend.myAllowDebts !== false);
+  };
+
+  const handleToggleAllowDebts = async (newVal) => {
+    setPermAllowDebts(newVal);
+    if (!friendForPermissions) return;
+    try {
+      await db.friendships.updatePermissions(friendForPermissions.friendshipId || friendForPermissions.id, {
+        allowDebts: newVal
+      });
+      showToast(newVal 
+        ? `Création de dettes autorisée pour ${friendForPermissions.name} ! 🍃`
+        : `Création de dettes bloquée pour ${friendForPermissions.name} ! 🛡️`
+      );
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la mise à jour des autorisations : " + (err.message || "Erreur"), true);
+    }
+  };
+
+  const handleSavePermissions = async () => {
+    if (!friendForPermissions) return;
+    setIsSavingPerms(true);
+    try {
+      await db.friendships.updatePermissions(friendForPermissions.friendshipId || friendForPermissions.id, {
+        allowDebts: permAllowDebts
+      });
+      showToast(`Autorisations enregistrées pour ${friendForPermissions.name} ! 🍃`);
+      setFriendForPermissions(null);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de l'enregistrement : " + (err.message || "Erreur"), true);
+    } finally {
+      setIsSavingPerms(false);
+    }
+  };
 
   // Helper for notification toast
   const showToast = (msg, isError = false) => {
@@ -329,14 +371,28 @@ export default function SocialView() {
                       </div>
                     </div>
 
-                    {/* Delete Friend Button */}
-                    <button
-                      onClick={() => setFriendToDelete(friend)}
-                      className="p-2 rounded-xl bg-white hover:bg-ac-red/10 border-2 border-ac-brown/15 hover:border-ac-red text-ac-brown-light hover:text-ac-red transition-all cursor-pointer shrink-0 shadow-xs"
-                      title="Retirer de mes amis"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {/* Action buttons (Permissions & Delete) */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => openPermissionsModal(friend)}
+                        className={`p-2 rounded-xl border-2 transition-all cursor-pointer shadow-xs ${
+                          friend.myAllowDebts === false
+                            ? 'bg-ac-orange/15 border-ac-orange text-ac-orange hover:bg-ac-orange/25'
+                            : 'bg-white hover:bg-ac-green/15 border-ac-brown/15 hover:border-ac-green text-ac-brown-light hover:text-ac-green'
+                        }`}
+                        title="Gérer les autorisations"
+                      >
+                        <Shield className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => setFriendToDelete(friend)}
+                        className="p-2 rounded-xl bg-white hover:bg-ac-red/10 border-2 border-ac-brown/15 hover:border-ac-red text-ac-brown-light hover:text-ac-red transition-all cursor-pointer shadow-xs"
+                        title="Retirer de mes amis"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -625,6 +681,109 @@ export default function SocialView() {
                 className="bg-ac-green text-white font-black text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px] cursor-pointer"
               >
                 Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modale des Autorisations d'un Ami */}
+      {friendForPermissions && (
+        <div className="fixed inset-0 bg-ac-brown/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in text-ac-brown select-none">
+          <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl p-6 max-w-lg w-full shadow-ac-lg relative animate-bounce-in space-y-5">
+            
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setFriendForPermissions(null)}
+              className="absolute top-4 right-4 bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-1.5 transition-all hover:scale-110 text-ac-brown cursor-pointer"
+              title="Fermer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex items-center gap-3 border-b-2 border-ac-brown/10 pb-4">
+              <div className="w-12 h-12 rounded-2xl bg-ac-green/15 border-2 border-ac-green/30 flex items-center justify-center text-ac-green shrink-0 shadow-xs">
+                <Shield className="w-6 h-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-black text-ac-brown truncate">
+                  Autorisations pour {friendForPermissions.name}
+                </h3>
+                <p className="text-[11px] font-semibold text-ac-brown-light">
+                  Définis ce que cet habitant a le droit d'effectuer vis-à-vis de ton compte.
+                </p>
+              </div>
+            </div>
+
+            {/* Friend Profile Card */}
+            <div className="p-3 bg-ac-cream/70 border-2 border-ac-brown/20 rounded-2xl flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-ac-brown shrink-0 bg-white">
+                <img
+                  src={friendForPermissions.photoURL || '/pfp-ac.jpg'}
+                  alt={friendForPermissions.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.src = '/pfp-ac.jpg'; }}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-ac-brown truncate">🍃 {friendForPermissions.name}</p>
+                {friendForPermissions.email && (
+                  <p className="text-[10px] font-semibold text-ac-brown-light truncate">{friendForPermissions.email}</p>
+                )}
+              </div>
+              <span className="text-[9px] font-extrabold text-ac-green bg-ac-green/10 border border-ac-green/30 px-2 py-0.5 rounded-full shrink-0">
+                Ami accepté
+              </span>
+            </div>
+
+            {/* Permissions List Group */}
+            <div className="space-y-3">
+              <label className="block text-[10px] font-black uppercase text-ac-brown-light">
+                Permissions paramétrables
+              </label>
+
+              {/* Permission 1 : Dettes miroirs */}
+              <div className="p-4 bg-white border-2 border-ac-brown rounded-2xl flex items-center justify-between gap-4 shadow-ac-xs hover:border-ac-green/50 transition-all">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-ac-orange/15 border-2 border-ac-orange/30 flex items-center justify-center shrink-0 mt-0.5">
+                    <Handshake className="w-4 h-4 text-ac-orange" />
+                  </div>
+                  <div className="space-y-0.5 min-w-0">
+                    <p className="text-xs font-black text-ac-brown">
+                      Autoriser la création de dettes miroirs
+                    </p>
+                    <p className="text-[10px] font-semibold text-ac-brown-light leading-relaxed">
+                      Si désactivé, cet habitant ne pourra pas créer de dettes associées à votre compte.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Toggle Switch */}
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={permAllowDebts}
+                    onChange={(e) => handleToggleAllowDebts(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-12 h-6 bg-ac-brown/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[3px] after:bg-white after:border-ac-brown/20 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ac-green border-2 border-ac-brown/30"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-ac-brown/10 flex items-center justify-between">
+              <span className="text-[10px] font-bold text-ac-brown-light">
+                {permAllowDebts ? "✅ Dettes miroirs autorisées" : "🔒 Dettes miroirs bloquées"}
+              </span>
+              <button
+                type="button"
+                onClick={handleSavePermissions}
+                disabled={isSavingPerms}
+                className="bg-ac-green hover:bg-ac-green/90 text-white font-black text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px] cursor-pointer transition-all disabled:opacity-50"
+              >
+                {isSavingPerms ? "Enregistrement..." : "Enregistrer"}
               </button>
             </div>
           </div>

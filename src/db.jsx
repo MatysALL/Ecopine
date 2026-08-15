@@ -1139,6 +1139,25 @@ export const db = {
     delete: async (id) => {
       const ref = doc(firestoreDb, 'friendships', id);
       await deleteDoc(ref);
+    },
+    updatePermissions: async (id, newPermissions) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const ref = doc(firestoreDb, 'friendships', id);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) throw new Error("Amitié introuvable");
+      const currentData = snap.data();
+      const currentPerms = currentData.permissions || {};
+      const myPerms = currentPerms[auth.currentUser.uid] || {};
+
+      await updateDoc(ref, {
+        permissions: {
+          ...currentPerms,
+          [auth.currentUser.uid]: {
+            ...myPerms,
+            ...newPermissions
+          }
+        }
+      });
     }
   },
   debts: {
@@ -1958,12 +1977,20 @@ export const DbProvider = ({ children }) => {
         const isSender = f.senderId === currentUser.uid;
         const friendUid = isSender ? f.receiverId : f.senderId;
         const meta = allUsersMeta.find(m => m.uid === friendUid);
+        const myPermissions = f.permissions?.[currentUser.uid] || {};
+        const friendPermissions = f.permissions?.[friendUid] || {};
         return {
           id: f.id,
+          friendshipId: f.id,
           uid: friendUid,
           email: isSender ? f.receiverEmail : f.senderEmail,
           name: meta?.username || (isSender ? f.receiverName : f.senderName) || (isSender ? f.receiverEmail : f.senderEmail) || 'Habitant',
-          photoURL: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg'
+          photoURL: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg',
+          // What current user allows this friend to do on current user's account:
+          myAllowDebts: myPermissions.allowDebts !== false,
+          // What this friend allows current user to do on friend's account:
+          allowDebts: friendPermissions.allowDebts !== false,
+          permissions: f.permissions || {}
         };
       })
       .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
