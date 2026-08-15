@@ -24,6 +24,9 @@ export default function App() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [isGlobalTxModalOpen, setIsGlobalTxModalOpen] = useState(false);
 
+  // Connected but no account yet -> force onboarding (guided first account creation)
+  const needsOnboarding = !accounts || accounts.length === 0;
+
   const stepKeyMap = {
     'dashboard': 'home',
     'accounts': 'accounts',
@@ -36,7 +39,8 @@ export default function App() {
   const activeStepKey = stepKeyMap[activeTab];
 
   useEffect(() => {
-    if (user && tutorialProgress && !tutorialProgress.isCompleted && activeStepKey) {
+    // Only show tutorial spotlight when user is logged in, onboarding is completed, and step is not validated
+    if (user && !needsOnboarding && tutorialProgress && !tutorialProgress.isCompleted && activeStepKey) {
       if (tutorialProgress.steps[activeStepKey] === false) {
         setShowSpotlight(true);
       } else {
@@ -45,7 +49,7 @@ export default function App() {
     } else {
       setShowSpotlight(false);
     }
-  }, [activeTab, tutorialProgress, user, activeStepKey]);
+  }, [activeTab, tutorialProgress, user, activeStepKey, needsOnboarding]);
 
   const handleValidateStep = async (stepKey) => {
     try {
@@ -175,9 +179,6 @@ export default function App() {
   if (!user) {
     return <AuthView />;
   }
-
-  // Connected but no account yet -> force onboarding (guided first account creation)
-  const needsOnboarding = accounts.length === 0;
 
   const photoURL = userMeta?.find(m => m.key === 'photoURL')?.value || user?.photoURL;
 
@@ -320,7 +321,7 @@ export default function App() {
         />
       )}
 
-      {showSpotlight && activeStepKey && (
+      {showSpotlight && !needsOnboarding && activeStepKey && (
         <TutorialSpotlight
           activeTab={activeTab}
           onValidate={handleValidateStep}
@@ -328,7 +329,7 @@ export default function App() {
         />
       )}
 
-      {showCelebration && (
+      {showCelebration && !needsOnboarding && (
         <TutorialCelebrationModal
           onClose={() => setShowCelebration(false)}
         />

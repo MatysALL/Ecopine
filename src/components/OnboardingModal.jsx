@@ -54,6 +54,7 @@ export default function OnboardingModal() {
         currentBalance: 0,
         balance: 0,
         rate: 0,
+        order: 0,
         isFavorite: true
       });
 
