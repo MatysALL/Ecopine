@@ -1838,3 +1838,23 @@ export const DbProvider = ({ children }) => {
     </DbContext.Provider>
   );
 };
+
+export const COLOR_PALETTE = [
+  { id: 'green', hex: '#78B159', bg: '#F3F9EE', border: '#78B159', label: 'Vert' },
+  { id: 'blue', hex: '#6CBAD8', bg: '#EEF8FC', border: '#6CBAD8', label: 'Bleu' },
+  { id: 'red', hex: '#D9534F', bg: '#FCF0F0', border: '#D9534F', label: 'Rouge' },
+  { id: 'yellow', hex: '#F1B24A', bg: '#FEF9ED', border: '#F1B24A', label: 'Jaune' },
+  { id: 'purple', hex: '#9B59B6', bg: '#F8F1FC', border: '#9B59B6', label: 'Violet' },
+  { id: 'orange', hex: '#E67E22', bg: '#FDF4EB', border: '#E67E22', label: 'Orange' },
+  { id: 'neutral', hex: '#8C6D58', bg: '#FFFDF9', border: '#8C6D58', label: 'Beige / Neutre' },
+];
+
+export const getCustomCardStyle = (color) => {
+  if (!color) return { backgroundColor: '#FFFDF9' };
+  const found = COLOR_PALETTE.find(c => (c.hex && c.hex.toLowerCase() === color.toLowerCase()) || c.id === color);
+  if (found) {
+    return { backgroundColor: found.bg };
+  }
+  return { backgroundColor: color };
+};
+

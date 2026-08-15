@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { db, useDb, getNextRenewalDate } from '../db';
+import { db, useDb, getNextRenewalDate, COLOR_PALETTE, getCustomCardStyle } from '../db';
 import { doc, writeBatch, collection } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 import { 
-  Plus, Trash2, Edit2, Sparkles, Coins, Clock, AlertCircle, X, Layers, Tag
+  Plus, Trash2, Edit2, Sparkles, Coins, Clock, AlertCircle, X, Layers, Tag,
+  Palette, Check
 } from 'lucide-react';
 
 export default function PocketManager({ accountId, role }) {
@@ -20,6 +21,7 @@ export default function PocketManager({ accountId, role }) {
   const [renewalFrequency, setRenewalFrequency] = useState('monthly'); // 'weekly', 'monthly', 'none'
   const [renewalDay, setRenewalDay] = useState(''); // 1-7 for weekly, 1-31 for monthly
   const [accumulate, setAccumulate] = useState(false);
+  const [color, setColor] = useState('#78B159');
 
   // Quick Debit Pop-in state
   const [debitModalOpen, setDebitModalOpen] = useState(false);
@@ -64,7 +66,8 @@ export default function PocketManager({ accountId, role }) {
         renewalFrequency,
         nextRenewalDate: nextDate,
         renewalDay: rDay,
-        accumulate: renewalFrequency !== 'none' ? accumulate : false
+        accumulate: renewalFrequency !== 'none' ? accumulate : false,
+        color: color || '#78B159'
       };
 
       if (editingPocket) {
@@ -95,7 +98,8 @@ export default function PocketManager({ accountId, role }) {
           nextRenewalDate: finalNextDate,
           renewalDay: pocketData.renewalDay,
           accumulate: pocketData.accumulate,
-          currentAmount: newCurrentAmount
+          currentAmount: newCurrentAmount,
+          color: pocketData.color
         });
       } else {
         // New pocket gets full initial charge
@@ -122,6 +126,7 @@ export default function PocketManager({ accountId, role }) {
     setRenewalFrequency(pocket.renewalFrequency || 'none');
     setRenewalDay(pocket.renewalDay !== undefined && pocket.renewalDay !== null ? pocket.renewalDay.toString() : '');
     setAccumulate(pocket.accumulate || false);
+    setColor(pocket.color || '#78B159');
     setFormOpen(true);
   };
 
@@ -182,6 +187,7 @@ export default function PocketManager({ accountId, role }) {
     setRenewalFrequency('monthly');
     setRenewalDay('');
     setAccumulate(false);
+    setColor('#78B159');
     setEditingPocket(null);
     setFormOpen(false);
   };
@@ -356,21 +362,45 @@ export default function PocketManager({ accountId, role }) {
               )}
             </div>
 
-            {/* Accumulation checkbox */}
-            {renewalFrequency !== 'none' && (
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="accumulate"
-                  checked={accumulate}
-                  onChange={(e) => setAccumulate(e.target.checked)}
-                  className="w-4 h-4 rounded border-2 border-ac-brown bg-ac-cream text-ac-green focus:ring-0 focus:outline-none cursor-pointer"
-                />
-                <label htmlFor="accumulate" className="text-xs font-black text-ac-brown cursor-pointer select-none">
-                  Activer l'accumulation / Report de budget
+            {/* Accumulation checkbox & Color selector */}
+            <div className="space-y-3 pt-1">
+              {renewalFrequency !== 'none' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="accumulate"
+                    checked={accumulate}
+                    onChange={(e) => setAccumulate(e.target.checked)}
+                    className="w-4 h-4 rounded border-2 border-ac-brown bg-ac-cream text-ac-green focus:ring-0 focus:outline-none cursor-pointer"
+                  />
+                  <label htmlFor="accumulate" className="text-xs font-black text-ac-brown cursor-pointer select-none">
+                    Activer l'accumulation / Report de budget
+                  </label>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1.5 flex items-center gap-1">
+                  <Palette className="w-3.5 h-3.5 text-ac-orange" /> Couleur d'arrière-plan de la poche
                 </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {COLOR_PALETTE.map((c) => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() => setColor(c.hex)}
+                      className={`w-7 h-7 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
+                        color === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                      title={c.label}
+                    >
+                      {color === c.hex && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
+            </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
@@ -425,7 +455,8 @@ export default function PocketManager({ accountId, role }) {
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                className={`border-3 rounded-3xl p-5 shadow-ac-sm transition-all flex flex-col justify-between space-y-4 bg-white border-ac-brown ${
+                style={getCustomCardStyle(pocket.color)}
+                className={`border-3 rounded-3xl p-5 shadow-ac-sm transition-all flex flex-col justify-between space-y-4 border-ac-brown ${
                   isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                 }`}
               >

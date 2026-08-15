@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db, useDb } from '../db';
+import { db, useDb, COLOR_PALETTE } from '../db';
 import { Leaf, Sparkles, User, Home, Building2, FileText, Palette, Check } from 'lucide-react';
-
-const COLOR_PRESETS = [
-  { hex: '#78B159', label: 'Vert Feuille' },
-  { hex: '#F1B24A', label: 'Clochette Dorée' },
-  { hex: '#6CBAD8', label: 'Bleu Ciel' },
-  { hex: '#E67E22', label: 'Orange Nook' },
-  { hex: '#D9534F', label: 'Rouge Corail' },
-  { hex: '#9B59B6', label: 'Mauve Lilas' }
-];
 
 export default function OnboardingModal() {
   const { username: dbUsername } = useDb();
@@ -167,7 +158,7 @@ export default function OnboardingModal() {
                     <Palette className="w-3.5 h-3.5 text-ac-orange" /> Couleur du compte
                   </label>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {COLOR_PRESETS.map((c) => (
+                    {COLOR_PALETTE.map((c) => (
                       <button
                         key={c.hex}
                         type="button"

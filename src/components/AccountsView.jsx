@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { db, useDb, calculateLivretInterests } from '../db';
+import { db, useDb, calculateLivretInterests, COLOR_PALETTE, getCustomCardStyle } from '../db';
 import { doc, writeBatch } from 'firebase/firestore';
 import { auth, db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
   Coins, PiggyBank, HelpCircle, AlertTriangle, 
-  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X, Mail, Star
+  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X, Mail, Star,
+  Palette, Check
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import PocketManager from './PocketManager';
@@ -17,6 +18,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [accName, setAccName] = useState('');
   const [accBankName, setAccBankName] = useState('');
   const [accDescription, setAccDescription] = useState('');
+  const [accColor, setAccColor] = useState('#78B159');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Transaction Modal state
@@ -184,6 +186,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         name: accName.trim(),
         bankName: accBankName.trim(),
         description: accDescription.trim(),
+        color: accColor || '#78B159',
       };
 
       if (editingAccount) {
@@ -193,7 +196,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         const newId = await db.accounts.add({
           ...data,
           initialBalance: 0,
-          currentBalance: 0
+          currentBalance: 0,
+          balance: 0,
+          order: sortedAccounts.length
         });
         setSelectedAccountId(newId);
 
@@ -217,6 +222,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccName('');
     setAccBankName('');
     setAccDescription('');
+    setAccColor('#78B159');
   };
 
   const handleTransferSubmit = async (e) => {
@@ -295,6 +301,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccName(acc.name || '');
     setAccBankName(acc.bankName || '');
     setAccDescription(acc.description || '');
+    setAccColor(acc.color || '#78B159');
     setAccountFormOpen(true);
   };
 
@@ -642,7 +649,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       {selectedAccountId && activeAccount ? (
         <div className="space-y-8 animate-fade-in">
           {/* Header & Account info banner */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm">
+          <div 
+            style={getCustomCardStyle(activeAccount.color)}
+            className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm transition-colors"
+          >
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setSelectedAccountId(null)}
@@ -1079,7 +1089,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     onDrop={(e) => handleAccountDrop(e, index)}
                     onDragEnd={handleAccountDragEnd}
                     onClick={() => setSelectedAccountId(acc.id)}
-                    className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
+                    style={getCustomCardStyle(acc.color)}
+                    className={`ac-card border-ac-brown p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
                       isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                     }`}
                   >
@@ -1301,6 +1312,28 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   placeholder="Ex: Pour financer mon futur projet de pont..."
                   className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5 flex items-center gap-1">
+                  <Palette className="w-3.5 h-3.5 text-ac-orange" /> Couleur d'arrière-plan du compte
+                </label>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {COLOR_PALETTE.map((c) => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() => setAccColor(c.hex)}
+                      className={`w-8 h-8 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
+                        accColor === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                      title={c.label}
+                    >
+                      {accColor === c.hex && <Check className="w-4 h-4 text-white stroke-[3]" />}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Section: Historique & Gestion des imports CSV */}

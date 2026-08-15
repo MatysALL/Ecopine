@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { useDb } from '../db';
+import { useDb, getCustomCardStyle } from '../db';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
   ChevronRight, Gift, Activity, Smile, Handshake
@@ -234,7 +234,8 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           {favoriteAccountDetails ? (
             <div 
               onClick={() => onViewAccountDetails(favoriteAccountDetails.account.id)}
-              className="ac-card bg-ac-gold-light p-8 cursor-pointer relative overflow-visible group select-none border-ac-brown hover:scale-[1.01] transition-all"
+              style={getCustomCardStyle(favoriteAccountDetails.account.color)}
+              className="ac-card p-8 cursor-pointer relative overflow-visible group select-none border-ac-brown hover:scale-[1.01] transition-all"
             >
               <div className="flex justify-between items-start">
                 <div>
@@ -296,7 +297,11 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                       else if (percentage < 60) progressBg = 'bg-ac-gold';
 
                       return (
-                        <div key={pocket.id} className="bg-white border-2 border-ac-brown/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-ac-xs">
+                        <div 
+                          key={pocket.id} 
+                          style={getCustomCardStyle(pocket.color)}
+                          className="border-2 border-ac-brown/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-ac-xs"
+                        >
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="text-xs shrink-0">🍃</span>
@@ -377,7 +382,8 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                     <div 
                       key={acc.id}
                       onClick={() => onViewAccountDetails(acc.id)}
-                      className="p-4 bg-ac-cream-dark/40 hover:bg-ac-cream-dark/80 transition-colors border-2 border-ac-brown rounded-2xl cursor-pointer flex justify-between items-center group relative"
+                      style={getCustomCardStyle(acc.color)}
+                      className="p-4 hover:brightness-95 transition-all border-2 border-ac-brown rounded-2xl cursor-pointer flex justify-between items-center group relative shadow-xs"
                     >
                       <div>
                         <h4 className="font-extrabold text-xs text-ac-brown">{acc.name}</h4>
