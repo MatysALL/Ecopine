@@ -261,8 +261,15 @@ export default function AdminView() {
 
       await updateDoc(ref, payload);
 
-      // Update local state
-      setTableData(prev => prev.map(row => (row.id === editingItem.id || row.uid === editingItem.uid ? { ...row, ...payload } : row)));
+      // Update local state strictly for the targeted item to prevent mutating all rows
+      const targetIdentifier = activeTab === 'users' ? (editingItem.uid || editingItem.id) : editingItem.id;
+      setTableData(prev => prev.map(row => {
+        const rowIdentifier = activeTab === 'users' ? (row.uid || row.id) : row.id;
+        if (rowIdentifier && rowIdentifier === targetIdentifier) {
+          return { ...row, ...payload };
+        }
+        return row;
+      }));
 
       showToast(`Modifications enregistrées avec succès.`);
       setEditingItem(null);
@@ -723,7 +730,6 @@ function renderTableHeaders(tableId) {
           <th className="p-3.5">Nom du Compte</th>
           <th className="p-3.5">Banque</th>
           <th className="p-3.5">Solde</th>
-          <th className="p-3.5">Type / Taux</th>
           <th className="p-3.5">Propriétaire</th>
         </>
       );
@@ -751,8 +757,7 @@ function renderTableHeaders(tableId) {
       return (
         <>
           <th className="p-3.5">Souhait</th>
-          <th className="p-3.5">Prix Estimé</th>
-          <th className="p-3.5">Catégorie</th>
+          <th className="p-3.5">Description / Note</th>
           <th className="p-3.5">Propriétaire</th>
         </>
       );
@@ -822,6 +827,7 @@ function renderTableCells(row, tableId, getOwnerInfo) {
     }
 
     case 'accounts': {
+      const solde = row.balance ?? row.currentBalance ?? row.initialBalance ?? 0;
       return (
         <>
           <td className="p-3.5 font-black text-ac-brown flex items-center gap-2">
@@ -832,12 +838,7 @@ function renderTableCells(row, tableId, getOwnerInfo) {
           </td>
           <td className="p-3.5 font-bold text-ac-brown-light">{row.bankName || '—'}</td>
           <td className="p-3.5 font-black text-ac-gold-dark">
-            {(row.balance ?? row.currentBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-          </td>
-          <td className="p-3.5 font-bold text-ac-brown-light">
-            <span className="bg-white px-2 py-0.5 rounded-md border border-ac-brown/15 text-[10px]">
-              {row.type || 'Courant'} {row.rate > 0 ? `(${row.rate}%)` : ''}
-            </span>
+            {solde.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
           </td>
           <td className="p-3.5">{renderOwnerBadge(row.creatorId || row.userId)}</td>
         </>
@@ -897,10 +898,7 @@ function renderTableCells(row, tableId, getOwnerInfo) {
       return (
         <>
           <td className="p-3.5 font-black text-ac-brown">{row.title || row.name || 'Souhait'}</td>
-          <td className="p-3.5 font-black text-ac-gold-dark">
-            {row.price ? `${Number(row.price).toLocaleString('fr-FR')} 🔔` : '—'}
-          </td>
-          <td className="p-3.5 font-bold text-ac-brown-light">{row.category || 'Général'}</td>
+          <td className="p-3.5 font-bold text-ac-brown-light italic">{row.description || row.note || '—'}</td>
           <td className="p-3.5">{renderOwnerBadge(row.creatorId || row.userId)}</td>
         </>
       );
@@ -1048,56 +1046,14 @@ function renderEditFormFields(tableId, data, setData) {
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Banque</label>
-              <input
-                type="text"
-                value={data.bankName || ''}
-                onChange={(e) => handleChange('bankName', e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Solde Principal (🔔)</label>
-              <input
-                type="number"
-                step="any"
-                value={data.balance !== undefined ? data.balance : (data.currentBalance || 0)}
-                onChange={(e) => {
-                  handleChange('balance', e.target.value);
-                  handleChange('currentBalance', e.target.value);
-                }}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
-                required
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Type de compte</label>
-              <select
-                value={data.type || 'Courant'}
-                onChange={(e) => handleChange('type', e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
-              >
-                <option value="Courant">Courant</option>
-                <option value="Épargne">Épargne</option>
-                <option value="Livret A">Livret A</option>
-                <option value="LDDS">LDDS</option>
-                <option value="LEP">LEP</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Taux d'intérêt (%)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={data.rate || 0}
-                onChange={(e) => handleChange('rate', e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Banque</label>
+            <input
+              type="text"
+              value={data.bankName || ''}
+              onChange={(e) => handleChange('bankName', e.target.value)}
+              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
+            />
           </div>
           <div>
             <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5 flex items-center gap-1">
@@ -1122,8 +1078,8 @@ function renderEditFormFields(tableId, data, setData) {
           </div>
           <div>
             <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description</label>
-            <input
-              type="text"
+            <textarea
+              rows={2}
               value={data.description || ''}
               onChange={(e) => handleChange('description', e.target.value)}
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
@@ -1281,7 +1237,7 @@ function renderEditFormFields(tableId, data, setData) {
       return (
         <>
           <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Titre du souhait</label>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom du souhait</label>
             <input
               type="text"
               value={data.title || data.name || ''}
@@ -1293,31 +1249,21 @@ function renderEditFormFields(tableId, data, setData) {
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Prix estimé (🔔)</label>
-              <input
-                type="number"
-                value={data.price !== undefined ? data.price : (data.amount || 0)}
-                onChange={(e) => {
-                  handleChange('price', e.target.value);
-                  handleChange('amount', e.target.value);
-                }}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Catégorie</label>
-              <input
-                type="text"
-                value={data.category || ''}
-                onChange={(e) => handleChange('category', e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description / Note</label>
+            <textarea
+              rows={3}
+              value={data.description || data.note || ''}
+              onChange={(e) => {
+                handleChange('description', e.target.value);
+                handleChange('note', e.target.value);
+              }}
+              placeholder="Détails, liens ou note..."
+              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
+            />
           </div>
           <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Lien URL</label>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Lien URL (optionnel)</label>
             <input
               type="url"
               value={data.url || data.link || ''}
@@ -1325,6 +1271,7 @@ function renderEditFormFields(tableId, data, setData) {
                 handleChange('url', e.target.value);
                 handleChange('link', e.target.value);
               }}
+              placeholder="https://..."
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
             />
           </div>
