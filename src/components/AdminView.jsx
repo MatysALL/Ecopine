@@ -9,7 +9,8 @@ import {
   updateDoc,
   writeBatch, 
   query, 
-  where 
+  where,
+  onSnapshot
 } from 'firebase/firestore';
 import { 
   Shield, 
@@ -48,6 +49,21 @@ const COLLECTIONS = [
   { id: 'friendships', name: 'Amitiés', icon: UserPlus, colName: 'friendships', ownerField: 'senderId', color: 'text-pink-600', bg: 'bg-pink-100' }
 ];
 
+// Helper for dynamic account balance calculation
+export function calculateAccountBalance(account, transactions = []) {
+  if (!account) return 0;
+  const accountTransactions = (transactions || []).filter(t => t.accountId === account.id);
+  
+  const totalBalance = accountTransactions.reduce((acc, t) => {
+    const amount = Math.abs(parseFloat(t.amount) || 0);
+    // Détecte si la transaction est un crédit/revenu ou un débit/dépense
+    const isCredit = t.type === 'income' || t.type === 'credit' || t.isIncome === true;
+    return isCredit ? acc + amount : acc - amount;
+  }, (parseFloat(account.initialBalance) || 0));
+
+  return totalBalance;
+}
+
 export default function AdminView() {
   const { allUsersMeta = [], isAdmin, user: currentUser } = useDb();
   
@@ -55,6 +71,7 @@ export default function AdminView() {
   const [activeTab, setActiveTab] = useState('users');
   const [tableData, setTableData] = useState([]);
   const [loadingTable, setLoadingTable] = useState(false);
+  const [allTransactions, setAllTransactions] = useState([]);
   
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,7 +110,50 @@ export default function AdminView() {
     return map;
   }, [allUsersMeta]);
 
-  // Fetch active collection data
+  // Real-time subscription to all transactions across the database
+  useEffect(() => {
+    if (!isAdmin) return;
+    const unsubscribe = onSnapshot(
+      collection(firestoreDb, 'transactions'),
+      (snapshot) => {
+        const txs = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+        setAllTransactions(txs);
+      },
+      (err) => {
+        console.error("Erreur lors de l'écoute temps réel des transactions:", err);
+      }
+    );
+    return () => unsubscribe();
+  }, [isAdmin]);
+
+  // Real-time subscription for active collection data
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (activeTab === 'users') {
+      setTableData(allUsersMeta || []);
+      setLoadingTable(false);
+      return;
+    }
+
+    setLoadingTable(true);
+    const unsubscribe = onSnapshot(
+      collection(firestoreDb, activeTab),
+      (snap) => {
+        const list = snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+        setTableData(list);
+        setLoadingTable(false);
+      },
+      (err) => {
+        console.error(`Erreur lors de l'écoute de la collection ${activeTab}:`, err);
+        showToast(`Impossible de charger les données : ${err.message}`, 'error');
+        setLoadingTable(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [activeTab, allUsersMeta, isAdmin]);
+
+  // Manual refresh fallback
   const loadCollectionData = useCallback(async () => {
     if (activeTab === 'users') {
       setTableData(allUsersMeta || []);
@@ -112,10 +172,6 @@ export default function AdminView() {
       setLoadingTable(false);
     }
   }, [activeTab, allUsersMeta]);
-
-  useEffect(() => {
-    loadCollectionData();
-  }, [loadCollectionData]);
 
   // Check if target is admin (to prevent self-destruction/accidental lockout)
   const isTargetAdmin = (userObj) => {
@@ -182,6 +238,14 @@ export default function AdminView() {
         String(item.allocatedAmount ?? item.currentAmount ?? '')
       ];
 
+      if (activeTab === 'accounts') {
+        const dynamicBal = calculateAccountBalance(item, allTransactions);
+        searchFields.push(
+          String(dynamicBal),
+          dynamicBal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        );
+      }
+
       // Also search owner username/email if applicable
       const ownerUid = item.userId || item.creatorId || item.senderId;
       if (ownerUid) {
@@ -193,7 +257,7 @@ export default function AdminView() {
 
       return searchFields.some(val => val && String(val).toLowerCase().includes(queryStr));
     });
-  }, [tableData, searchQuery, userFilter, activeTab, userMap]);
+  }, [tableData, searchQuery, userFilter, activeTab, userMap, allTransactions]);
 
   // Delete single row
   const handleDeleteRow = async (row) => {
@@ -529,7 +593,7 @@ export default function AdminView() {
                       key={rowId || index} 
                       className="hover:bg-ac-cream/40 transition-colors"
                     >
-                      {renderTableCells(row, activeTab, getOwnerInfo)}
+                      {renderTableCells(row, activeTab, getOwnerInfo, allTransactions)}
 
                       {/* Actions column */}
                       <td className="p-3 text-center whitespace-nowrap">
@@ -785,7 +849,7 @@ function renderTableHeaders(tableId) {
   }
 }
 
-function renderTableCells(row, tableId, getOwnerInfo) {
+function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
   const renderOwnerBadge = (uid) => {
     const owner = getOwnerInfo(uid);
     return (
@@ -827,9 +891,8 @@ function renderTableCells(row, tableId, getOwnerInfo) {
     }
 
     case 'accounts': {
-      const rawBalance = row.currentBalance !== undefined ? row.currentBalance : (row.balance ?? row.initialBalance ?? 0);
-      const numericBalance = typeof rawBalance === 'number' ? rawBalance : parseFloat(rawBalance) || 0;
-      const displayBalance = numericBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const totalBalance = calculateAccountBalance(row, allTransactions);
+      const displayBalance = totalBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' 🔔';
       return (
         <>
           <td className="p-3.5 font-black text-ac-brown flex items-center gap-2">
@@ -840,7 +903,7 @@ function renderTableCells(row, tableId, getOwnerInfo) {
           </td>
           <td className="p-3.5 font-bold text-ac-brown-light">{row.bankName || '—'}</td>
           <td className="p-3.5 font-black text-ac-gold-dark">
-            {displayBalance} 🔔
+            {displayBalance}
           </td>
           <td className="p-3.5">{renderOwnerBadge(row.creatorId || row.userId)}</td>
         </>
