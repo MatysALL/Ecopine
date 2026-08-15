@@ -1,12 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { db, useDb } from '../db';
-import { Leaf, Sparkles, User, Coins, Home } from 'lucide-react';
+import { Leaf, Sparkles, User, Home, Building2, FileText, Palette, Check } from 'lucide-react';
+
+const COLOR_PRESETS = [
+  { hex: '#78B159', label: 'Vert Feuille' },
+  { hex: '#F1B24A', label: 'Clochette Dorée' },
+  { hex: '#6CBAD8', label: 'Bleu Ciel' },
+  { hex: '#E67E22', label: 'Orange Nook' },
+  { hex: '#D9534F', label: 'Rouge Corail' },
+  { hex: '#9B59B6', label: 'Mauve Lilas' }
+];
 
 export default function OnboardingModal() {
   const { username: dbUsername } = useDb();
   const [username, setUsername] = useState('');
   const [accountName, setAccountName] = useState('Poche');
-  const [initialBalance, setInitialBalance] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [description, setDescription] = useState('');
+  const [color, setColor] = useState('#78B159');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -25,28 +36,31 @@ export default function OnboardingModal() {
       alert('Veuillez entrer le nom de votre premier compte.');
       return;
     }
-    const balance = parseFloat(initialBalance);
-    if (isNaN(balance) || balance < 0) {
-      alert('Veuillez entrer un solde initial valide (supérieur ou égal à 0).');
-      return;
-    }
 
     setLoading(true);
     try {
       // 1. Put user metadata
       await db.user_meta.put({ key: 'username', value: username.trim() });
       
-      // 2. Add first current account
-      await db.accounts.add({
+      // 2. Add first current account with initialBalance: 0 and currentBalance: 0
+      const newAccountId = await db.accounts.add({
         name: accountName.trim(),
         type: 'Courant',
-        bankName: '',
-        description: 'Compte initial de mon île',
+        bankName: bankName.trim(),
+        description: description.trim() || 'Compte initial de mon île',
+        color: color || '#78B159',
         rib: '',
-        initialBalance: balance,
-        currentBalance: balance,
-        rate: 0
+        initialBalance: 0,
+        currentBalance: 0,
+        balance: 0,
+        rate: 0,
+        isFavorite: true
       });
+
+      // 3. Mark as default favorite account
+      if (newAccountId) {
+        await db.user_meta.put({ key: 'favorite_account_id', value: newAccountId });
+      }
     } catch (err) {
       console.error(err);
       alert("Erreur lors de l'enregistrement de votre premier compte.");
@@ -87,7 +101,7 @@ export default function OnboardingModal() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-black uppercase text-ac-brown-light mb-1 flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-ac-green" /> Comment t'appelles-tu ?
+                <User className="w-3.5 h-3.5 text-ac-green" /> Comment t'appelles-tu ? *
               </label>
               <input
                 type="text"
@@ -104,36 +118,68 @@ export default function OnboardingModal() {
                 Configuration de ton 1er Compte Courant
               </span>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1 flex items-center gap-1">
-                    <Home className="w-3.5 h-3.5 text-ac-gold" /> Nom du compte
-                  </label>
-                  <input
-                    type="text"
-                    value={accountName}
-                    onChange={(e) => setAccountName(e.target.value)}
-                    placeholder="Poche"
-                    className="w-full bg-white border border-ac-brown rounded-xl px-3 py-1.5 text-xs font-bold text-ac-brown focus:outline-none"
-                    required
-                  />
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1 flex items-center gap-1">
+                      <Home className="w-3.5 h-3.5 text-ac-gold" /> Nom du compte *
+                    </label>
+                    <input
+                      type="text"
+                      value={accountName}
+                      onChange={(e) => setAccountName(e.target.value)}
+                      placeholder="Poche"
+                      className="w-full bg-white border border-ac-brown rounded-xl px-3 py-1.5 text-xs font-bold text-ac-brown focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1 flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5 text-ac-green" /> Banque / Établissement
+                    </label>
+                    <input
+                      type="text"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="Ex: Nook Banque"
+                      className="w-full bg-white border border-ac-brown rounded-xl px-3 py-1.5 text-xs font-bold text-ac-brown focus:outline-none"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1 flex items-center gap-1">
-                    <Coins className="w-3.5 h-3.5 text-ac-gold" /> Solde Initial
+                    <FileText className="w-3.5 h-3.5 text-ac-sky" /> Description (optionnelle)
                   </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={initialBalance}
-                      onChange={(e) => setInitialBalance(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full bg-white border border-ac-brown rounded-xl pl-6 pr-2 py-1.5 text-xs font-bold text-ac-brown focus:outline-none"
-                      required
-                    />
-                    <span className="absolute left-2 top-2 text-[10px]">🔔</span>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Ex: Compte principal de mon île..."
+                    className="w-full bg-white border border-ac-brown rounded-xl px-3 py-1.5 text-xs font-bold text-ac-brown focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1.5 flex items-center gap-1">
+                    <Palette className="w-3.5 h-3.5 text-ac-orange" /> Couleur du compte
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {COLOR_PRESETS.map((c) => (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        onClick={() => setColor(c.hex)}
+                        className={`w-7 h-7 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
+                          color === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                        title={c.label}
+                      >
+                        {color === c.hex && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
