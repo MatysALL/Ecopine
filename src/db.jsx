@@ -1146,7 +1146,7 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: auth.currentUser.uid
+        userId: data.userId || auth.currentUser.uid
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'debts'));

@@ -1,12 +1,25 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { db, useDb } from '../db';
-import { Plus, Trash2, Handshake, X, Coins, Sparkles, Mail, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Handshake, X, Coins, Sparkles, Edit2, AlertCircle, CheckCircle, Users, User } from 'lucide-react';
 
 export default function DebtsView() {
-  const { debts = [], accountsData: accounts = [], user, acceptedFriends, username } = useDb();
+  const { debts = [], accountsData: accounts = [], user, acceptedFriends = [], username } = useDb();
+
+  // Toast state
+  const [toast, setToast] = useState(null); // { type: 'success' | 'error', message: string }
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Editing debt state
   const [editingDebt, setEditingDebt] = useState(null);
+
+  // Mode for entity: 'free' (saisie libre) or 'friend' (choisir un ami)
+  const [entityMode, setEntityMode] = useState('free');
 
   // Associated friend ID state
   const [associatedFriendId, setAssociatedFriendId] = useState('');
@@ -59,45 +72,126 @@ export default function DebtsView() {
   // Form submit handler
   const handleDebtSubmit = async (e) => {
     e.preventDefault();
-    if (!debtPerson.trim() || !debtAmount || isSubmitting) return;
+    if (isSubmitting) return;
+
+    let targetEntityName = '';
+    let selectedFriend = null;
+
+    if (entityMode === 'friend') {
+      selectedFriend = (acceptedFriends || []).find(f => f.uid === associatedFriendId);
+      if (!selectedFriend) {
+        setToast({ type: 'error', message: "Veuillez sélectionner un ami dans la liste." });
+        return;
+      }
+      targetEntityName = selectedFriend.name;
+    } else {
+      targetEntityName = debtPerson.trim();
+      if (!targetEntityName) {
+        setToast({ type: 'error', message: "Veuillez saisir un nom ou une entité." });
+        return;
+      }
+    }
 
     const amt = parseFloat(debtAmount);
     if (isNaN(amt) || amt <= 0) {
-      alert("Veuillez entrer une somme supérieure à 0.");
+      setToast({ type: 'error', message: "Veuillez entrer une somme supérieure à 0." });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const selectedFriend = acceptedFriends?.find(f => f.uid === associatedFriendId);
-
-      const debtData = {
-        type: debtType,
-        person: debtPerson.trim(),
-        amount: amt,
-        description: debtDescription.trim(),
-        status: 'pending',
-        associatedFriendId: associatedFriendId || null,
-        associatedFriendName: selectedFriend ? selectedFriend.name : null
-      };
+      const todayStr = new Date().toISOString().split('T')[0];
+      const createdAt = todayStr;
+      const currentUserPseudo = username?.trim() || user?.displayName || 'Habitant';
 
       if (editingDebt) {
+        // Mode modification : modification stricte et locale de cette dette uniquement
         await db.debts.update(editingDebt.id, {
-          ...debtData,
-          status: editingDebt.status,
-          date: editingDebt.date
+          entityName: targetEntityName,
+          person: targetEntityName,
+          name: targetEntityName,
+          amount: amt,
+          type: debtType,
+          description: debtDescription.trim(),
+          status: editingDebt.status || 'pending',
+          date: editingDebt.date || todayStr,
+          createdAt: editingDebt.createdAt || todayStr,
+          associatedFriendId: selectedFriend ? selectedFriend.uid : (editingDebt.associatedFriendId || null),
+          associatedFriendName: selectedFriend ? selectedFriend.name : (editingDebt.associatedFriendName || null)
         });
+        setToast({ type: 'success', message: "Dette modifiée avec succès ! 🍃" });
       } else {
-        await db.debts.add({
-          ...debtData,
-          date: new Date().toISOString().split('T')[0]
-        });
+        if (selectedFriend) {
+          // CAS 2 : Sélection d'un ami
+          // 1. Dette pour User A (utilisateur connecté)
+          await db.debts.add({
+            userId: user?.uid,
+            entityName: selectedFriend.name,
+            person: selectedFriend.name,
+            name: selectedFriend.name,
+            amount: amt,
+            type: debtType,
+            description: debtDescription.trim(),
+            status: 'pending',
+            date: todayStr,
+            createdAt: createdAt,
+            associatedFriendId: selectedFriend.uid,
+            associatedFriendName: selectedFriend.name
+          });
+
+          // 2. Dette miroir automatique pour User B (l'ami sélectionné)
+          // Type inversé : "to_pay" ("je_dois") <-> "to_collect" ("on_me_doit")
+          let mirrorType = 'to_pay';
+          if (debtType === 'to_pay' || debtType === 'je_dois' || debtType === 'i_owe' || debtType === 'debt') {
+            mirrorType = 'to_collect';
+          } else {
+            mirrorType = 'to_pay';
+          }
+
+          await db.debts.add({
+            userId: selectedFriend.uid,
+            entityName: currentUserPseudo,
+            person: currentUserPseudo,
+            name: currentUserPseudo,
+            amount: amt,
+            type: mirrorType,
+            description: debtDescription.trim(),
+            status: 'pending',
+            date: todayStr,
+            createdAt: createdAt,
+            associatedFriendId: user?.uid || null,
+            associatedFriendName: currentUserPseudo
+          });
+
+          setToast({ 
+            type: 'success', 
+            message: `Dette enregistrée (et ajoutée sur le compte de ${selectedFriend.name}) ! 🍃` 
+          });
+        } else {
+          // CAS 1 : Saisie manuelle classique
+          await db.debts.add({
+            userId: user?.uid,
+            entityName: targetEntityName,
+            person: targetEntityName,
+            name: targetEntityName,
+            amount: amt,
+            type: debtType,
+            description: debtDescription.trim(),
+            status: 'pending',
+            date: todayStr,
+            createdAt: createdAt,
+            associatedFriendId: null,
+            associatedFriendName: null
+          });
+
+          setToast({ type: 'success', message: "Dette enregistrée avec succès ! 🍃" });
+        }
       }
 
       resetForm();
     } catch (err) {
       console.error(err);
-      alert("Impossible d'enregistrer cette dette.");
+      setToast({ type: 'error', message: "Impossible d'enregistrer cette dette : " + (err.message || "Erreur inconnue") });
     } finally {
       setIsSubmitting(false);
     }
@@ -105,11 +199,18 @@ export default function DebtsView() {
 
   const handleEditDebt = (debt) => {
     setEditingDebt(debt);
-    setDebtType(debt.type);
-    setDebtPerson(debt.person);
-    setDebtAmount(debt.amount.toString());
+    setDebtType(debt.type || 'to_pay');
+    const name = debt.entityName || debt.person || debt.name || '';
+    setDebtPerson(name);
+    setDebtAmount(debt.amount ? debt.amount.toString() : '');
     setDebtDescription(debt.description || '');
-    setAssociatedFriendId(debt.associatedFriendId || '');
+    if (debt.associatedFriendId && acceptedFriends?.some(f => f.uid === debt.associatedFriendId)) {
+      setEntityMode('friend');
+      setAssociatedFriendId(debt.associatedFriendId);
+    } else {
+      setEntityMode('free');
+      setAssociatedFriendId('');
+    }
     setFormOpen(true);
   };
 
@@ -118,6 +219,7 @@ export default function DebtsView() {
     setDebtAmount('');
     setDebtDescription('');
     setAssociatedFriendId('');
+    setEntityMode('free');
     setEditingDebt(null);
     setFormOpen(false);
   };
@@ -127,9 +229,10 @@ export default function DebtsView() {
     if (window.confirm("Es-tu sûr de vouloir effacer cette dette de ton registre ?")) {
       try {
         await db.debts.delete(id);
+        setToast({ type: 'success', message: "Dette supprimée du registre." });
       } catch (err) {
         console.error(err);
-        alert("Erreur lors de la suppression.");
+        setToast({ type: 'error', message: "Erreur lors de la suppression." });
       }
     }
   };
@@ -147,23 +250,25 @@ export default function DebtsView() {
 
     const targetAccount = accounts.find(a => a.id === selectedAccountId);
     if (!targetAccount) {
-      alert("Compte sélectionné introuvable.");
+      setToast({ type: 'error', message: "Compte sélectionné introuvable." });
       return;
     }
 
     setIsSettling(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
+      const debtorOrCreditor = settlingDebt.entityName || settlingDebt.person || settlingDebt.name || 'Dette';
 
       const txDescription = settlingDebt.description
-        ? `${settlingDebt.person} - ${settlingDebt.description}`
-        : settlingDebt.person;
+        ? `${debtorOrCreditor} - ${settlingDebt.description}`
+        : debtorOrCreditor;
 
-      const isToPay = settlingDebt.type === 'to_pay';
+      const rawType = (settlingDebt.type || '').toLowerCase().trim();
+      const isToPay = ['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(rawType) || (typeof settlingDebt.amount === 'number' && settlingDebt.amount < 0);
 
       const newTx = {
         accountId: selectedAccountId,
-        name: isToPay ? `Remboursement : ${settlingDebt.person}` : `Encaissement : ${settlingDebt.person}`,
+        name: isToPay ? `Remboursement : ${debtorOrCreditor}` : `Encaissement : ${debtorOrCreditor}`,
         description: txDescription,
         amount: settlingDebt.amount,
         type: isToPay ? 'debit' : 'credit',
@@ -182,7 +287,7 @@ export default function DebtsView() {
       }, 2000);
     } catch (err) {
       console.error(err);
-      alert("Erreur lors de la validation du règlement.");
+      setToast({ type: 'error', message: "Erreur lors de la validation du règlement." });
     } finally {
       setIsSettling(false);
     }
@@ -190,6 +295,16 @@ export default function DebtsView() {
 
   return (
     <div className="space-y-6 relative text-ac-brown select-none">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 p-4 rounded-2xl border-2 border-ac-brown shadow-ac-md flex items-center gap-3 text-sm font-black animate-bounce-in ${
+          toast.type === 'error' ? 'bg-ac-red text-white' : 'bg-ac-green text-white'
+        }`}>
+          {toast.type === 'error' ? <AlertCircle className="w-5 h-5 shrink-0" /> : <CheckCircle className="w-5 h-5 shrink-0" />}
+          <span>{toast.message}</span>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm">
         <div>
@@ -202,7 +317,13 @@ export default function DebtsView() {
         </div>
 
         <button
-          onClick={() => setFormOpen(!formOpen)}
+          onClick={() => {
+            if (formOpen) {
+              resetForm();
+            } else {
+              setFormOpen(true);
+            }
+          }}
           className="bg-ac-green text-white font-extrabold text-xs px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer self-start md:self-auto"
         >
           <Plus className="w-4 h-4" /> {formOpen ? 'Masquer le formulaire' : 'Nouvelle Dette / Créance'}
@@ -212,8 +333,13 @@ export default function DebtsView() {
       {/* Debt Creation Form */}
       {formOpen && (
         <form onSubmit={handleDebtSubmit} className="bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm space-y-4 animate-bounce-in max-w-2xl">
-          <h3 className="font-black text-sm text-ac-brown border-b border-ac-brown/15 pb-2">
-            Créer une nouvelle entrée dans le registre
+          <h3 className="font-black text-sm text-ac-brown border-b border-ac-brown/15 pb-2 flex items-center justify-between">
+            <span>{editingDebt ? 'Modifier une entrée du registre' : 'Créer une nouvelle entrée dans le registre'}</span>
+            {editingDebt && (
+              <span className="text-[10px] bg-ac-orange/15 text-ac-orange px-2 py-0.5 rounded-full border border-ac-orange/30 font-bold">
+                Édition locale
+              </span>
+            )}
           </h3>
 
           {/* Type selector Switch */}
@@ -249,19 +375,123 @@ export default function DebtsView() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Qui (Personne / Entité) *</label>
+          {/* Personne / Entité : Saisie libre vs Choisir un ami */}
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="block text-[10px] font-black uppercase text-ac-brown-light">
+                Personne / Entité concernée *
+              </label>
+              
+              {/* Option Selector Toggle */}
+              <div className="flex bg-ac-cream border-2 border-ac-brown/30 rounded-xl p-0.5 gap-1 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntityMode('free');
+                  }}
+                  className={`px-3 py-1 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                    entityMode === 'free'
+                      ? 'bg-ac-brown text-white shadow-xs'
+                      : 'text-ac-brown hover:bg-black/5'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" /> Saisie libre
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntityMode('friend');
+                    if (acceptedFriends.length > 0 && !associatedFriendId) {
+                      setAssociatedFriendId(acceptedFriends[0].uid);
+                      setDebtPerson(acceptedFriends[0].name);
+                    }
+                  }}
+                  className={`px-3 py-1 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                    entityMode === 'friend'
+                      ? 'bg-ac-brown text-white shadow-xs'
+                      : 'text-ac-brown hover:bg-black/5'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" /> Choisir un ami ({acceptedFriends.length})
+                </button>
+              </div>
+            </div>
+
+            {/* Entity input view depending on mode */}
+            {entityMode === 'free' ? (
               <input
                 type="text"
                 value={debtPerson}
                 onChange={(e) => setDebtPerson(e.target.value)}
-                placeholder="Ex: Tom Nook, Raymond, Maman..."
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none"
+                placeholder="Ex: Boulangerie, Paul, Tom Nook..."
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                 required
               />
-            </div>
+            ) : (
+              acceptedFriends && acceptedFriends.length > 0 ? (
+                <div className="space-y-2">
+                  <select
+                    value={associatedFriendId}
+                    onChange={(e) => {
+                      const friendId = e.target.value;
+                      setAssociatedFriendId(friendId);
+                      const found = acceptedFriends.find(f => f.uid === friendId);
+                      if (found) {
+                        setDebtPerson(found.name);
+                      }
+                    }}
+                    className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+                    required
+                  >
+                    <option value="">-- Sélectionner un ami --</option>
+                    {acceptedFriends.map((friend) => (
+                      <option key={friend.uid || friend.id} value={friend.uid}>
+                        {friend.name} ({friend.email})
+                      </option>
+                    ))}
+                  </select>
 
+                  {associatedFriendId && (
+                    <div className="flex items-center gap-2.5 p-2.5 bg-ac-green/10 border-2 border-dashed border-ac-green/30 rounded-2xl">
+                      {(() => {
+                        const f = acceptedFriends.find(fr => fr.uid === associatedFriendId);
+                        if (!f) return null;
+                        return (
+                          <>
+                            <img 
+                              src={f.photoURL || '/pfp-ac.jpg'} 
+                              alt={f.name} 
+                              className="w-8 h-8 rounded-full border-2 border-ac-brown object-cover shrink-0"
+                              onError={(e) => { e.target.src = '/pfp-ac.jpg'; }}
+                            />
+                            <div className="text-xs min-w-0">
+                              <p className="font-black text-ac-brown truncate">
+                                Ami sélectionné : <span className="text-ac-green">{f.name}</span>
+                              </p>
+                              <p className="text-[10px] text-ac-brown-light font-semibold">
+                                🍃 Une dette miroir automatique sera enregistrée sur le compte de {f.name}.
+                              </p>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 bg-ac-cream rounded-2xl border-2 border-dashed border-ac-brown/20 text-xs font-bold text-ac-brown space-y-1">
+                  <p className="flex items-center gap-1.5 font-extrabold text-ac-brown">
+                    <Users className="w-4 h-4 text-ac-orange" /> Aucun ami validé pour l'instant
+                  </p>
+                  <p className="text-[11px] text-ac-brown-light font-semibold">
+                    Tu peux ajouter des amis dans l'onglet Social, ou basculer en <strong>Saisie libre</strong> pour entrer un nom manuellement !
+                  </p>
+                </div>
+              )
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Montant *</label>
               <div className="relative">
@@ -272,23 +502,23 @@ export default function DebtsView() {
                   value={debtAmount}
                   onChange={(e) => setDebtAmount(e.target.value)}
                   placeholder="0"
-                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold text-ac-brown focus:outline-none"
+                  className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                   required
                 />
                 <span className="absolute left-3 top-2.5 text-xs font-black">🔔</span>
               </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Description / Notes (Optionnel)</label>
-            <input
-              type="text"
-              value={debtDescription}
-              onChange={(e) => setDebtDescription(e.target.value)}
-              placeholder="Ex: Prêt à taux zéro pour le pont, Achat de navets..."
-              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none"
-            />
+            <div>
+              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Description / Motif (Optionnel)</label>
+              <input
+                type="text"
+                value={debtDescription}
+                onChange={(e) => setDebtDescription(e.target.value)}
+                placeholder="Ex: Prêt pour le pont, Achat de navets..."
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
@@ -307,7 +537,7 @@ export default function DebtsView() {
               }`}
               style={isSubmitting ? { cursor: 'not-allowed' } : {}}
             >
-              {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
+              {isSubmitting ? 'Enregistrement...' : (editingDebt ? 'Mettre à jour' : 'Enregistrer')}
             </button>
           </div>
         </form>
@@ -357,7 +587,7 @@ export default function DebtsView() {
           ) : (
             <div className="space-y-4">
               {payables.map((debt) => {
-                const personName = debt.person || debt.name || debt.associatedFriendName || 'Créancier / Dette';
+                const personName = debt.entityName || debt.person || debt.name || debt.associatedFriendName || 'Créancier / Dette';
                 const formattedDate = debt.date ? (debt.date?.toDate ? debt.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(debt.date).getTime()) ? String(debt.date) : new Date(debt.date).toLocaleDateString('fr-FR'))) : 'Date non spécifiée';
                 const formattedAmount = Math.abs(debt.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
                 return (
@@ -423,7 +653,7 @@ export default function DebtsView() {
           ) : (
             <div className="space-y-4">
               {receivables.map((debt) => {
-                const personName = debt.person || debt.name || debt.associatedFriendName || 'Débiteurs / Créance';
+                const personName = debt.entityName || debt.person || debt.name || debt.associatedFriendName || 'Débiteurs / Créance';
                 const formattedDate = debt.date ? (debt.date?.toDate ? debt.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(debt.date).getTime()) ? String(debt.date) : new Date(debt.date).toLocaleDateString('fr-FR'))) : 'Date non spécifiée';
                 const formattedAmount = Math.abs(debt.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 });
                 return (
@@ -517,7 +747,7 @@ export default function DebtsView() {
                   <p className="text-[10px] text-ac-brown-light uppercase font-black">
                     {settlingDebt.type === 'to_pay' ? 'Créancier' : 'Débiteur'}
                   </p>
-                  <p className="text-sm font-extrabold">{settlingDebt.person}</p>
+                  <p className="text-sm font-extrabold">{settlingDebt.entityName || settlingDebt.person || settlingDebt.name || 'Dette'}</p>
                   <p className={`text-xs font-black ${settlingDebt.type === 'to_pay' ? 'text-ac-red' : 'text-ac-green'}`}>
                     Montant : {(settlingDebt.amount ?? 0).toLocaleString('fr-FR')} 🔔
                   </p>
@@ -568,8 +798,6 @@ export default function DebtsView() {
           </div>
         </div>
       )}
-
-
     </div>
   );
 }
