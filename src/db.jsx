@@ -1483,6 +1483,7 @@ export const DbProvider = ({ children }) => {
     // Create users_meta doc
     const metaRef = doc(firestoreDb, 'users_meta', user.uid);
     await setDoc(metaRef, {
+      uid: user.uid,
       username: firstname.trim(),
       email: email.trim().toLowerCase(),
       favoriteAccountId: null,
@@ -1491,6 +1492,7 @@ export const DbProvider = ({ children }) => {
       themePreference: 'default',
       unlockedThemes: ['default', 'red', 'blue', 'yellow'],
       role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
+      createdAt: new Date().toISOString(),
       tutorialProgress: {
         isCompleted: false,
         steps: {
@@ -1512,37 +1514,48 @@ export const DbProvider = ({ children }) => {
   };
 
   const loginWithGoogle = async () => {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
 
-    if (user) {
-      const metaRef = doc(firestoreDb, 'users_meta', user.uid);
-      const docSnap = await getDoc(metaRef);
+      if (user) {
+        const metaRef = doc(firestoreDb, 'users_meta', user.uid);
+        const docSnap = await getDoc(metaRef);
 
-      if (!docSnap.exists()) {
-        await setDoc(metaRef, {
-          uid: user.uid,
-          username: user.displayName || "Habitant",
-          email: user.email,
-          photoURL: user.photoURL || "/pfp-ac.jpg",
-          role: user.email === "matysallanet@gmail.com" ? "admin" : "member",
-          themePreference: "default",
-          unlockedThemes: ["default", "red", "blue", "yellow"],
-          tutorialProgress: {
-            isCompleted: false,
-            steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false }
-          },
-          createdAt: new Date().toISOString()
-        });
-      } else {
-        await setDoc(metaRef, {
-          email: user.email,
-          photoURL: user.photoURL || "/pfp-ac.jpg"
-        }, { merge: true });
+        if (!docSnap.exists()) {
+          await setDoc(metaRef, {
+            uid: user.uid,
+            email: user.email,
+            username: user.displayName || "Habitant",
+            photoURL: user.photoURL || "/pfp-ac.jpg",
+            role: user.email === "matysallanet@gmail.com" ? "admin" : "member",
+            themePreference: "default",
+            unlockedThemes: ["default", "red", "blue", "yellow"],
+            favoriteAccountId: null,
+            dashboardNote: "",
+            createdAt: new Date().toISOString(),
+            tutorialProgress: {
+              isCompleted: false,
+              steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false }
+            }
+          });
+        } else {
+          await setDoc(metaRef, {
+            email: user.email,
+            photoURL: user.photoURL || "/pfp-ac.jpg"
+          }, { merge: true });
+        }
       }
-    }
 
-    return user;
+      return user;
+    } catch (error) {
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        console.log("Connexion Google annulée par l'utilisateur.");
+        return null;
+      }
+      console.error("Erreur Google Auth:", error);
+      throw error;
+    }
   };
 
   const logOutUser = async () => {
@@ -1578,8 +1591,30 @@ export const DbProvider = ({ children }) => {
 
     // 1. Subscribe to users_meta doc
     const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
+    let hadDoc = false;
+    let initialGraceTimer = setTimeout(() => {
+      // If after 5 seconds the document still doesn't exist (e.g. orphaned token), disconnect
+      if (!hadDoc) {
+        console.warn("Aucun profil users_meta trouvé après le délai d'attente initial. Déconnexion...");
+        signOut(auth).then(() => {
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.reload();
+        }).catch(() => {
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.reload();
+        });
+      }
+    }, 5000);
+
     const unsubMeta = onSnapshot(metaRef, (docSnap) => {
       if (docSnap.exists()) {
+        hadDoc = true;
+        if (initialGraceTimer) {
+          clearTimeout(initialGraceTimer);
+          initialGraceTimer = null;
+        }
         const data = docSnap.data();
         setUsersMetaDoc(data);
         const updates = {};
@@ -1598,24 +1633,30 @@ export const DbProvider = ({ children }) => {
           updateDoc(metaRef, updates).catch(err => console.error(err));
         }
       } else {
-        console.warn("Profil utilisateur inexistant ou supprimé par l'administrateur. Déconnexion...");
-        // Ne SURTOUT PAS tenter de recréer users_meta automatiquement ici !
-        // 1. Déconnexion Auth
-        signOut(auth).then(() => {
-          // 2. Nettoyage du localStorage / sessionStorage
-          localStorage.clear();
-          sessionStorage.clear();
-          // 3. Redirection / rafraîchissement
-          window.location.reload();
-        }).catch((err) => {
-          console.error("Erreur lors de la déconnexion forcée:", err);
-          localStorage.clear();
-          sessionStorage.clear();
-          window.location.reload();
-        });
+        // Only trigger immediate logout if the document previously existed during this active session
+        // (i.e. was just deleted in real-time by an admin)
+        if (hadDoc) {
+          console.warn("Profil utilisateur supprimé en temps réel par l'administrateur. Déconnexion...");
+          signOut(auth).then(() => {
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.reload();
+          }).catch((err) => {
+            console.error("Erreur lors de la déconnexion forcée:", err);
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.reload();
+          });
+        }
       }
+    }, (err) => {
+      console.error("Erreur d'écoute users_meta:", err);
     });
-    unsubscribes.push(unsubMeta);
+
+    unsubscribes.push(() => {
+      if (initialGraceTimer) clearTimeout(initialGraceTimer);
+      unsubMeta();
+    });
 
     // Subscribe to all users_meta to get names and avatars reactively
     const unsubAllMeta = onSnapshot(collection(firestoreDb, 'users_meta'), (snapshot) => {

@@ -81,18 +81,24 @@ export default function AuthView() {
     setError('');
     setIsSubmitting(true);
     try {
-      await loginWithGoogle();
+      const user = await loginWithGoogle();
+      if (!user) {
+        // User closed the popup, silently reset
+        setIsSubmitting(false);
+        return;
+      }
     } catch (err) {
       console.error("Google login error:", err);
       switch (err.code) {
         case 'auth/popup-closed-by-user':
-          setError("Connexion annulée : la fenêtre Google a été fermée.");
-          break;
         case 'auth/cancelled-popup-request':
-          setError("Une demande de connexion est déjà en cours.");
+          // Silently ignore without crashing or error banner
           break;
         case 'auth/popup-blocked':
-          setError("La fenêtre surgissante Google a été bloquée par votre navigateur.");
+          setError("La fenêtre Google a été bloquée par votre navigateur. Veuillez autoriser les fenêtres pop-up.");
+          break;
+        case 'auth/unauthorized-domain':
+          setError("Ce domaine n'est pas autorisé pour l'authentification Google dans la console Firebase.");
           break;
         case 'auth/account-exists-with-different-credential':
           setError("Un compte existe déjà avec cette adresse e-mail via une autre méthode de connexion.");
