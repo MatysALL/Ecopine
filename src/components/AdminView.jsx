@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useDb, COLOR_PALETTE, getCustomCardStyle } from '../db';
+import { useDb, COLOR_PALETTE, getCustomCardStyle, adminResetUser, adminDeleteUser } from '../db';
 import { db as firestoreDb } from '../firebase';
 import { 
   collection, 
@@ -363,66 +363,11 @@ export default function AdminView() {
 
     try {
       if (actionType === 'reset') {
-        // Purge accounts, pockets, transactions, debts, wishlist
-        const collectionsToPurge = [
-          { name: 'transactions', ownerField: 'userId' },
-          { name: 'pockets', ownerField: 'userId' },
-          { name: 'debts', ownerField: 'creatorId' },
-          { name: 'wishlist', ownerField: 'creatorId' },
-          { name: 'accounts', ownerField: 'creatorId' }
-        ];
-
-        for (const col of collectionsToPurge) {
-          const q = query(collection(firestoreDb, col.name), where(col.ownerField, '==', uid));
-          const snap = await getDocs(q);
-          const batch = writeBatch(firestoreDb);
-          snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, col.name, docSnap.id)));
-          await batch.commit();
-        }
-
-        // Reset tutorial progress
-        const userRef = doc(firestoreDb, 'users_meta', uid);
-        await updateDoc(userRef, {
-          favoriteAccountId: null,
-          tutorialProgress: {
-            isCompleted: false,
-            steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false }
-          }
-        });
-
-        showToast(`Les données de ${targetUser.username || targetUser.email} ont été réinitialisées.`);
+        await adminResetUser(uid);
+        showToast(`Les données de ${targetUser.username || targetUser.email} ont été réinitialisées avec succès.`);
       } else if (actionType === 'delete_user') {
-        // Complete purge + users_meta deletion
-        const collectionsToPurge = [
-          { name: 'transactions', ownerField: 'userId' },
-          { name: 'pockets', ownerField: 'userId' },
-          { name: 'debts', ownerField: 'creatorId' },
-          { name: 'wishlist', ownerField: 'creatorId' },
-          { name: 'accounts', ownerField: 'creatorId' }
-        ];
-
-        for (const col of collectionsToPurge) {
-          const q = query(collection(firestoreDb, col.name), where(col.ownerField, '==', uid));
-          const snap = await getDocs(q);
-          const batch = writeBatch(firestoreDb);
-          snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, col.name, docSnap.id)));
-          await batch.commit();
-        }
-
-        // Purge friendships
-        const f1 = query(collection(firestoreDb, 'friendships'), where('senderId', '==', uid));
-        const f2 = query(collection(firestoreDb, 'friendships'), where('receiverId', '==', uid));
-        const [snap1, snap2] = await Promise.all([getDocs(f1), getDocs(f2)]);
-
-        const batchFriendships = writeBatch(firestoreDb);
-        snap1.docs.forEach(d => batchFriendships.delete(doc(firestoreDb, 'friendships', d.id)));
-        snap2.docs.forEach(d => batchFriendships.delete(doc(firestoreDb, 'friendships', d.id)));
-        await batchFriendships.commit();
-
-        // Delete users_meta
-        await deleteDoc(doc(firestoreDb, 'users_meta', uid));
-
-        setTableData(prev => prev.filter(u => u.uid !== uid));
+        await adminDeleteUser(uid);
+        setTableData(prev => prev.filter(u => (u.uid || u.id) !== uid));
         showToast(`L'habitant ${targetUser.username || targetUser.email} a été définitivement supprimé.`);
       }
 

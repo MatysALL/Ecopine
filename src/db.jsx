@@ -1223,7 +1223,116 @@ export const db = {
       db._activeBatch = null;
     }
   }
-};;
+};
+
+/**
+ * Cascade deletion for admin operations:
+ * Purges ALL associated documents across all collections in batch chunks <= 450
+ */
+export async function purgeUserCascadeData(targetUid) {
+  if (!targetUid) return;
+
+  const docRefsToDelete = new Map();
+
+  const addDocRef = (docRef) => {
+    if (docRef && docRef.path) {
+      docRefsToDelete.set(docRef.path, docRef);
+    }
+  };
+
+  const collectionsToCheck = [
+    { name: 'accounts', fields: ['userId', 'creatorId', 'ownerId'] },
+    { name: 'pockets', fields: ['userId', 'creatorId', 'ownerId'] },
+    { name: 'transactions', fields: ['userId', 'creatorId', 'ownerId'] },
+    { name: 'wishlist', fields: ['userId', 'creatorId', 'ownerId'] },
+    { name: 'wishlists', fields: ['userId', 'creatorId', 'ownerId'] },
+    { name: 'debts', fields: ['userId', 'creatorId', 'ownerId'] },
+    { name: 'imports', fields: ['userId', 'creatorId', 'ownerId'] }
+  ];
+
+  for (const col of collectionsToCheck) {
+    for (const field of col.fields) {
+      try {
+        const q = query(collection(firestoreDb, col.name), where(field, '==', targetUid));
+        const snap = await getDocs(q);
+        snap.docs.forEach(d => addDocRef(d.ref));
+      } catch (err) {
+        console.warn(`Query on ${col.name} (${field}) warning:`, err?.message);
+      }
+    }
+  }
+
+  // Friendships where user is sender or receiver
+  try {
+    const qSender = query(collection(firestoreDb, 'friendships'), where('senderId', '==', targetUid));
+    const snapSender = await getDocs(qSender);
+    snapSender.docs.forEach(d => addDocRef(d.ref));
+  } catch (err) {
+    console.warn("Friendships sender query warning:", err?.message);
+  }
+
+  try {
+    const qReceiver = query(collection(firestoreDb, 'friendships'), where('receiverId', '==', targetUid));
+    const snapReceiver = await getDocs(qReceiver);
+    snapReceiver.docs.forEach(d => addDocRef(d.ref));
+  } catch (err) {
+    console.warn("Friendships receiver query warning:", err?.message);
+  }
+
+  // Commit deletions in batch chunks of <= 450
+  const allRefs = Array.from(docRefsToDelete.values());
+  const CHUNK_SIZE = 450;
+  for (let i = 0; i < allRefs.length; i += CHUNK_SIZE) {
+    const chunk = allRefs.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(firestoreDb);
+    chunk.forEach(ref => batch.delete(ref));
+    await batch.commit();
+  }
+}
+
+/**
+ * CAS A : ACTION "RÉINITIALISER" L'UTILISATEUR
+ * Purge l'ensemble des sous-données et remet le document users_meta à zéro.
+ */
+export async function adminResetUser(targetUid) {
+  if (!targetUid) return;
+
+  // 1. Purge all cascade data
+  await purgeUserCascadeData(targetUid);
+
+  // 2. Reset users_meta/{targetUid}
+  const userRef = doc(firestoreDb, 'users_meta', targetUid);
+  await updateDoc(userRef, {
+    favoriteAccountId: null,
+    dashboardNote: '',
+    tutorialProgress: {
+      isCompleted: false,
+      steps: {
+        accounts: false,
+        calendar: false,
+        debts: false,
+        wishlist: false,
+        home: false,
+        settings: false
+      }
+    }
+  });
+}
+
+/**
+ * CAS B : ACTION "SUPPRIMER DÉFINITIVEMENT" L'UTILISATEUR
+ * Purge l'ensemble des sous-données et supprime définitivement users_meta/{targetUid}.
+ */
+export async function adminDeleteUser(targetUid) {
+  if (!targetUid) return;
+
+  // 1. Purge all cascade data
+  await purgeUserCascadeData(targetUid);
+
+  // 2. Delete users_meta/{targetUid}
+  const userRef = doc(firestoreDb, 'users_meta', targetUid);
+  await deleteDoc(userRef);
+}
 
 /**
  * Firebase React Context & Hook definition
@@ -1446,29 +1555,21 @@ export const DbProvider = ({ children }) => {
           updateDoc(metaRef, updates).catch(err => console.error(err));
         }
       } else {
-        const userEmail = currentUser.email?.toLowerCase() || '';
-        setDoc(metaRef, {
-          username: currentUser.displayName || 'Habitant',
-          email: userEmail,
-          favoriteAccountId: null,
-          dashboardNote: '',
-          photoURL: currentUser.photoURL || '/pfp-ac.jpg',
-          themePreference: 'default',
-          unlockedThemes: ['default', 'red', 'blue', 'yellow'],
-          role: userEmail === 'matysallanet@gmail.com' ? 'admin' : 'member',
-          tutorialProgress: {
-            isCompleted: false,
-            steps: {
-              accounts: false,
-              calendar: false,
-              debts: false,
-              wishlist: false,
-              home: false,
-              settings: false
-            }
-          }
-        }).catch(err => console.error(err));
-        setUsersMetaDoc(null);
+        console.warn("Profil utilisateur inexistant ou supprimé par l'administrateur. Déconnexion...");
+        // Ne SURTOUT PAS tenter de recréer users_meta automatiquement ici !
+        // 1. Déconnexion Auth
+        signOut(auth).then(() => {
+          // 2. Nettoyage du localStorage / sessionStorage
+          localStorage.clear();
+          sessionStorage.clear();
+          // 3. Redirection / rafraîchissement
+          window.location.reload();
+        }).catch((err) => {
+          console.error("Erreur lors de la déconnexion forcée:", err);
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.reload();
+        });
       }
     });
     unsubscribes.push(unsubMeta);
@@ -1818,6 +1919,9 @@ export const DbProvider = ({ children }) => {
     getActiveTheme,
     unlockedThemes: usersMetaDoc?.unlockedThemes || ['default', 'red', 'blue', 'yellow'],
     pendingRequestsCount,
+    adminResetUser,
+    adminDeleteUser,
+    purgeUserCascadeData,
     isAdmin: usersMetaDoc?.role === 'admin' || currentUser?.email?.toLowerCase() === 'matysallanet@gmail.com',
     tutorialProgress: {
       isCompleted: usersMetaDoc?.tutorialProgress?.isCompleted ?? false,
