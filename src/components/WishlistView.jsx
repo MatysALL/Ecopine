@@ -292,6 +292,8 @@ export default function WishlistView() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedWishes.map((wish, index) => {
             const isDragging = draggableWishId === wish.id;
+            const isProjectWish = Boolean(wish.projectId);
+
             return (
               <div 
                 key={wish.id} 
@@ -300,7 +302,11 @@ export default function WishlistView() {
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                className={`ac-card bg-[#FFFDF9] border-ac-brown p-5 flex flex-col justify-between group select-none relative transition-all overflow-visible ${
+                className={`ac-card p-5 flex flex-col justify-between group select-none relative transition-all overflow-visible ${
+                  isProjectWish 
+                    ? 'bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
+                    : 'bg-[#FFFDF9] border-ac-brown'
+                } ${
                   isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                 }`}
               >
@@ -318,35 +324,50 @@ export default function WishlistView() {
                 </div>
 
                 <div className="space-y-3 pr-6">
-                  <h4 className="font-black text-base text-ac-brown uppercase tracking-wide truncate">
-                    {wish.name}
-                  </h4>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className={`font-black text-base uppercase tracking-wide truncate ${isProjectWish ? 'text-white' : 'text-ac-brown'}`}>
+                      {wish.name}{isProjectWish ? ` - ${wish.projectName || 'Projet'}` : ''}
+                    </h4>
+                    {isProjectWish && (
+                      <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full flex items-center gap-1">
+                        📁 Projet
+                      </span>
+                    )}
+                  </div>
                   
                   {wish.description ? (
-                    <p className="text-xs font-semibold text-ac-brown-light italic line-clamp-2">
+                    <p className={`text-xs font-semibold italic line-clamp-2 ${isProjectWish ? 'text-slate-300' : 'text-ac-brown-light'}`}>
                       "{wish.description}"
                     </p>
                   ) : (
-                    <p className="text-xs font-semibold text-ac-brown-light/40 italic">
+                    <p className={`text-xs font-semibold italic ${isProjectWish ? 'text-slate-500' : 'text-ac-brown-light/40'}`}>
                       Aucune description renseignée.
                     </p>
                   )}
                 </div>
 
                 {/* Action Buttons Group */}
-                <div className="mt-6 pt-4 border-t border-ac-brown/10 flex items-center justify-between">
+                <div className={`mt-6 pt-4 border-t flex items-center justify-between ${isProjectWish ? 'border-slate-700' : 'border-ac-brown/10'}`}>
                   {/* Edit & Delete */}
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => handleEditWish(wish)}
-                      className="p-2 hover:bg-ac-cream rounded-xl text-ac-brown-light hover:text-ac-brown border border-ac-brown/15 cursor-pointer transition-colors"
+                      className={`p-2 rounded-xl border cursor-pointer transition-colors ${
+                        isProjectWish 
+                          ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
+                          : 'hover:bg-ac-cream text-ac-brown-light hover:text-ac-brown border-ac-brown/15'
+                      }`}
                       title="Modifier ce souhait"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => handleDeleteWish(wish.id)}
-                      className="p-2 hover:bg-ac-red-light rounded-xl text-ac-brown-light hover:text-ac-red border border-ac-brown/15 cursor-pointer transition-colors"
+                      className={`p-2 rounded-xl border cursor-pointer transition-colors ${
+                        isProjectWish 
+                          ? 'bg-slate-800 hover:bg-red-900/40 text-red-400 border-slate-700' 
+                          : 'hover:bg-ac-red-light text-ac-brown-light hover:text-ac-red border-ac-brown/15'
+                      }`}
                       title="Supprimer ce souhait"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

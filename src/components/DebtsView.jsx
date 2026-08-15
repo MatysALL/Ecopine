@@ -41,9 +41,10 @@ export default function DebtsView() {
   const [isSettling, setIsSettling] = useState(false);
   const [activeDebtTab, setActiveDebtTab] = useState('payables'); // 'payables' or 'receivables' on mobile
 
-  // Filter active (non-settled / non-resolved) debts
+  // Filter active (non-settled / non-resolved) debts (Strictly exclude project debts)
   const pendingDebts = useMemo(() => {
     return (debts || []).filter(d => {
+      if (d.projectId) return false;
       if (d.status === 'resolved' || d.status === 'settled' || d.status === 'paid') return false;
       if (d.isPaid === true || d.isSettled === true) return false;
       return true;

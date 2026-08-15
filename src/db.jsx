@@ -692,7 +692,8 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: auth.currentUser.uid
+        userId: auth.currentUser.uid,
+        allowedUsers: data.allowedUsers || (data.projectId ? (data.memberUids || [auth.currentUser.uid]) : [auth.currentUser.uid])
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'accounts'));
@@ -749,7 +750,8 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          userId: auth.currentUser.uid
+          userId: auth.currentUser.uid,
+          allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
         });
       });
       if (!db._activeBatch) {
@@ -762,7 +764,8 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: auth.currentUser.uid
+        userId: auth.currentUser.uid,
+        allowedUsers: data.allowedUsers || [auth.currentUser.uid]
       };
       const batch = db._activeBatch || writeBatch(firestoreDb);
       const txRef = doc(collection(firestoreDb, 'transactions'));
@@ -901,7 +904,8 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: auth.currentUser.uid
+        userId: auth.currentUser.uid,
+        allowedUsers: data.allowedUsers || [auth.currentUser.uid]
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'pockets'));
@@ -945,7 +949,8 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          userId: auth.currentUser.uid
+          userId: auth.currentUser.uid,
+          allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
         });
       });
       if (!db._activeBatch) {
@@ -958,7 +963,8 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: auth.currentUser.uid
+        userId: auth.currentUser.uid,
+        allowedUsers: data.allowedUsers || (data.projectId ? (data.memberUids || [auth.currentUser.uid]) : [auth.currentUser.uid])
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'wishlist'));
@@ -1002,7 +1008,8 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          userId: auth.currentUser.uid
+          userId: auth.currentUser.uid,
+          allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
         });
       });
       if (!db._activeBatch) {
@@ -1165,7 +1172,8 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
-        userId: data.userId || auth.currentUser.uid
+        userId: data.userId || auth.currentUser.uid,
+        allowedUsers: data.allowedUsers || (data.projectId ? (data.memberUids || [auth.currentUser.uid]) : [auth.currentUser.uid])
       };
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'debts'));
@@ -1209,12 +1217,164 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
-          userId: auth.currentUser.uid
+          userId: auth.currentUser.uid,
+          allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
         });
       });
       if (!db._activeBatch) {
         await batch.commit();
       }
+    }
+  },
+  projects: {
+    add: async ({ name }) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const currentUid = auth.currentUser.uid;
+      const metaDoc = await getDoc(doc(firestoreDb, 'users_meta', currentUid));
+      const myUsername = metaDoc.exists() ? (metaDoc.data().username || auth.currentUser.displayName || 'Habitant') : 'Habitant';
+      const myPhotoURL = metaDoc.exists() ? (metaDoc.data().photoURL || auth.currentUser.photoURL || '/pfp-ac.jpg') : '/pfp-ac.jpg';
+
+      const projectDoc = {
+        name: (name || 'Nouveau Projet').trim(),
+        ownerId: currentUid,
+        ownerName: myUsername,
+        createdAt: new Date().toISOString(),
+        memberUids: [currentUid],
+        members: {
+          [currentUid]: {
+            role: 'owner',
+            username: myUsername,
+            photoURL: myPhotoURL
+          }
+        }
+      };
+
+      const docRef = await addDoc(collection(firestoreDb, 'projects'), projectDoc);
+      return docRef.id;
+    },
+    update: async (id, data) => {
+      const ref = doc(firestoreDb, 'projects', id);
+      await updateDoc(ref, data);
+
+      // If project name changed, sync projectName on project accounts/wishes/debts
+      if (data.name) {
+        const collectionsToSync = ['accounts', 'wishlist', 'debts'];
+        for (const col of collectionsToSync) {
+          const qCol = query(collection(firestoreDb, col), where('projectId', '==', id));
+          const snap = await getDocs(qCol);
+          if (!snap.empty) {
+            const batch = writeBatch(firestoreDb);
+            snap.docs.forEach(d => {
+              batch.update(d.ref, { projectName: data.name });
+            });
+            await batch.commit();
+          }
+        }
+      }
+    },
+    addMember: async (projectId, friendUid, role = 'editor') => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const friendMetaDoc = await getDoc(doc(firestoreDb, 'users_meta', friendUid));
+      const friendName = friendMetaDoc.exists() ? (friendMetaDoc.data().username || 'Habitant') : 'Habitant';
+      const friendPhoto = friendMetaDoc.exists() ? (friendMetaDoc.data().photoURL || '/pfp-ac.jpg') : '/pfp-ac.jpg';
+
+      const ref = doc(firestoreDb, 'projects', projectId);
+      await updateDoc(ref, {
+        memberUids: arrayUnion(friendUid),
+        [`members.${friendUid}`]: {
+          role: role,
+          username: friendName,
+          photoURL: friendPhoto
+        }
+      });
+
+      // Update allowedUsers on all project accounts, wishlist, debts, pockets, transactions
+      const projSnap = await getDoc(ref);
+      if (projSnap.exists()) {
+        const updatedMemberUids = projSnap.data().memberUids || [];
+        const collectionsToUpdate = ['accounts', 'wishlist', 'debts', 'pockets', 'transactions'];
+        for (const col of collectionsToUpdate) {
+          const qCol = query(collection(firestoreDb, col), where('projectId', '==', projectId));
+          const snap = await getDocs(qCol);
+          if (!snap.empty) {
+            const batch = writeBatch(firestoreDb);
+            snap.docs.forEach(d => {
+              batch.update(d.ref, { allowedUsers: updatedMemberUids });
+            });
+            await batch.commit();
+          }
+        }
+      }
+    },
+    removeMember: async (projectId, memberUid) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const ref = doc(firestoreDb, 'projects', projectId);
+      const projSnap = await getDoc(ref);
+      if (!projSnap.exists()) return;
+      const data = projSnap.data();
+      const newMembers = { ...data.members };
+      delete newMembers[memberUid];
+      const newMemberUids = (data.memberUids || []).filter(u => u !== memberUid);
+
+      await updateDoc(ref, {
+        memberUids: newMemberUids,
+        members: newMembers
+      });
+
+      // Update allowedUsers on project resources
+      const collectionsToUpdate = ['accounts', 'wishlist', 'debts', 'pockets', 'transactions'];
+      for (const col of collectionsToUpdate) {
+        const qCol = query(collection(firestoreDb, col), where('projectId', '==', projectId));
+        const snap = await getDocs(qCol);
+        if (!snap.empty) {
+          const batch = writeBatch(firestoreDb);
+          snap.docs.forEach(d => {
+            batch.update(d.ref, { allowedUsers: newMemberUids });
+          });
+          await batch.commit();
+        }
+      }
+    },
+    updateMemberRole: async (projectId, memberUid, newRole) => {
+      const ref = doc(firestoreDb, 'projects', projectId);
+      await updateDoc(ref, {
+        [`members.${memberUid}.role`]: newRole
+      });
+    },
+    leaveProject: async (projectId) => {
+      if (!auth.currentUser) return;
+      await db.projects.removeMember(projectId, auth.currentUser.uid);
+    },
+    delete: async (projectId) => {
+      if (!auth.currentUser) return;
+      
+      // 1. Purge all accounts and their transactions and pockets
+      const accQuery = query(collection(firestoreDb, 'accounts'), where('projectId', '==', projectId));
+      const accSnap = await getDocs(accQuery);
+      for (const accDoc of accSnap.docs) {
+        await db.accounts.delete(accDoc.id);
+      }
+
+      // 2. Purge all wishlist items
+      const wishQuery = query(collection(firestoreDb, 'wishlist'), where('projectId', '==', projectId));
+      const wishSnap = await getDocs(wishQuery);
+      if (!wishSnap.empty) {
+        const batch1 = writeBatch(firestoreDb);
+        wishSnap.docs.forEach(d => batch1.delete(d.ref));
+        await batch1.commit();
+      }
+
+      // 3. Purge all debts
+      const debtsQuery = query(collection(firestoreDb, 'debts'), where('projectId', '==', projectId));
+      const debtsSnap = await getDocs(debtsQuery);
+      if (!debtsSnap.empty) {
+        const batch2 = writeBatch(firestoreDb);
+        debtsSnap.docs.forEach(d => batch2.delete(d.ref));
+        await batch2.commit();
+      }
+
+      // 4. Delete project document
+      await deleteDoc(doc(firestoreDb, 'projects', projectId));
     }
   },
   categories: {
@@ -1279,6 +1439,17 @@ export async function purgeUserCascadeData(targetUid) {
         console.warn(`Query on ${col.name} (${field}) warning:`, err?.message);
       }
     }
+  }
+
+  // Projects owned by user
+  try {
+    const qProjects = query(collection(firestoreDb, 'projects'), where('ownerId', '==', targetUid));
+    const snapProjects = await getDocs(qProjects);
+    for (const pDoc of snapProjects.docs) {
+      await db.projects.delete(pDoc.id);
+    }
+  } catch (err) {
+    console.warn("Projects cascade delete warning:", err?.message);
   }
 
   // Friendships where user is sender or receiver
@@ -1436,6 +1607,7 @@ export const DbProvider = ({ children }) => {
   const [categories, setCategories] = useState([]);
   const [debts, setDebts] = useState([]);
   const [friendships, setFriendships] = useState([]);
+  const [projects, setProjects] = useState([]);
   
   // Single document state
   const [usersMetaDoc, setUsersMetaDoc] = useState(null);
@@ -1595,6 +1767,7 @@ export const DbProvider = ({ children }) => {
         setCategories([]);
         setDebts([]);
         setFriendships([]);
+        setProjects([]);
         setUsersMetaDoc(null);
       }
     });
@@ -1760,6 +1933,41 @@ export const DbProvider = ({ children }) => {
       updateFriendshipsState();
     });
     unsubscribes.push(unsubReceivers);
+
+    // Projects Subscriptions (where memberUids array-contains currentUser.uid or ownerId == currentUser.uid)
+    const qProjectsMember = query(collection(firestoreDb, 'projects'), where('memberUids', 'array-contains', currentUser.uid));
+    const qProjectsOwner = query(collection(firestoreDb, 'projects'), where('ownerId', '==', currentUser.uid));
+
+    const projectsMap = {};
+    const updateProjectsState = () => {
+      setProjects(Object.values(projectsMap).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
+    };
+
+    const unsubProjMem = onSnapshot(qProjectsMember, (snapshot) => {
+      snapshot.docs.forEach(docSnap => {
+        projectsMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      });
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'removed') {
+          delete projectsMap[change.doc.id];
+        }
+      });
+      updateProjectsState();
+    }, err => console.error("Projects member error:", err));
+    unsubscribes.push(unsubProjMem);
+
+    const unsubProjOwn = onSnapshot(qProjectsOwner, (snapshot) => {
+      snapshot.docs.forEach(docSnap => {
+        projectsMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      });
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'removed') {
+          delete projectsMap[change.doc.id];
+        }
+      });
+      updateProjectsState();
+    }, err => console.error("Projects owner error:", err));
+    unsubscribes.push(unsubProjOwn);
 
     // Wait a brief moment to let snapshots populate before disabling loader
     const timer = setTimeout(() => {
@@ -2016,6 +2224,7 @@ export const DbProvider = ({ children }) => {
     categories,
     debts,
     friendships,
+    projects,
     acceptedFriends,
     redlist: Array.isArray(usersMetaDoc?.redlist) ? usersMetaDoc.redlist : [],
     accountsData,

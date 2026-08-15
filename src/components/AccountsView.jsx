@@ -650,21 +650,38 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         <div className="space-y-8 animate-fade-in">
           {/* Header & Account info banner */}
           <div 
-            style={getCustomCardStyle(activeAccount.color)}
-            className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm transition-colors"
+            style={activeAccount.projectId ? undefined : getCustomCardStyle(activeAccount.color)}
+            className={`flex flex-col md:flex-row md:items-center justify-between gap-6 rounded-3xl p-6 shadow-ac-sm transition-colors ${
+              activeAccount.projectId 
+                ? 'bg-[#1E232A] text-white border-3 border-[#2E3440]' 
+                : 'border-3 border-ac-brown'
+            }`}
           >
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setSelectedAccountId(null)}
-                className="bg-ac-cream hover:bg-ac-cream-dark border-2 border-ac-brown rounded-full p-2 transition-colors cursor-pointer"
+                className={`border-2 rounded-full p-2 transition-colors cursor-pointer ${
+                  activeAccount.projectId 
+                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-white' 
+                    : 'bg-ac-cream hover:bg-ac-cream-dark border-ac-brown text-ac-brown'
+                }`}
               >
-                <ArrowLeft className="w-5 h-5 text-ac-brown" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h2 className="text-2xl font-black text-ac-brown flex items-center gap-2">
-                  {activeAccount.name}
+                <h2 className={`text-2xl font-black flex items-center gap-2 flex-wrap ${activeAccount.projectId ? 'text-white' : 'text-ac-brown'}`}>
+                  {activeAccount.name}{activeAccount.projectId ? ` - ${activeAccount.projectName || 'Projet'}` : ''}
+                  {activeAccount.projectId && (
+                    <span className="text-xs font-black uppercase px-2.5 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
+                      📁 Projet
+                    </span>
+                  )}
                   {activeAccount.bankName && (
-                    <span className="text-xs font-black text-ac-brown-light bg-ac-cream px-2 py-0.5 rounded-md border border-ac-brown/15">
+                    <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${
+                      activeAccount.projectId 
+                        ? 'bg-slate-800 text-slate-300 border-slate-700' 
+                        : 'text-ac-brown-light bg-ac-cream border-ac-brown/15'
+                    }`}>
                       {activeAccount.bankName}
                     </span>
                   )}
@@ -1078,6 +1095,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               {sortedAccounts.map((acc, index) => {
                 const isDragging = draggableAccountId === acc.id;
                 const isFavorite = currentFavoriteId === acc.id;
+                const isProjectAcc = Boolean(acc.projectId);
 
                 return (
                   <div 
@@ -1089,18 +1107,29 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     onDrop={(e) => handleAccountDrop(e, index)}
                     onDragEnd={handleAccountDragEnd}
                     onClick={() => setSelectedAccountId(acc.id)}
-                    style={getCustomCardStyle(acc.color)}
-                    className={`ac-card border-ac-brown p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
+                    style={isProjectAcc ? undefined : getCustomCardStyle(acc.color)}
+                    className={`ac-card p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
+                      isProjectAcc 
+                        ? 'bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
+                        : 'border-ac-brown'
+                    } ${
                       isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                     }`}
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-extrabold text-sm text-ac-brown leading-tight flex items-center gap-1.5 flex-wrap">
-                          {acc.name}
-                        </h4>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className={`font-extrabold text-sm leading-tight ${isProjectAcc ? 'text-white' : 'text-ac-brown'}`}>
+                            {acc.name}{isProjectAcc ? ` - ${acc.projectName || 'Projet'}` : ''}
+                          </h4>
+                          {isProjectAcc && (
+                            <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full flex items-center gap-1">
+                              📁 Projet
+                            </span>
+                          )}
+                        </div>
                         {acc.bankName && (
-                          <span className="text-[9px] font-bold text-ac-brown-light/80 block mt-1">
+                          <span className={`text-[9px] font-bold block mt-1 ${isProjectAcc ? 'text-slate-300' : 'text-ac-brown-light/80'}`}>
                             🏦 {acc.bankName}
                           </span>
                         )}
@@ -1110,10 +1139,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         <button
                           type="button"
                           onClick={(e) => handleToggleFavorite(e, acc.id)}
-                          className="w-9 h-9 bg-ac-cream hover:bg-amber-100 rounded-full border border-ac-brown/20 flex items-center justify-center transition-colors cursor-pointer"
+                          className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
+                            isProjectAcc
+                              ? 'bg-slate-800 hover:bg-slate-700 border-slate-700'
+                              : 'bg-ac-cream hover:bg-amber-100 border-ac-brown/20'
+                          }`}
                           title={isFavorite ? "Compte favori actuel" : "Définir comme compte favori"}
                         >
-                          <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-400 fill-amber-400' : 'text-ac-brown-light/40 hover:text-amber-400'}`} />
+                          <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-400 fill-amber-400' : (isProjectAcc ? 'text-slate-500 hover:text-amber-400' : 'text-ac-brown-light/40 hover:text-amber-400')}`} />
                         </button>
 
                         <div 
@@ -1124,7 +1157,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                           onTouchMove={handleTouchMoveHandle}
                           onTouchEnd={(e) => handleTouchEndHandle(e, index)}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-9 h-9 bg-ac-cream rounded-full border border-ac-brown/20 flex items-center justify-center group-hover:bg-ac-gold/10 transition-colors cursor-grab active:cursor-grabbing"
+                          className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing ${
+                            isProjectAcc
+                              ? 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                              : 'bg-ac-cream border-ac-brown/20 group-hover:bg-ac-gold/10'
+                          }`}
                           title="Déplacer le compte (glisser-déposer)"
                         >
                           <PiggyBank className="w-5 h-5 text-ac-gold" />
@@ -1132,9 +1169,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-ac-brown/10 flex justify-between items-baseline">
-                      <span className="text-[10px] font-black uppercase tracking-wide text-ac-brown-light/60">Solde Disponible</span>
-                      <span className="font-black text-base text-ac-brown">
+                    <div className={`mt-4 pt-3 border-t flex justify-between items-baseline ${isProjectAcc ? 'border-slate-700' : 'border-ac-brown/10'}`}>
+                      <span className={`text-[10px] font-black uppercase tracking-wide ${isProjectAcc ? 'text-slate-400' : 'text-ac-brown-light/60'}`}>Solde Disponible</span>
+                      <span className={`font-black text-base ${isProjectAcc ? 'text-ac-gold' : 'text-ac-brown'}`}>
                         {(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                       </span>
                     </div>

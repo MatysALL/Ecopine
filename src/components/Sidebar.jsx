@@ -1,5 +1,5 @@
 import React from 'react';
-import { Leaf, PiggyBank, Calendar, Settings, Gift, LogOut, Handshake, Users } from 'lucide-react';
+import { Leaf, PiggyBank, Calendar, Settings, Gift, LogOut, Handshake, Users, Folder } from 'lucide-react';
 import { useDb } from '../db';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
@@ -21,6 +21,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     { id: 'calendar', label: 'Calendrier', icon: Calendar, color: 'text-ac-sky' },
     { id: 'debts', label: 'Dettes', icon: Handshake, color: 'text-ac-orange' },
     { id: 'wishlist', label: 'Souhaits', icon: Gift, color: 'text-ac-red' },
+    { id: 'projects', label: 'Projets', icon: Folder, color: 'text-[#3E8BBA]' },
     { id: 'social', label: 'Social', icon: Users, color: 'text-[#5C9440]' },
     { id: 'settings', label: 'Paramètres', icon: Settings, color: 'text-ac-brown-light' },
   ];

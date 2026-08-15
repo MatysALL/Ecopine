@@ -11,8 +11,9 @@ import AuthView from './components/AuthView';
 import DebtsView from './components/DebtsView';
 import AdminView from './components/AdminView';
 import SocialView from './components/SocialView';
+import ProjectsView from './components/ProjectsView';
 import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './components/TutorialComponents';
-import { Leaf, PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users } from 'lucide-react';
+import { Leaf, PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users, Folder } from 'lucide-react';
 import TransactionModal from './components/TransactionModal';
 
 export default function App() {
@@ -152,6 +153,8 @@ export default function App() {
         return <DebtsView />;
       case 'wishlist':
         return <WishlistView />;
+      case 'projects':
+        return <ProjectsView />;
       case 'social':
         return <SocialView />;
       case 'settings':
@@ -266,6 +269,7 @@ export default function App() {
               { id: 'calendar', label: 'Calendrier', icon: Calendar },
               { id: 'debts', label: 'Dettes', icon: Handshake },
               { id: 'wishlist', label: 'Souhaits', icon: Gift },
+              { id: 'projects', label: 'Projets', icon: Folder },
               { id: 'social', label: 'Social', icon: Users },
               { id: 'settings', label: 'Paramètres', icon: SettingsIcon }
             ].map(item => {

@@ -59,6 +59,23 @@ service cloud.firestore {
         (resource == null || resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());
     }
 
+    // Projects collection
+    match /projects/{projectId} {
+      allow read: if request.auth != null && (
+        resource == null || 
+        resource.data.ownerId == request.auth.uid || 
+        (resource.data.memberUids != null && request.auth.uid in resource.data.memberUids) || 
+        isAdmin()
+      );
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (
+        resource.data.ownerId == request.auth.uid || 
+        (resource.data.memberUids != null && request.auth.uid in resource.data.memberUids) || 
+        isAdmin()
+      );
+      allow delete: if request.auth != null && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
     // Users Metadata
     match /users_meta/{userId} {
       allow read: if request.auth != null;
