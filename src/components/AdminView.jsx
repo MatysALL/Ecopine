@@ -177,9 +177,9 @@ export default function AdminView() {
         item.role,
         item.type,
         String(item.amount ?? ''),
-        String(item.balance ?? ''),
+        String(item.currentBalance ?? item.balance ?? item.initialBalance ?? ''),
         String(item.price ?? ''),
-        String(item.allocatedAmount ?? '')
+        String(item.allocatedAmount ?? item.currentAmount ?? '')
       ];
 
       // Also search owner username/email if applicable
@@ -827,7 +827,9 @@ function renderTableCells(row, tableId, getOwnerInfo) {
     }
 
     case 'accounts': {
-      const solde = row.balance ?? row.currentBalance ?? row.initialBalance ?? 0;
+      const rawBalance = row.currentBalance !== undefined ? row.currentBalance : (row.balance ?? row.initialBalance ?? 0);
+      const numericBalance = typeof rawBalance === 'number' ? rawBalance : parseFloat(rawBalance) || 0;
+      const displayBalance = numericBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return (
         <>
           <td className="p-3.5 font-black text-ac-brown flex items-center gap-2">
@@ -838,7 +840,7 @@ function renderTableCells(row, tableId, getOwnerInfo) {
           </td>
           <td className="p-3.5 font-bold text-ac-brown-light">{row.bankName || '—'}</td>
           <td className="p-3.5 font-black text-ac-gold-dark">
-            {solde.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+            {displayBalance} 🔔
           </td>
           <td className="p-3.5">{renderOwnerBadge(row.creatorId || row.userId)}</td>
         </>
