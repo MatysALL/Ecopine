@@ -39,7 +39,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [toastMessage, setToastMessage] = useState(null);
   const [importHistoryModalOpen, setImportHistoryModalOpen] = useState(false);
 
-  const { accountsData: accounts, transactions: allTransactions, categories, user, username, usersMetaDoc, userMeta } = useDb();
+  const { accountsData: accounts, transactions: allTransactions, categories, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
 
   // Favorite account calculation
   const currentFavoriteId = useMemo(() => {
@@ -670,7 +670,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               </button>
               <div>
                 <h2 className={`text-2xl font-black flex items-center gap-2 flex-wrap ${activeAccount.projectId ? 'text-white' : 'text-ac-brown'}`}>
-                  {activeAccount.name}{activeAccount.projectId ? ` - ${activeAccount.projectName || 'Projet'}` : ''}
+                  {(() => {
+                    const baseName = activeAccount.name || 'Compte sans nom';
+                    if (!activeAccount.projectId) return baseName;
+                    const pName = activeAccount.projectName || projects?.find(p => p.id === activeAccount.projectId)?.name;
+                    return pName ? `${baseName} - ${pName}` : baseName;
+                  })()}
                   {activeAccount.projectId && (
                     <span className="text-xs font-black uppercase px-2.5 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
                       📁 Projet
@@ -1096,6 +1101,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 const isDragging = draggableAccountId === acc.id;
                 const isFavorite = currentFavoriteId === acc.id;
                 const isProjectAcc = Boolean(acc.projectId);
+                const accountBaseName = acc.name || 'Compte sans nom';
+                const projName = isProjectAcc 
+                  ? (acc.projectName || projects?.find(p => p.id === acc.projectId)?.name || '')
+                  : '';
+                const accountDisplayName = isProjectAcc 
+                  ? (projName ? `${accountBaseName} - ${projName}` : accountBaseName)
+                  : accountBaseName;
 
                 return (
                   <div 
@@ -1119,9 +1131,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className={`font-extrabold text-sm leading-tight ${isProjectAcc ? 'text-white' : 'text-ac-brown'}`}>
-                            {acc.name}{isProjectAcc ? ` - ${acc.projectName || 'Projet'}` : ''}
-                          </h4>
+                          <h3 className={`font-extrabold text-sm leading-tight ${isProjectAcc ? 'text-white' : 'text-ac-brown'}`}>
+                            {accountDisplayName}
+                          </h3>
                           {isProjectAcc && (
                             <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full flex items-center gap-1">
                               📁 Projet

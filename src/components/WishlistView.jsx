@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export default function WishlistView() {
-  const { wishlist: wishes, accountsData: accounts, user, acceptedFriends, username } = useDb();
+  const { wishlist: wishes, accountsData: accounts, user, acceptedFriends, username, projects = [] } = useDb();
 
   // UI state
   const [formOpen, setFormOpen] = useState(false);
@@ -293,6 +293,13 @@ export default function WishlistView() {
           {sortedWishes.map((wish, index) => {
             const isDragging = draggableWishId === wish.id;
             const isProjectWish = Boolean(wish.projectId);
+            const baseWishName = wish.name || wish.title || 'Souhait sans nom';
+            const projName = isProjectWish 
+              ? (wish.projectName || projects?.find(p => p.id === wish.projectId)?.name || '')
+              : '';
+            const wishDisplayName = isProjectWish 
+              ? (projName ? `${baseWishName} - ${projName}` : baseWishName)
+              : baseWishName;
 
             return (
               <div 
@@ -323,17 +330,17 @@ export default function WishlistView() {
                   <Gift className="w-3.5 h-3.5 text-white" />
                 </div>
 
-                <div className="space-y-3 pr-6">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h4 className={`font-black text-base uppercase tracking-wide truncate ${isProjectWish ? 'text-white' : 'text-ac-brown'}`}>
-                      {wish.name}{isProjectWish ? ` - ${wish.projectName || 'Projet'}` : ''}
-                    </h4>
-                    {isProjectWish && (
-                      <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full flex items-center gap-1">
+                <div className="space-y-2 pr-6">
+                  <h3 className={`font-black text-base uppercase tracking-wide break-words ${isProjectWish ? 'text-white' : 'text-ac-brown'}`}>
+                    {wishDisplayName}
+                  </h3>
+                  {isProjectWish && (
+                    <div>
+                      <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1">
                         📁 Projet
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   
                   {wish.description ? (
                     <p className={`text-xs font-semibold italic line-clamp-2 ${isProjectWish ? 'text-slate-300' : 'text-ac-brown-light'}`}>
