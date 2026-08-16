@@ -650,10 +650,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         <div className="space-y-8 animate-fade-in">
           {/* Header & Account info banner */}
           <div 
-            style={activeAccount.projectId ? undefined : getCustomCardStyle(activeAccount.color)}
+            style={activeAccount.projectId ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : getCustomCardStyle(activeAccount.color)}
             className={`flex flex-col md:flex-row md:items-center justify-between gap-6 rounded-3xl p-6 shadow-ac-sm transition-colors ${
               activeAccount.projectId 
-                ? 'bg-[#1E232A] text-white border-3 border-[#2E3440]' 
+                ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440]' 
                 : 'border-3 border-ac-brown'
             }`}
           >
@@ -1102,9 +1102,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 const isProjectAcc = Boolean(acc.projectId);
                 
                 // 1. Calcul du titre garanti sans valeur vide
-                const accountName = acc.name || acc.title || "Compte";
+                const titleText = acc.name || acc.title || (isProjectAcc ? "Compte Projet" : "Compte");
                 const projectName = acc.projectName || (projects?.find(p => p.id === acc.projectId)?.name) || "";
-                const fullTitle = projectName ? `${accountName} - ${projectName}` : accountName;
 
                 return (
                   <div 
@@ -1116,10 +1115,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     onDrop={(e) => handleAccountDrop(e, index)}
                     onDragEnd={handleAccountDragEnd}
                     onClick={() => setSelectedAccountId(acc.id)}
-                    style={isProjectAcc ? undefined : getCustomCardStyle(acc.color)}
-                    className={`ac-card p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
+                    style={isProjectAcc ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : getCustomCardStyle(acc.color)}
+                    className={`ac-card account-card p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
                       isProjectAcc 
-                        ? 'bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
+                        ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
                         : 'border-ac-brown'
                     } ${
                       isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
@@ -1128,12 +1127,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className={`font-extrabold text-sm leading-tight break-words ${isProjectAcc ? 'text-white' : 'text-ac-brown'}`}>
-                            {fullTitle}
+                          <h3 className={`font-bold text-sm leading-tight break-words ${isProjectAcc ? 'text-white' : 'text-[#2d3748]'}`}>
+                            {titleText}
                           </h3>
                           {isProjectAcc && (
                             <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
-                              📁 Projet
+                              📁 {projectName ? projectName : 'PROJET'}
                             </span>
                           )}
                         </div>

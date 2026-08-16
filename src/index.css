@@ -141,6 +141,35 @@ html, body {
   box-shadow: 0 10px 0 0 rgba(74, 62, 61, 0.15);
 }
 
+/* Project Cards Dark Theme (Guaranteed Dark Background across all themes) */
+.project-account-card,
+.project-wish-card,
+.project-card-dark,
+.theme-sakura .project-account-card,
+.theme-sakura .project-wish-card,
+.theme-red .project-account-card,
+.theme-red .project-wish-card,
+.theme-blue .project-account-card,
+.theme-blue .project-wish-card,
+.theme-yellow .project-account-card,
+.theme-yellow .project-wish-card,
+.theme-neon .project-account-card,
+.theme-neon .project-wish-card,
+.theme-wayfs .project-account-card,
+.theme-wayfs .project-wish-card {
+  background-color: #1E232A !important;
+  color: #FFFFFF !important;
+  border-color: #2E3440 !important;
+  box-shadow: 0 8px 0 0 rgba(15, 23, 42, 0.4) !important;
+}
+
+.project-account-card:hover,
+.project-wish-card:hover,
+.project-card-dark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 0 0 rgba(15, 23, 42, 0.5) !important;
+}
+
 .ac-btn {
   display: inline-flex;
   align-items: center;

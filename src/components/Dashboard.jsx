@@ -231,18 +231,31 @@ export default function Dashboard({ onViewAccountDetails, username }) {
         {/* Left column: Favorite Account Card & Other accounts */}
         <div className="lg:col-span-2 space-y-6 md:space-y-8">
           {/* 2. Section Compte Favori */}
-          {favoriteAccountDetails ? (
+          {favoriteAccountDetails ? (() => {
+            const isFavProj = Boolean(favoriteAccountDetails.account.projectId);
+            return (
             <div 
               onClick={() => onViewAccountDetails(favoriteAccountDetails.account.id)}
-              style={getCustomCardStyle(favoriteAccountDetails.account.color)}
-              className="ac-card p-8 cursor-pointer relative overflow-visible group select-none border-ac-brown hover:scale-[1.01] transition-all"
+              style={isFavProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : getCustomCardStyle(favoriteAccountDetails.account.color)}
+              className={`ac-card account-card p-8 cursor-pointer relative overflow-visible group select-none hover:scale-[1.01] transition-all ${
+                isFavProj ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440]' : 'border-ac-brown'
+              }`}
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-ac-gold-dark bg-white border border-ac-gold px-3 py-1 rounded-full shadow-ac-sm">
-                    ⭐ Compte Favori - {favoriteAccountDetails.account.name}
-                  </span>
-                  <h3 className="text-base font-black text-ac-brown mt-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-ac-sm border ${
+                      isFavProj ? 'bg-slate-800 border-slate-700 text-ac-gold' : 'text-ac-gold-dark bg-white border-ac-gold'
+                    }`}>
+                      ⭐ Compte Favori - {favoriteAccountDetails.account.name || favoriteAccountDetails.account.title || "Compte"}
+                    </span>
+                    {isFavProj && (
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
+                        📁 Projet
+                      </span>
+                    )}
+                  </div>
+                  <h3 className={`text-base font-black mt-4 ${isFavProj ? 'text-white' : 'text-ac-brown'}`}>
                     Solde Disponible
                   </h3>
                 </div>
@@ -254,10 +267,10 @@ export default function Dashboard({ onViewAccountDetails, username }) {
               </div>
 
               <div className="mt-4 flex items-baseline gap-2">
-                <span className="text-4xl font-black tracking-tight text-ac-brown">
+                <span className={`text-4xl font-black tracking-tight ${isFavProj ? 'text-white' : 'text-ac-brown'}`}>
                   {(favoriteAccountDetails.account.visibleBalance ?? favoriteAccountDetails.account.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                 </span>
-                <span className="text-lg font-black text-ac-brown-light">🔔</span>
+                <span className={`text-lg font-black ${isFavProj ? 'text-ac-gold' : 'text-ac-brown-light'}`}>🔔</span>
 
                 {/* 30 day variation badge */}
                 <span className={`ml-4 text-xs font-black px-2 py-1 rounded-lg border flex items-center gap-0.5 ${
@@ -359,7 +372,8 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                 Voir le détail des transactions <ChevronRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
-          ) : (
+            );
+          })() : (
             <div className="ac-card bg-white p-6 border-ac-brown text-center py-12">
               <span className="text-xl">⭐</span>
               <p className="font-extrabold text-ac-brown mt-2">Aucun compte favori configuré.</p>
@@ -378,21 +392,33 @@ export default function Dashboard({ onViewAccountDetails, username }) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {otherAccounts.map((acc) => {
+                  const isProj = Boolean(acc.projectId);
                   return (
                     <div 
                       key={acc.id}
                       onClick={() => onViewAccountDetails(acc.id)}
-                      style={getCustomCardStyle(acc.color)}
-                      className="p-4 hover:brightness-95 transition-all border-2 border-ac-brown rounded-2xl cursor-pointer flex justify-between items-center group relative shadow-xs"
+                      style={isProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : getCustomCardStyle(acc.color)}
+                      className={`p-4 hover:brightness-95 transition-all border-2 rounded-2xl cursor-pointer flex justify-between items-center group relative shadow-xs ${
+                        isProj ? 'project-account-card bg-[#1E232A] text-white border-[#2E3440]' : 'border-ac-brown'
+                      }`}
                     >
                       <div>
-                        <h4 className="font-extrabold text-xs text-ac-brown">{acc.name}</h4>
-                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-white border border-ac-brown/20 text-ac-brown-light mt-1 inline-block">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className={`font-extrabold text-xs ${isProj ? 'text-white' : 'text-ac-brown'}`}>{acc.name || acc.title || (isProj ? "Compte Projet" : "Compte")}</h4>
+                          {isProj && (
+                            <span className="text-[7px] font-black uppercase px-1.5 py-0.2 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
+                              📁 Projet
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border mt-1 inline-block ${
+                          isProj ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-ac-brown/20 text-ac-brown-light'
+                        }`}>
                           {acc.type} {acc.rate > 0 ? `(${acc.rate}%)` : ''}
                         </span>
                       </div>
                       <div className="text-right flex items-center gap-2">
-                        <span className="font-black text-sm text-ac-brown block">
+                        <span className={`font-black text-sm block ${isProj ? 'text-ac-gold' : 'text-ac-brown'}`}>
                           {(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
                         </span>
                       </div>

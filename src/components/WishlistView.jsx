@@ -295,9 +295,8 @@ export default function WishlistView() {
             const isProjectWish = Boolean(wish.projectId);
             
             // 1. Calcul du titre garanti sans valeur vide
-            const wishName = wish.name || wish.title || "Souhait";
+            const wishName = wish.name || wish.title || (isProjectWish ? "Souhait Projet" : "Souhait");
             const projectName = wish.projectName || (projects?.find(p => p.id === wish.projectId)?.name) || "";
-            const fullTitle = projectName ? `${wishName} - ${projectName}` : wishName;
 
             return (
               <div 
@@ -307,9 +306,10 @@ export default function WishlistView() {
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                className={`ac-card p-5 flex flex-col justify-between group select-none relative transition-all overflow-visible ${
+                style={isProjectWish ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : undefined}
+                className={`ac-card wish-card p-5 flex flex-col justify-between group select-none relative transition-all overflow-visible ${
                   isProjectWish 
-                    ? 'bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
+                    ? 'project-wish-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
                     : 'bg-[#FFFDF9] border-ac-brown'
                 } ${
                   isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
@@ -329,16 +329,16 @@ export default function WishlistView() {
                 </div>
 
                 <div className="space-y-2 pr-6">
-                  <h3 className={`font-black text-base uppercase tracking-wide break-words ${isProjectWish ? 'text-white' : 'text-ac-brown'}`}>
-                    {fullTitle}
-                  </h3>
-                  {isProjectWish && (
-                    <div>
-                      <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1">
-                        📁 Projet
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3 className={`font-bold text-base uppercase tracking-wide break-words ${isProjectWish ? 'text-white' : 'text-[#2d3748]'}`}>
+                      {wishName}
+                    </h3>
+                    {isProjectWish && (
+                      <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
+                        📁 {projectName ? projectName : 'PROJET'}
                       </span>
-                    </div>
-                  )}
+                    )}
+                  </div>
                   
                   {wish.description ? (
                     <p className={`text-xs font-semibold italic line-clamp-2 ${isProjectWish ? 'text-slate-300' : 'text-ac-brown-light'}`}>
