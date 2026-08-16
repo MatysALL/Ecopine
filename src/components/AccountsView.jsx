@@ -671,10 +671,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               <div>
                 <h2 className={`text-2xl font-black flex items-center gap-2 flex-wrap ${activeAccount.projectId ? 'text-white' : 'text-ac-brown'}`}>
                   {(() => {
-                    const baseName = activeAccount.name || 'Compte sans nom';
-                    if (!activeAccount.projectId) return baseName;
-                    const pName = activeAccount.projectName || projects?.find(p => p.id === activeAccount.projectId)?.name;
-                    return pName ? `${baseName} - ${pName}` : baseName;
+                    const accountName = activeAccount.name || activeAccount.title || "Compte";
+                    const projectName = activeAccount.projectName || (projects?.find(p => p.id === activeAccount.projectId)?.name) || "";
+                    return projectName ? `${accountName} - ${projectName}` : accountName;
                   })()}
                   {activeAccount.projectId && (
                     <span className="text-xs font-black uppercase px-2.5 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
@@ -1101,13 +1100,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 const isDragging = draggableAccountId === acc.id;
                 const isFavorite = currentFavoriteId === acc.id;
                 const isProjectAcc = Boolean(acc.projectId);
-                const accountBaseName = acc.name || 'Compte sans nom';
-                const projName = isProjectAcc 
-                  ? (acc.projectName || projects?.find(p => p.id === acc.projectId)?.name || '')
-                  : '';
-                const accountDisplayName = isProjectAcc 
-                  ? (projName ? `${accountBaseName} - ${projName}` : accountBaseName)
-                  : accountBaseName;
+                
+                // 1. Calcul du titre garanti sans valeur vide
+                const accountName = acc.name || acc.title || "Compte";
+                const projectName = acc.projectName || (projects?.find(p => p.id === acc.projectId)?.name) || "";
+                const fullTitle = projectName ? `${accountName} - ${projectName}` : accountName;
 
                 return (
                   <div 
@@ -1128,14 +1125,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                     }`}
                   >
-                    <div className="flex justify-between items-start">
-                      <div>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className={`font-extrabold text-sm leading-tight ${isProjectAcc ? 'text-white' : 'text-ac-brown'}`}>
-                            {accountDisplayName}
+                          <h3 className={`font-extrabold text-sm leading-tight break-words ${isProjectAcc ? 'text-white' : 'text-ac-brown'}`}>
+                            {fullTitle}
                           </h3>
                           {isProjectAcc && (
-                            <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full flex items-center gap-1">
+                            <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
                               📁 Projet
                             </span>
                           )}

@@ -293,13 +293,11 @@ export default function WishlistView() {
           {sortedWishes.map((wish, index) => {
             const isDragging = draggableWishId === wish.id;
             const isProjectWish = Boolean(wish.projectId);
-            const baseWishName = wish.name || wish.title || 'Souhait sans nom';
-            const projName = isProjectWish 
-              ? (wish.projectName || projects?.find(p => p.id === wish.projectId)?.name || '')
-              : '';
-            const wishDisplayName = isProjectWish 
-              ? (projName ? `${baseWishName} - ${projName}` : baseWishName)
-              : baseWishName;
+            
+            // 1. Calcul du titre garanti sans valeur vide
+            const wishName = wish.name || wish.title || "Souhait";
+            const projectName = wish.projectName || (projects?.find(p => p.id === wish.projectId)?.name) || "";
+            const fullTitle = projectName ? `${wishName} - ${projectName}` : wishName;
 
             return (
               <div 
@@ -332,7 +330,7 @@ export default function WishlistView() {
 
                 <div className="space-y-2 pr-6">
                   <h3 className={`font-black text-base uppercase tracking-wide break-words ${isProjectWish ? 'text-white' : 'text-ac-brown'}`}>
-                    {wishDisplayName}
+                    {fullTitle}
                   </h3>
                   {isProjectWish && (
                     <div>

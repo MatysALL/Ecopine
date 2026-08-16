@@ -877,8 +877,8 @@ export default function ProjectDetailView({ project, onBack }) {
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-black text-base text-white leading-tight">
-                            {acc.name}
+                          <h4 className="font-black text-base text-white leading-tight break-words">
+                            {acc.name || acc.title || "Compte"}
                           </h4>
                           {acc.bankName && (
                             <span className="text-[10px] font-bold text-slate-400 block mt-1">
@@ -958,8 +958,8 @@ export default function ProjectDetailView({ project, onBack }) {
                   className="bg-[#1E232A] text-white border-3 border-[#2E3440] rounded-3xl p-5 shadow-ac-md flex flex-col justify-between"
                 >
                   <div className="space-y-2">
-                    <h4 className="font-black text-base text-white tracking-wide truncate">
-                      {w.name}
+                    <h4 className="font-black text-base text-white tracking-wide break-words">
+                      {w.name || w.title || "Souhait"}
                     </h4>
                     {w.description ? (
                       <p className="text-xs font-semibold text-slate-300 italic line-clamp-2">
