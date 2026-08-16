@@ -40,8 +40,7 @@ export default function ProjectDetailView({ project, onBack }) {
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [accName, setAccName] = useState('');
   const [accBankName, setAccBankName] = useState('');
-  const [accColor, setAccColor] = useState('#78B159');
-  const [accInitialBalance, setAccInitialBalance] = useState('0');
+  const [accDescription, setAccDescription] = useState('');
 
   // Transaction Modal for project account
   const [txModalOpen, setTxModalOpen] = useState(false);
@@ -250,8 +249,12 @@ export default function ProjectDetailView({ project, onBack }) {
       await db.accounts.add({
         name: accName.trim(),
         bankName: accBankName.trim(),
-        color: accColor,
-        initialBalance: parseFloat(accInitialBalance) || 0,
+        bank: accBankName.trim(),
+        description: accDescription.trim(),
+        color: '#1E232A',
+        initialBalance: 0,
+        currentBalance: 0,
+        balance: 0,
         type: 'Courant',
         projectId: project.id,
         projectName: project.name,
@@ -259,11 +262,11 @@ export default function ProjectDetailView({ project, onBack }) {
       });
       setAccName('');
       setAccBankName('');
-      setAccInitialBalance('0');
+      setAccDescription('');
       setAccountModalOpen(false);
     } catch (err) {
       console.error(err);
-      alert("Erreur lors de la création du compte.");
+      alert("Erreur lors de la création du compte : " + (err.message || err));
     }
   };
 
@@ -1331,12 +1334,12 @@ export default function ProjectDetailView({ project, onBack }) {
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Solde initial</label>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description (optionnel)</label>
                 <input
-                  type="number"
-                  step="0.01"
-                  value={accInitialBalance}
-                  onChange={(e) => setAccInitialBalance(e.target.value)}
+                  type="text"
+                  value={accDescription}
+                  onChange={(e) => setAccDescription(e.target.value)}
+                  placeholder="Ex: Trésorerie partagée pour les dépenses communes..."
                   className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none"
                 />
               </div>

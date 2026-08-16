@@ -204,8 +204,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       const data = {
         name: accName.trim(),
         bankName: accBankName.trim(),
+        bank: accBankName.trim(),
         description: accDescription.trim(),
-        color: accColor || '#78B159',
+        color: editingAccount?.projectId ? '#1E232A' : (accColor || '#78B159'),
       };
 
       if (editingAccount) {
@@ -324,7 +325,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccName(acc.name || '');
     setAccBankName(acc.bankName || '');
     setAccDescription(acc.description || '');
-    setAccColor(acc.color || '#78B159');
+    setAccColor(acc.projectId ? '#1E232A' : (acc.color || '#78B159'));
     setAccountFormOpen(true);
   };
 
@@ -1412,27 +1413,29 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5 flex items-center gap-1">
-                  <Palette className="w-3.5 h-3.5 text-ac-orange" /> Couleur d'arrière-plan du compte
-                </label>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  {COLOR_PALETTE.map((c) => (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      onClick={() => setAccColor(c.hex)}
-                      className={`w-8 h-8 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
-                        accColor === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
-                      }`}
-                      style={{ backgroundColor: c.hex }}
-                      title={c.label}
-                    >
-                      {accColor === c.hex && <Check className="w-4 h-4 text-white stroke-[3]" />}
-                    </button>
-                  ))}
+              {!editingAccount?.projectId && (
+                <div>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5 flex items-center gap-1">
+                    <Palette className="w-3.5 h-3.5 text-ac-orange" /> Couleur d'arrière-plan du compte
+                  </label>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {COLOR_PALETTE.map((c) => (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        onClick={() => setAccColor(c.hex)}
+                        className={`w-8 h-8 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
+                          accColor === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                        title={c.label}
+                      >
+                        {accColor === c.hex && <Check className="w-4 h-4 text-white stroke-[3]" />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Section: Historique & Gestion des imports CSV */}
               {editingAccount && (
