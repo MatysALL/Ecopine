@@ -59,7 +59,7 @@ export function calculateAccountBalance(account, transactions = []) {
     // Détecte si la transaction est un crédit/revenu ou un débit/dépense
     const isCredit = t.type === 'income' || t.type === 'credit' || t.isIncome === true;
     return isCredit ? acc + amount : acc - amount;
-  }, (parseFloat(account.initialBalance) || 0));
+  }, 0);
 
   return totalBalance;
 }
@@ -1220,25 +1220,14 @@ function renderEditFormFields(tableId, data, setData) {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Date</label>
-              <input
-                type="date"
-                value={data.date || ''}
-                onChange={(e) => handleChange('date', e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Catégorie</label>
-              <input
-                type="text"
-                value={data.category || ''}
-                onChange={(e) => handleChange('category', e.target.value)}
-                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Date</label>
+            <input
+              type="date"
+              value={data.date || ''}
+              onChange={(e) => handleChange('date', e.target.value)}
+              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+            />
           </div>
         </>
       );

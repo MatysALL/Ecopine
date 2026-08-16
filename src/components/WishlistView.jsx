@@ -3,12 +3,11 @@ import { db, useDb } from '../db';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 import { 
-  Plus, Edit2, Trash2, Gift, Coins, Sparkles, X, 
-  Landmark, Mail
+  Plus, Edit2, Trash2, Gift, Coins, Sparkles, X
 } from 'lucide-react';
 
 export default function WishlistView() {
-  const { wishlist: wishes, accountsData: accounts, user, acceptedFriends, username, projects = [] } = useDb();
+  const { wishlist: wishes, accountsData: accounts, user, projects = [] } = useDb();
 
   // UI state
   const [formOpen, setFormOpen] = useState(false);
@@ -34,6 +33,7 @@ export default function WishlistView() {
     if (!wishes) return [];
     return wishes
       .filter(w => {
+        if (w.isCompleted) return false;
         if (!w.projectId) return true;
         const proj = projects?.find(p => p.id === w.projectId);
         return Boolean(proj && (proj.ownerId === user?.uid || proj.memberUids?.includes(user?.uid)));
@@ -95,8 +95,14 @@ export default function WishlistView() {
     setIsSubmitting(true);
     try {
       const wishData = {
+        title: wishName.trim(),
         name: wishName.trim(),
-        description: wishDescription.trim()
+        description: wishDescription.trim(),
+        isCompleted: false,
+        completedAt: null,
+        completedAmount: null,
+        projectId: editingWish?.projectId || null,
+        createdAt: editingWish?.createdAt || new Date().toISOString()
       };
 
       if (editingWish) {
@@ -133,7 +139,7 @@ export default function WishlistView() {
       return;
     }
     setEditingWish(wish);
-    setWishName(wish.name || '');
+    setWishName(wish.title || wish.name || '');
     setWishDescription(wish.description || '');
     setFormOpen(true);
   };
@@ -163,7 +169,7 @@ export default function WishlistView() {
       return;
     }
     setBuyingWish(wish);
-    setRealPrice(wish.price ? wish.price.toString() : '');
+    setRealPrice('');
     setSelectedAccountId('');
     setPurchaseSuccess(false);
   };
@@ -187,14 +193,16 @@ export default function WishlistView() {
     setIsBuying(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
+      const wishTitle = buyingWish.title || buyingWish.name;
 
-      // Create the debit transaction
+      // Create the debit transaction (expense)
       const newTx = {
         accountId: selectedAccountId,
-        name: `Achat : ${buyingWish.name}`,
-        description: buyingWish.description || `Achat depuis le Catalogue : ${buyingWish.name}`,
+        name: `Achat : ${wishTitle}`,
+        label: `Achat : ${wishTitle}`,
+        description: buyingWish.description || `Achat depuis le Catalogue : ${wishTitle}`,
         amount: priceValue,
-        type: 'debit',
+        type: 'expense',
         date: todayStr,
         pocketId: null
       };
@@ -357,12 +365,12 @@ export default function WishlistView() {
                 </div>
 
                 <div className="space-y-2 pr-6">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className={`font-bold text-base uppercase tracking-wide break-words ${isProjectWish ? 'text-white' : 'text-[#2d3748]'}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className={`font-bold text-base uppercase tracking-wide break-words ${isProjectWish ? 'text-white font-extrabold' : 'text-ac-brown'}`}>
                       {wishName}
                     </h3>
                     {isProjectWish && (
-                      <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
                         📁 {projectName ? projectName : 'PROJET'}
                       </span>
                     )}

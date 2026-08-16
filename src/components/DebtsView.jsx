@@ -282,13 +282,16 @@ export default function DebtsView() {
 
       const rawType = (settlingDebt.type || '').toLowerCase().trim();
       const isToPay = ['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(rawType) || (typeof settlingDebt.amount === 'number' && settlingDebt.amount < 0);
+      const txType = isToPay ? 'expense' : 'income';
+      const label = isToPay ? `Remboursement : ${debtorOrCreditor}` : `Encaissement : ${debtorOrCreditor}`;
 
       const newTx = {
         accountId: selectedAccountId,
-        name: isToPay ? `Remboursement : ${debtorOrCreditor}` : `Encaissement : ${debtorOrCreditor}`,
+        name: label,
+        label: label,
         description: txDescription,
-        amount: settlingDebt.amount,
-        type: isToPay ? 'debit' : 'credit',
+        amount: Math.abs(settlingDebt.amount),
+        type: txType,
         date: todayStr,
         pocketId: null
       };

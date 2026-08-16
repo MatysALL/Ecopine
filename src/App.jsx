@@ -13,7 +13,7 @@ import AdminView from './components/AdminView';
 import SocialView from './components/SocialView';
 import ProjectsView from './components/ProjectsView';
 import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './components/TutorialComponents';
-import { Leaf, PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users, Folder } from 'lucide-react';
+import { PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users, Folder } from 'lucide-react';
 import TransactionModal from './components/TransactionModal';
 
 export default function App() {

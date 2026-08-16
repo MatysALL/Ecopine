@@ -33,18 +33,12 @@ export default function OnboardingModal() {
       // 1. Put user metadata
       await db.user_meta.put({ key: 'username', value: username.trim() });
       
-      // 2. Add first current account with initialBalance: 0 and currentBalance: 0
+      // 2. Add first personal account
       const newAccountId = await db.accounts.add({
         name: accountName.trim(),
-        type: 'Courant',
         bankName: bankName.trim(),
         description: description.trim() || 'Compte initial de mon île',
         color: color || '#78B159',
-        rib: '',
-        initialBalance: 0,
-        currentBalance: 0,
-        balance: 0,
-        rate: 0,
         order: 0,
         isFavorite: true
       });
@@ -107,7 +101,7 @@ export default function OnboardingModal() {
 
             <div className="bg-ac-cream-dark/20 border-2 border-ac-brown/60 rounded-2xl p-4 space-y-3">
               <span className="text-[10px] font-black uppercase text-ac-brown-light block border-b border-ac-brown/10 pb-1.5">
-                Configuration de ton 1er Compte Courant
+                Configuration de ton 1er Compte
               </span>
 
               <div className="space-y-3">

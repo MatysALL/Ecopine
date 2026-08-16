@@ -2,8 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { auth, googleProvider, db as firestoreDb } from './firebase';
 import { 
   collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, 
-  setDoc, query, where, onSnapshot, writeBatch, runTransaction,
-  arrayUnion, arrayRemove, deleteField
+  setDoc, query, where, onSnapshot, writeBatch, arrayUnion, arrayRemove,
+  deleteField
 } from 'firebase/firestore';
 import { 
   createUserWithEmailAndPassword, 
@@ -361,93 +361,7 @@ export function calculateBudgetsState(budgets, transactions, todayStr) {
 }
 
 /**
- * Simulates French quinzaines interest capitalization for a Livret account
- */
-export function calculateLivretInterests(account, transactions, targetDateStr) {
-  const rate = Number(account.rate) || 0;
-  if (rate <= 0) return { capitalized: 0, accrued: 0 };
-
-  const targetDate = new Date(targetDateStr);
-  const targetYear = targetDate.getFullYear();
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const validTxs = transactions.filter(t => {
-    const exeType = t.executionType || 'spontaneous';
-    const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
-    return isEffective && t.date <= targetDateStr;
-  });
-
-  let startYear = targetYear;
-  if (validTxs.length > 0) {
-    const years = validTxs.map(t => new Date(t.date).getFullYear());
-    startYear = Math.min(...years);
-  }
-
-  let capitalizedInterests = 0;
-  let accruedInterests = 0;
-
-  for (let y = startYear; y <= targetYear; y++) {
-    const txsBeforeYear = validTxs.filter(t => new Date(t.date).getFullYear() < y);
-    const sumTxsBeforeYear = txsBeforeYear.reduce((sum, t) => {
-      const amt = Number(t.amount) || 0;
-      return sum + (t.type === 'credit' ? amt : -amt);
-    }, 0);
-    const yearStartBalance = Number(account.initialBalance) + sumTxsBeforeYear + capitalizedInterests;
-
-    const txsOfYear = validTxs.filter(t => new Date(t.date).getFullYear() === y);
-
-    let yearlyInterest = 0;
-
-    for (let month = 0; month < 12; month++) {
-      for (let qPart = 1; qPart <= 2; qPart++) {
-        const lastDayOfMonth = new Date(y, month + 1, 0).getDate();
-        const qEndDay = qPart === 1 ? 15 : lastDayOfMonth;
-        const qEndDateStr = `${y}-${String(month + 1).padStart(2, '0')}-${String(qEndDay).padStart(2, '0')}`;
-
-        if (qEndDateStr > targetDateStr) {
-          break;
-        }
-
-        let prevQEndDateStr;
-        if (qPart === 2) {
-          prevQEndDateStr = `${y}-${String(month + 1).padStart(2, '0')}-15`;
-        } else {
-          const prevMonthLastDay = new Date(y, month, 0).getDate();
-          const prevMonth = month === 0 ? 12 : month;
-          const prevYear = month === 0 ? y - 1 : y;
-          prevQEndDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevMonthLastDay).padStart(2, '0')}`;
-        }
-
-        const deposits = txsOfYear.filter(t => t.type === 'credit' && t.date <= prevQEndDateStr);
-        const withdrawals = txsOfYear.filter(t => t.type === 'debit' && t.date <= qEndDateStr);
-
-        const sumDeposits = deposits.reduce((sum, t) => sum + Number(t.amount), 0);
-        const sumWithdrawals = withdrawals.reduce((sum, t) => sum + Number(t.amount), 0);
-
-        const interestBalance = yearStartBalance + sumDeposits - sumWithdrawals;
-        const qInterest = Math.max(0, interestBalance) * (rate / 100) * (1 / 24);
-
-        if (y < targetYear) {
-          yearlyInterest += qInterest;
-        } else {
-          accruedInterests += qInterest;
-        }
-      }
-    }
-
-    if (y < targetYear) {
-      capitalizedInterests += yearlyInterest;
-    }
-  }
-
-  return {
-    capitalized: capitalizedInterests,
-    accrued: accruedInterests
-  };
-}
-
-/**
- * Calculates the REAL balance of an account at a specific date
+ * Calculates the dynamic REAL balance of an account at a specific date (solde = somme des transactions)
  */
 export function getAccountBalanceSync(account, transactions, targetDateStr = null) {
   if (!account) return 0;
@@ -463,20 +377,11 @@ export function getAccountBalanceSync(account, transactions, targetDateStr = nul
     return isEffective && t.date <= target;
   });
 
-  const sumTxs = validTxs.reduce((sum, t) => {
+  return validTxs.reduce((sum, t) => {
     const amt = Number(t.amount) || 0;
-    return sum + (t.type === 'credit' ? amt : -amt);
+    const isIncome = t.type === 'income' || t.type === 'credit';
+    return isIncome ? sum + amt : sum - amt;
   }, 0);
-
-  let balance = Number(account.initialBalance) + sumTxs;
-
-  const isLivret = account.type && account.type.toLowerCase() !== 'courant';
-  if (isLivret && Number(account.rate) > 0) {
-    const interests = calculateLivretInterests(account, accTxs, target);
-    balance += interests.capitalized;
-  }
-
-  return balance;
 }
 
 /**
@@ -610,7 +515,8 @@ export function getProjectedBalanceSync(selectedAccountIds, targetDateStr, accou
 
   const futureSum = expanded.reduce((s, t) => {
     const amt = Number(t.amount) || 0;
-    return s + (t.type === 'credit' ? amt : -amt);
+    const isIncome = t.type === 'income' || t.type === 'credit';
+    return s + (isIncome ? amt : -amt);
   }, 0);
 
   return sum + futureSum;
@@ -778,7 +684,8 @@ export const db = {
           const pocketData = pocketSnap.data();
           const current = Number(pocketData.currentAmount) || 0;
           const txAmt = Number(data.amount) || 0;
-          const newAmt = data.type === 'debit' ? current - txAmt : current + txAmt;
+          const isExpense = data.type === 'expense' || data.type === 'debit';
+          const newAmt = isExpense ? current - txAmt : current + txAmt;
           batch.update(pocketRef, { currentAmount: newAmt });
         }
       }
@@ -808,7 +715,8 @@ export const db = {
           const oldPocketData = oldPocketSnap.data();
           const current = Number(oldPocketData.currentAmount) || 0;
           const oldTxAmt = Number(oldTx.amount) || 0;
-          const revertedAmt = oldTx.type === 'debit' ? current + oldTxAmt : current - oldTxAmt;
+          const isOldExpense = oldTx.type === 'expense' || oldTx.type === 'debit';
+          const revertedAmt = isOldExpense ? current + oldTxAmt : current - oldTxAmt;
           batch.update(oldPocketRef, { currentAmount: revertedAmt });
         }
       }
@@ -824,13 +732,15 @@ export const db = {
           // If the pocket is the same, base calculation on the reverted amount in memory
           if (oldPocketId === targetPocketId) {
             const oldTxAmt = Number(oldTx.amount) || 0;
-            const revertedAmt = oldTx.type === 'debit' ? current + oldTxAmt : current - oldTxAmt;
+            const isOldExpense = oldTx.type === 'expense' || oldTx.type === 'debit';
+            const revertedAmt = isOldExpense ? current + oldTxAmt : current - oldTxAmt;
             current = revertedAmt;
           }
 
           const txAmt = Number(data.amount !== undefined ? data.amount : oldTx.amount) || 0;
           const type = data.type !== undefined ? data.type : oldTx.type;
-          const newAmt = type === 'debit' ? current - txAmt : current + txAmt;
+          const isExpense = type === 'expense' || type === 'debit';
+          const newAmt = isExpense ? current - txAmt : current + txAmt;
           batch.update(newPocketRef, { currentAmount: newAmt });
         }
       }
@@ -855,14 +765,14 @@ export const db = {
             const pocketData = pocketSnap.data();
             const current = Number(pocketData.currentAmount) || 0;
             const txAmt = Number(txData.amount) || 0;
-            const revertedAmt = txData.type === 'debit' ? current + txAmt : current - txAmt;
+            const isExpense = txData.type === 'expense' || txData.type === 'debit';
+            const revertedAmt = isExpense ? current + txAmt : current - txAmt;
             batch.update(pocketRef, { currentAmount: revertedAmt });
           }
         }
       }
 
       batch.delete(txRef);
-
       if (!db._activeBatch) {
         await batch.commit();
       }
@@ -1376,12 +1286,6 @@ export const db = {
       await deleteDoc(doc(firestoreDb, 'projects', projectId));
     }
   },
-  categories: {
-    add: async () => {},
-    delete: async () => {},
-    clear: async () => {},
-    bulkAdd: async () => {}
-  },
   transaction: async (...args) => {
     const fn = args[args.length - 1];
     if (typeof fn !== 'function') throw new Error("Transaction callback is not a function");
@@ -1585,7 +1489,7 @@ export const useDb = () => {
  * 3. Priority 3 (Easter Egg 1): User's username is "Léa" or "Lea" (case-insensitive) -> "SAKURA_PINK_PURPLE"
  * 4. Priority 4: Manual choice themePreference ('default', 'red', 'blue', 'yellow')
  */
-export function getActiveTheme(userProfile, categories) {
+export function getActiveTheme(userProfile) {
   const unlocked = userProfile?.unlockedThemes || ['default', 'red', 'blue', 'yellow'];
   const pref = userProfile?.themePreference || 'default';
   if (unlocked.includes(pref)) {
@@ -1603,7 +1507,6 @@ export const DbProvider = ({ children }) => {
   const [transactions, setTransactions] = useState([]);
   const [pockets, setPockets] = useState([]);
   const [wishlist, setWishlist] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [debts, setDebts] = useState([]);
   const [friendships, setFriendships] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -1615,8 +1518,8 @@ export const DbProvider = ({ children }) => {
 
   // Calculate the active theme dynamically
   const activeTheme = useMemo(() => {
-    return getActiveTheme(usersMetaDoc, categories);
-  }, [usersMetaDoc, categories]);
+    return getActiveTheme(usersMetaDoc);
+  }, [usersMetaDoc]);
 
   // Permanent Theme Unlock Triggers Listener
   useEffect(() => {
@@ -1647,15 +1550,6 @@ export const DbProvider = ({ children }) => {
       alert("🎉 Thème Abyssal (Bleu & Violet) débloqué pour toujours !");
     }
 
-    // 3. Easter Egg Waif
-    const hasWaifCategory = categories?.some(cat => cat.name?.toLowerCase().trim() === 'waif');
-    if (hasWaifCategory && !nextUnlocked.includes('neon')) {
-      nextUnlocked.push('neon');
-      nextThemePref = 'neon';
-      needsUpdate = true;
-      alert("🎉 Thème Néon Cyberpunk débloqué pour toujours !");
-    }
-
     if (needsUpdate) {
       const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
       updateDoc(metaRef, {
@@ -1663,25 +1557,25 @@ export const DbProvider = ({ children }) => {
         themePreference: nextThemePref
       }).catch(err => console.error("Error unlocking theme:", err));
     }
-  }, [currentUser, usersMetaDoc, categories]);
+  }, [currentUser, usersMetaDoc]);
 
-  // Sign up and create user profile & default categories
+  // Sign up and create user profile
   const signUpUser = async (email, password, firstname) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
-    // Create users_meta doc
+    // Create users_meta doc with standardized schema
     const metaRef = doc(firestoreDb, 'users_meta', user.uid);
     await setDoc(metaRef, {
       uid: user.uid,
-      username: firstname.trim(),
       email: email.trim().toLowerCase(),
-      favoriteAccountId: null,
-      dashboardNote: '',
+      username: firstname.trim(),
       photoURL: '/pfp-ac.jpg',
+      role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
       themePreference: 'default',
       unlockedThemes: ['default', 'red', 'blue', 'yellow'],
-      role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
+      favoriteAccountId: null,
+      dashboardNote: '',
       createdAt: new Date().toISOString(),
       tutorialProgress: {
         isCompleted: false,
@@ -1713,12 +1607,13 @@ export const DbProvider = ({ children }) => {
         const docSnap = await getDoc(metaRef);
 
         if (!docSnap.exists()) {
+          // Create minimal profile document and set tutorialProgress.isCompleted = false to trigger onboarding
           await setDoc(metaRef, {
             uid: user.uid,
-            email: user.email,
+            email: user.email ? user.email.toLowerCase() : '',
             username: user.displayName || "Habitant",
             photoURL: user.photoURL || "/pfp-ac.jpg",
-            role: user.email === "matysallanet@gmail.com" ? "admin" : "member",
+            role: user.email?.toLowerCase() === "matysallanet@gmail.com" ? "admin" : "member",
             themePreference: "default",
             unlockedThemes: ["default", "red", "blue", "yellow"],
             favoriteAccountId: null,
@@ -1731,8 +1626,8 @@ export const DbProvider = ({ children }) => {
           });
         } else {
           await setDoc(metaRef, {
-            email: user.email,
-            photoURL: user.photoURL || "/pfp-ac.jpg"
+            email: user.email ? user.email.toLowerCase() : '',
+            photoURL: user.photoURL || docSnap.data().photoURL || "/pfp-ac.jpg"
           }, { merge: true });
         }
       }
@@ -1763,7 +1658,6 @@ export const DbProvider = ({ children }) => {
         setTransactions([]);
         setPockets([]);
         setWishlist([]);
-        setCategories([]);
         setDebts([]);
         setFriendships([]);
         setProjects([]);
@@ -2249,7 +2143,6 @@ export const DbProvider = ({ children }) => {
     transactions,
     pockets,
     wishlist: filteredWishlist,
-    categories,
     debts: filteredDebts,
     friendships,
     projects,

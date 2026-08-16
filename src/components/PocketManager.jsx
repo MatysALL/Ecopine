@@ -3,7 +3,7 @@ import { db, useDb, getNextRenewalDate, COLOR_PALETTE, getCustomCardStyle } from
 import { doc, writeBatch, collection } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 import { 
-  Plus, Trash2, Edit2, Sparkles, Coins, Clock, AlertCircle, X, Layers, Tag,
+  Plus, Trash2, Edit2, Sparkles, Coins, Clock, AlertCircle, X,
   Palette, Check
 } from 'lucide-react';
 
@@ -181,9 +181,10 @@ export default function PocketManager({ accountId, role }) {
         accountId,
         pocketId: debitTargetPocket.id,
         name: `Débit : ${debitTargetPocket.name}`,
+        label: `Débit : ${debitTargetPocket.name}`,
         description: `Débit rapide de la poche ${debitTargetPocket.name}`,
         amount: amt,
-        type: 'debit',
+        type: 'expense',
         date: todayStr
       });
       setDebitModalOpen(false);

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, useDb } from '../db';
 import { 
   Trash2, ShieldAlert, CheckCircle, AlertCircle, 
-  User, Tag, FileSpreadsheet, Palette, RotateCcw, AlertTriangle, X
+  User, Palette, RotateCcw, AlertTriangle, X
 } from 'lucide-react';
 
 export default function Settings() {
@@ -23,14 +23,9 @@ export default function Settings() {
 
   const { 
     userMeta, 
-    accountsData: accountsList, 
-    categories: categoriesList,
-    transactions: allTransactions,
-    pockets: pocketsList,
     user,
     logOutUser,
     unlockedThemes,
-    activeTheme,
     resetMyAccount,
     deleteMyAccount
   } = useDb();

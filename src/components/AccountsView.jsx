@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { db, useDb, calculateLivretInterests, COLOR_PALETTE, getCustomCardStyle } from '../db';
+import { db, useDb, COLOR_PALETTE, getCustomCardStyle } from '../db';
 import { doc, writeBatch } from 'firebase/firestore';
 import { auth, db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
-  Coins, PiggyBank, HelpCircle, AlertTriangle, 
-  Landmark, Sparkles, FileSpreadsheet, ArrowRightLeft, X, Mail, Star,
+  Coins, PiggyBank, AlertTriangle, 
+  Sparkles, FileSpreadsheet, ArrowRightLeft, X, Star,
   Palette, Check
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
@@ -39,7 +39,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [toastMessage, setToastMessage] = useState(null);
   const [importHistoryModalOpen, setImportHistoryModalOpen] = useState(false);
 
-  const { accountsData: accounts, transactions: allTransactions, categories, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
+  const { accountsData: accounts, transactions: allTransactions, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
 
   // Favorite account calculation
   const currentFavoriteId = useMemo(() => {
@@ -184,16 +184,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [selectedAccountId, allTransactions]);
 
-  // Fetch live interest simulation for booklet accounts
-  const activeAccountInterests = useMemo(() => {
-    if (!activeAccount || !transactions) return null;
-    const isLivret = activeAccount.type && activeAccount.type.toLowerCase() !== 'courant';
-    if (!isLivret || Number(activeAccount.rate) <= 0) return null;
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    return calculateLivretInterests(activeAccount, transactions, todayStr);
-  }, [activeAccount, transactions]);
-
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
     e.preventDefault();
@@ -215,9 +205,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       } else {
         const newId = await db.accounts.add({
           ...data,
-          initialBalance: 0,
-          currentBalance: 0,
-          balance: 0,
           order: sortedAccounts.length
         });
         setSelectedAccountId(newId);
@@ -277,9 +264,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     const sourceTx = {
       accountId: transferSourceId,
       name: `Virement vers ${destAccount.name} : ${desc}`,
+      label: `Virement vers ${destAccount.name} : ${desc}`,
       description: `Virement vers ${destAccount.name} : ${desc}`,
       amount: amount,
-      type: 'debit',
+      type: 'expense',
       date: dateStr,
       executionType: 'spontaneous',
       isRecurring: false,
@@ -290,9 +278,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     const destTx = {
       accountId: transferDestId,
       name: `Virement depuis ${sourceAccount.name} : ${desc}`,
+      label: `Virement depuis ${sourceAccount.name} : ${desc}`,
       description: `Virement depuis ${sourceAccount.name} : ${desc}`,
       amount: amount,
-      type: 'credit',
+      type: 'income',
       date: dateStr,
       executionType: 'spontaneous',
       isRecurring: false,
@@ -720,37 +709,16 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       📁 Projet
                     </span>
                   )}
-                  {activeAccount.bankName && (
-                    <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${
-                      activeAccount.projectId 
-                        ? 'bg-slate-800 text-slate-300 border-slate-700' 
-                        : 'text-ac-brown-light bg-ac-cream border-ac-brown/15'
-                    }`}>
-                      {activeAccount.bankName}
-                    </span>
-                  )}
+                  <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${
+                    activeAccount.projectId 
+                      ? 'bg-slate-800 text-slate-300 border-slate-700' 
+                      : 'text-ac-brown-light bg-ac-cream border-ac-brown/15'
+                  }`}>
+                    {activeAccount.bankName || '—'}
+                  </span>
                 </h2>
-                {(activeAccount.type || activeAccount.rate > 0 || activeAccount.rib) && (
-                  <div className="flex flex-wrap gap-2 items-center text-xs font-bold text-ac-brown-light mt-1">
-                    {activeAccount.type && (
-                      <span className="bg-ac-gold-light border border-ac-gold/30 text-ac-gold-dark px-2.5 py-0.5 rounded-full font-black uppercase text-[9px]">
-                        {activeAccount.type}
-                      </span>
-                    )}
-                    {activeAccount.rate > 0 && (
-                      <span className="bg-ac-green-light border border-ac-green/20 text-ac-green px-2.5 py-0.5 rounded-full">
-                        Taux: {activeAccount.rate}%
-                      </span>
-                    )}
-                    {activeAccount.rib && (
-                      <span className="bg-ac-cream-dark/40 px-2.5 py-0.5 rounded-full border border-ac-brown/10 font-mono text-[10px]">
-                        RIB: {activeAccount.rib}
-                      </span>
-                    )}
-                  </div>
-                )}
                 {activeAccount.description && (
-                  <p className="text-[11px] font-semibold text-ac-brown-light mt-2 italic">
+                  <p className={`text-[11px] font-semibold mt-2 italic ${activeAccount.projectId ? 'text-slate-300' : 'text-ac-brown-light'}`}>
                     "{activeAccount.description}"
                   </p>
                 )}
@@ -758,9 +726,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             </div>
 
             <div className="flex flex-col gap-2">
-              <div className="text-left md:text-right bg-ac-cream-dark/20 border-2 border-ac-brown rounded-2xl px-6 py-2.5 min-w-[200px]">
-                <span className="text-[9px] font-black text-ac-brown-light uppercase block">Solde Réel Principal</span>
-                <span className="text-2xl font-black text-ac-brown">
+              <div className={`text-left md:text-right border-2 rounded-2xl px-6 py-2.5 min-w-[200px] ${
+                activeAccount.projectId 
+                  ? 'bg-slate-800/80 border-slate-700 text-white' 
+                  : 'bg-ac-cream-dark/20 border-ac-brown text-ac-brown'
+              }`}>
+                <span className={`text-[9px] font-black uppercase block ${activeAccount.projectId ? 'text-slate-400' : 'text-ac-brown-light'}`}>Solde Réel Principal</span>
+                <span className="text-2xl font-black">
                   {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                 </span>
               </div>
@@ -777,36 +749,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               )}
             </div>
           </div>
-
-          {/* Booklet interests calculation simulator */}
-          {activeAccountInterests && (
-            <div className="bg-ac-sky-light/40 border-3 border-ac-brown rounded-3xl p-5 shadow-ac-sm flex items-center justify-between gap-4 animate-bounce-in">
-              <div className="space-y-1">
-                <h4 className="font-black text-xs text-ac-brown flex items-center gap-1.5 uppercase">
-                  <Landmark className="w-4 h-4 text-ac-sky" /> Simulation des Intérêts (Calcul par Quinzaine)
-                </h4>
-                <p className="text-[10px] font-semibold text-ac-brown-light">
-                  Simulation selon les modalités annuelles standard françaises appliquées sur ce livret.
-                </p>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="bg-white border-2 border-ac-brown rounded-xl px-4 py-2 text-center shadow-ac-sm">
-                  <span className="text-[8px] font-black text-ac-brown-light uppercase block">Capitalisés (Années antérieures)</span>
-                  <span className="text-sm font-black text-ac-brown">
-                    +{(activeAccountInterests.capitalized ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                  </span>
-                </div>
-
-                <div className="bg-white border-2 border-ac-brown rounded-xl px-4 py-2 text-center shadow-ac-sm">
-                  <span className="text-[8px] font-black text-ac-sky uppercase block">Courus (Année en cours)</span>
-                  <span className="text-sm font-black text-ac-sky">
-                    +{(activeAccountInterests.accrued ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Account Edit/Export/Import/Delete Controls */}
           <div className="flex flex-wrap gap-3 items-center">
@@ -1180,21 +1122,19 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   >
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className={`font-bold text-sm leading-tight break-words ${isProjectAcc ? 'text-white' : 'text-[#2d3748]'}`}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className={`font-bold text-sm leading-tight break-words ${isProjectAcc ? 'text-white font-extrabold' : 'text-ac-brown'}`}>
                             {titleText}
                           </h3>
                           {isProjectAcc && (
-                            <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
-                              📁 {projectName ? projectName : 'PROJET'}
+                            <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
+                              📁 PROJET
                             </span>
                           )}
                         </div>
-                        {acc.bankName && (
-                          <span className={`text-[9px] font-bold block mt-1 ${isProjectAcc ? 'text-slate-300' : 'text-ac-brown-light/80'}`}>
-                            🏦 {acc.bankName}
-                          </span>
-                        )}
+                        <span className={`text-[10px] font-bold block mt-1.5 ${isProjectAcc ? 'text-slate-300' : 'text-ac-brown-light'}`}>
+                          🏦 {acc.bankName || '—'}
+                        </span>
                       </div>
 
                       <div className="flex gap-1.5 shrink-0 items-center">

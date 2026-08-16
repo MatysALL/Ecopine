@@ -252,10 +252,6 @@ export default function ProjectDetailView({ project, onBack }) {
         bank: accBankName.trim(),
         description: accDescription.trim(),
         color: '#1E232A',
-        initialBalance: 0,
-        currentBalance: 0,
-        balance: 0,
-        type: 'Courant',
         projectId: project.id,
         projectName: project.name,
         allowedUsers: project.memberUids || [user.uid]
@@ -325,8 +321,12 @@ export default function ProjectDetailView({ project, onBack }) {
     if (!wishName.trim() || !canEdit) return;
     try {
       const wishData = {
+        title: wishName.trim(),
         name: wishName.trim(),
         description: wishDesc.trim(),
+        isCompleted: false,
+        completedAt: null,
+        completedAmount: null,
         projectId: project.id,
         projectName: project.name,
         allowedUsers: project.memberUids || [user.uid]
@@ -371,12 +371,14 @@ export default function ProjectDetailView({ project, onBack }) {
     }
     try {
       const todayStr = new Date().toISOString().split('T')[0];
+      const wishTitle = buyingWish.title || buyingWish.name;
       await db.transactions.add({
         accountId: buyingAccountId,
-        name: `Achat souhait : ${buyingWish.name}`,
+        name: `Achat souhait : ${wishTitle}`,
+        label: `Achat souhait : ${wishTitle}`,
         description: buyingWish.description || 'Souhait projet réalisé',
         amount: priceVal,
-        type: 'debit',
+        type: 'expense',
         date: todayStr,
         executionType: 'spontaneous',
         projectId: project.id,
@@ -487,16 +489,18 @@ export default function ProjectDetailView({ project, onBack }) {
     }
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const srcAcc = projectAccounts.find(a => a.id === transferSourceId);
-      const destAcc = projectAccounts.find(a => a.id === transferDestId);
+      const srcName = srcAcc?.name || 'compte projet';
+      const destName = destAcc?.name || 'compte projet';
+      const desc = transferDesc.trim() || 'Virement interne projet';
 
       await db.transaction(async () => {
         await db.transactions.add({
           accountId: transferSourceId,
-          name: `Virement vers ${destAcc?.name || 'compte projet'}`,
-          description: transferDesc.trim() || 'Virement interne projet',
+          name: `Virement vers ${destName} : ${desc}`,
+          label: `Virement vers ${destName} : ${desc}`,
+          description: desc,
           amount: amt,
-          type: 'debit',
+          type: 'expense',
           date: todayStr,
           executionType: 'spontaneous',
           projectId: project.id,
@@ -505,10 +509,11 @@ export default function ProjectDetailView({ project, onBack }) {
         });
         await db.transactions.add({
           accountId: transferDestId,
-          name: `Virement depuis ${srcAcc?.name || 'compte projet'}`,
-          description: transferDesc.trim() || 'Virement interne projet',
+          name: `Virement depuis ${srcName} : ${desc}`,
+          label: `Virement depuis ${srcName} : ${desc}`,
+          description: desc,
           amount: amt,
-          type: 'credit',
+          type: 'income',
           date: todayStr,
           executionType: 'spontaneous',
           projectId: project.id,
@@ -796,7 +801,7 @@ export default function ProjectDetailView({ project, onBack }) {
                 ) : (
                   <div className="divide-y divide-ac-brown/10">
                     {activeAccountTxs.map(tx => {
-                      const isIncome = tx.type === 'credit';
+                      const isIncome = tx.type === 'income' || tx.type === 'credit';
                       return (
                         <div key={tx.id} className="py-3.5 flex justify-between items-center">
                           <div>

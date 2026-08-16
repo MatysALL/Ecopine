@@ -4,7 +4,7 @@ import { useDb } from '../db';
 
 export default function TransactionModal({ isOpen, onClose, onSave, transaction, accountId }) {
   const [name, setName] = useState('');
-  const [type, setType] = useState('debit'); // 'debit' or 'credit'
+  const [type, setType] = useState('expense'); // 'expense' or 'income'
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [pocketId, setPocketId] = useState('');
@@ -20,14 +20,15 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
 
   useEffect(() => {
     if (transaction) {
-      setName(transaction.name || transaction.description || '');
-      setType(transaction.type || (transaction.amount < 0 ? 'debit' : 'credit'));
+      setName(transaction.name || transaction.label || transaction.description || '');
+      const isIncome = transaction.type === 'income' || transaction.type === 'credit';
+      setType(isIncome ? 'income' : 'expense');
       setAmount(Math.abs(transaction.amount).toString() || '');
       setDate(transaction.date || '');
       setPocketId(transaction.pocketId ? transaction.pocketId.toString() : '');
     } else {
       setName('');
-      setType('debit');
+      setType('expense');
       setAmount('');
       setDate(new Date().toISOString().split('T')[0]);
       setPocketId('');
@@ -55,9 +56,10 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
       const transactionData = {
         accountId: accountId,
         name: name.trim(),
-        description: name.trim(), // keeping for compatibility
+        label: name.trim(),
+        description: name.trim(),
         amount: numAmount,
-        type,
+        type: type === 'income' ? 'income' : 'expense',
         date,
         pocketId: pocketId || null
       };
@@ -88,13 +90,13 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
         </h3>
 
         <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-          {/* Type Toggle (Débit / Crédit) */}
+          {/* Type Toggle (Dépense / Revenu) */}
           <div className="flex border-2 border-ac-brown rounded-2xl overflow-hidden p-1 bg-ac-cream">
             <button
               type="button"
-              onClick={() => setType('debit')}
+              onClick={() => setType('expense')}
               className={`flex-1 h-12 flex items-center justify-center font-black text-sm rounded-xl transition-all ${
-                type === 'debit'
+                type === 'expense'
                   ? 'bg-ac-red text-white border-2 border-ac-brown shadow-ac-sm'
                   : 'text-ac-brown hover:bg-white/40'
               }`}
@@ -103,9 +105,9 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
             </button>
             <button
               type="button"
-              onClick={() => setType('credit')}
+              onClick={() => setType('income')}
               className={`flex-1 h-12 flex items-center justify-center font-black text-sm rounded-xl transition-all ${
-                type === 'credit'
+                type === 'income'
                   ? 'bg-ac-green text-white border-2 border-ac-brown shadow-ac-sm'
                   : 'text-ac-brown hover:bg-white/40'
               }`}
