@@ -5,7 +5,7 @@ import { collection, query, where, getDocs, addDoc, doc, getDoc } from 'firebase
 import { 
   Users, UserPlus, UserMinus, Check, X, Flag, 
   Trash2, HeartHandshake, AlertCircle, Sparkles,
-  CheckCircle, ShieldCheck, Mail, Shield, Handshake
+  CheckCircle, ShieldCheck, Mail, Shield, Handshake, Folder
 } from 'lucide-react';
 
 export default function SocialView() {
@@ -28,11 +28,13 @@ export default function SocialView() {
   const [isRedlistModalOpen, setIsRedlistModalOpen] = useState(false);
   const [friendForPermissions, setFriendForPermissions] = useState(null);
   const [permAllowDebts, setPermAllowDebts] = useState(true);
+  const [permAllowProjects, setPermAllowProjects] = useState(true);
   const [isSavingPerms, setIsSavingPerms] = useState(false);
 
   const openPermissionsModal = (friend) => {
     setFriendForPermissions(friend);
     setPermAllowDebts(friend.myAllowDebts !== false);
+    setPermAllowProjects(friend.myAllowProjects !== false);
   };
 
   const handleToggleAllowDebts = async (newVal) => {
@@ -52,12 +54,30 @@ export default function SocialView() {
     }
   };
 
+  const handleToggleAllowProjects = async (newVal) => {
+    setPermAllowProjects(newVal);
+    if (!friendForPermissions) return;
+    try {
+      await db.friendships.updatePermissions(friendForPermissions.friendshipId || friendForPermissions.id, {
+        allowProjects: newVal
+      });
+      showToast(newVal 
+        ? `Ajout aux projets autorisé pour ${friendForPermissions.name} ! 📁`
+        : `Ajout aux projets bloqué pour ${friendForPermissions.name} ! 🛡️`
+      );
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la mise à jour des autorisations : " + (err.message || "Erreur"), true);
+    }
+  };
+
   const handleSavePermissions = async () => {
     if (!friendForPermissions) return;
     setIsSavingPerms(true);
     try {
       await db.friendships.updatePermissions(friendForPermissions.friendshipId || friendForPermissions.id, {
-        allowDebts: permAllowDebts
+        allowDebts: permAllowDebts,
+        allowProjects: permAllowProjects
       });
       showToast(`Autorisations enregistrées pour ${friendForPermissions.name} ! 🍃`);
       setFriendForPermissions(null);
@@ -376,7 +396,7 @@ export default function SocialView() {
                       <button
                         onClick={() => openPermissionsModal(friend)}
                         className={`p-2 rounded-xl border-2 transition-all cursor-pointer shadow-xs ${
-                          friend.myAllowDebts === false
+                          friend.myAllowDebts === false || friend.myAllowProjects === false
                             ? 'bg-ac-orange/15 border-ac-orange text-ac-orange hover:bg-ac-orange/25'
                             : 'bg-white hover:bg-ac-green/15 border-ac-brown/15 hover:border-ac-green text-ac-brown-light hover:text-ac-green'
                         }`}
@@ -770,18 +790,47 @@ export default function SocialView() {
                   <div className="w-12 h-6 bg-ac-brown/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[3px] after:bg-white after:border-ac-brown/20 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ac-green border-2 border-ac-brown/30"></div>
                 </label>
               </div>
+
+              {/* Permission 2 : Projets partagés */}
+              <div className="p-4 bg-white border-2 border-ac-brown rounded-2xl flex items-center justify-between gap-4 shadow-ac-xs hover:border-ac-green/50 transition-all">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-ac-sky/15 border-2 border-ac-sky/30 flex items-center justify-center shrink-0 mt-0.5">
+                    <Folder className="w-4 h-4 text-ac-sky" />
+                  </div>
+                  <div className="space-y-0.5 min-w-0">
+                    <p className="text-xs font-black text-ac-brown">
+                      Autoriser l'ajout dans des projets partagés
+                    </p>
+                    <p className="text-[10px] font-semibold text-ac-brown-light leading-relaxed">
+                      Si désactivé, cet habitant ne pourra pas vous ajouter comme membre d'un projet.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Toggle Switch */}
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={permAllowProjects}
+                    onChange={(e) => handleToggleAllowProjects(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-12 h-6 bg-ac-brown/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[3px] after:bg-white after:border-ac-brown/20 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ac-green border-2 border-ac-brown/30"></div>
+                </label>
+              </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="pt-3 border-t border-ac-brown/10 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-ac-brown-light">
-                {permAllowDebts ? "✅ Dettes miroirs autorisées" : "🔒 Dettes miroirs bloquées"}
-              </span>
+            <div className="pt-3 border-t border-ac-brown/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex flex-col text-[10px] font-bold text-ac-brown-light">
+                <span>{permAllowDebts ? "✅ Dettes miroirs autorisées" : "🔒 Dettes miroirs bloquées"}</span>
+                <span>{permAllowProjects ? "✅ Projets autorisés" : "🔒 Projets bloqués"}</span>
+              </div>
               <button
                 type="button"
                 onClick={handleSavePermissions}
                 disabled={isSavingPerms}
-                className="bg-ac-green hover:bg-ac-green/90 text-white font-black text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px] cursor-pointer transition-all disabled:opacity-50"
+                className="w-full sm:w-auto bg-ac-green hover:bg-ac-green/90 text-white font-black text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px] cursor-pointer transition-all disabled:opacity-50"
               >
                 {isSavingPerms ? "Enregistrement..." : "Enregistrer"}
               </button>

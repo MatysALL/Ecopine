@@ -1278,6 +1278,19 @@ export const db = {
       const friendName = friendMetaDoc.exists() ? (friendMetaDoc.data().username || 'Habitant') : 'Habitant';
       const friendPhoto = friendMetaDoc.exists() ? (friendMetaDoc.data().photoURL || '/pfp-ac.jpg') : '/pfp-ac.jpg';
 
+      // Check friendship permission allowProjects
+      const qFriend1 = query(collection(firestoreDb, 'friendships'), where('senderId', '==', auth.currentUser.uid), where('receiverId', '==', friendUid));
+      const qFriend2 = query(collection(firestoreDb, 'friendships'), where('senderId', '==', friendUid), where('receiverId', '==', auth.currentUser.uid));
+      const [snap1, snap2] = await Promise.all([getDocs(qFriend1), getDocs(qFriend2)]);
+      const friendDoc = snap1.docs[0] || snap2.docs[0];
+      if (friendDoc) {
+        const fData = friendDoc.data();
+        const friendPerms = fData.permissions?.[friendUid] || {};
+        if (friendPerms.allowProjects === false) {
+          throw new Error(`${friendName} ne souhaite pas être ajouté à des projets.`);
+        }
+      }
+
       const ref = doc(firestoreDb, 'projects', projectId);
       await updateDoc(ref, {
         memberUids: arrayUnion(friendUid),
@@ -2238,8 +2251,10 @@ export const DbProvider = ({ children }) => {
           photoURL: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg',
           // What current user allows this friend to do on current user's account:
           myAllowDebts: myPermissions.allowDebts !== false,
+          myAllowProjects: myPermissions.allowProjects !== false,
           // What this friend allows current user to do on friend's account:
           allowDebts: friendPermissions.allowDebts !== false,
+          allowProjects: friendPermissions.allowProjects !== false,
           permissions: f.permissions || {}
         };
       })

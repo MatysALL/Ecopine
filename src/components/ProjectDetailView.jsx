@@ -204,6 +204,11 @@ export default function ProjectDetailView({ project, onBack }) {
   const handleInviteFriend = async (e) => {
     e.preventDefault();
     if (!selectedFriendUid || !isOwner) return;
+    const targetFriend = eligibleFriendsToInvite.find(f => f.uid === selectedFriendUid);
+    if (targetFriend && targetFriend.allowProjects === false) {
+      alert(`${targetFriend.name} ne souhaite pas être ajouté à des projets.`);
+      return;
+    }
     try {
       await db.projects.addMember(project.id, selectedFriendUid, selectedInviteRole);
       setSelectedFriendUid('');
@@ -211,7 +216,7 @@ export default function ProjectDetailView({ project, onBack }) {
       setInviteModalOpen(false);
     } catch (err) {
       console.error(err);
-      alert("Erreur lors de l'invitation de l'ami.");
+      alert(err.message || "Erreur lors de l'invitation de l'ami.");
     }
   };
 
@@ -1238,9 +1243,18 @@ export default function ProjectDetailView({ project, onBack }) {
                     required
                   >
                     <option value="">-- Choisir un ami --</option>
-                    {eligibleFriendsToInvite.map(f => (
-                      <option key={f.uid} value={f.uid}>{f.name} ({f.email})</option>
-                    ))}
+                    {eligibleFriendsToInvite.map(f => {
+                      const isAllowed = f.allowProjects !== false;
+                      return (
+                        <option 
+                          key={f.uid} 
+                          value={f.uid}
+                          disabled={!isAllowed}
+                        >
+                          {f.name} ({f.email}) {!isAllowed ? '- (Invitations non autorisées)' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
