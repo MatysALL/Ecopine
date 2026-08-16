@@ -1321,43 +1321,11 @@ export const db = {
     },
     removeMember: async (projectId, memberUid) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const projRef = doc(firestoreDb, 'projects', projectId);
-      const projSnap = await getDoc(projRef);
-      if (!projSnap.exists()) return;
-      const projData = projSnap.data();
-
-      const batch = writeBatch(firestoreDb);
-
-      // 1. In project document: remove memberUid from memberUids & delete user from members object
-      batch.update(projRef, {
+      const projectRef = doc(firestoreDb, 'projects', projectId);
+      await updateDoc(projectRef, {
         memberUids: arrayRemove(memberUid),
         [`members.${memberUid}`]: deleteField()
       });
-
-      // 2. In project resources (accounts, wishlist, debts, pockets, transactions): remove memberUid from allowedUsers
-      const collectionsToUpdate = ['accounts', 'wishlist', 'debts', 'pockets', 'transactions'];
-      for (const colName of collectionsToUpdate) {
-        const qCol = query(collection(firestoreDb, colName), where('projectId', '==', projectId));
-        const snap = await getDocs(qCol);
-        snap.docs.forEach(d => {
-          const docData = d.data();
-          const updatePayload = {
-            allowedUsers: arrayRemove(memberUid)
-          };
-          if (docData.userId === memberUid) {
-            updatePayload.userId = projData.ownerId || auth.currentUser.uid;
-          }
-          if (docData.creatorId === memberUid) {
-            updatePayload.creatorId = projData.ownerId || auth.currentUser.uid;
-          }
-          if (docData.ownerId === memberUid) {
-            updatePayload.ownerId = projData.ownerId || auth.currentUser.uid;
-          }
-          batch.update(d.ref, updatePayload);
-        });
-      }
-
-      await batch.commit();
     },
     removeMemberFromProject: async (projectId, memberUid) => {
       return db.projects.removeMember(projectId, memberUid);
@@ -1370,7 +1338,11 @@ export const db = {
     },
     leaveProject: async (projectId) => {
       if (!auth.currentUser) return;
-      await db.projects.removeMember(projectId, auth.currentUser.uid);
+      const projectRef = doc(firestoreDb, 'projects', projectId);
+      await updateDoc(projectRef, {
+        memberUids: arrayRemove(auth.currentUser.uid),
+        [`members.${auth.currentUser.uid}`]: deleteField()
+      });
     },
     delete: async (projectId) => {
       if (!auth.currentUser) return;
@@ -2149,7 +2121,6 @@ export const DbProvider = ({ children }) => {
   const isResourceAccessible = useMemo(() => {
     return (item) => {
       if (!item.projectId) return true;
-      if (item.allowedUsers && item.allowedUsers.includes(currentUser?.uid)) return true;
       const proj = projects?.find(p => p.id === item.projectId);
       return Boolean(proj && (proj.ownerId === currentUser?.uid || proj.memberUids?.includes(currentUser?.uid)));
     };

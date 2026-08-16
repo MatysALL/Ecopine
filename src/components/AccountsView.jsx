@@ -65,7 +65,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     return accounts
       .filter(acc => {
         if (!acc.projectId) return true;
-        if (acc.allowedUsers && acc.allowedUsers.includes(user?.uid)) return true;
         const proj = projects?.find(p => p.id === acc.projectId);
         return Boolean(proj && (proj.ownerId === user?.uid || proj.memberUids?.includes(user?.uid)));
       })

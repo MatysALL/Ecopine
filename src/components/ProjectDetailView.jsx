@@ -192,7 +192,7 @@ export default function ProjectDetailView({ project, onBack }) {
         setSelectedAccId(null);
         setEditingWish(null);
         setBuyingWish(null);
-        onBack();
+        onBack("Vous avez quitté le projet.");
       } catch (err) {
         console.error(err);
         alert("Erreur lors du départ du projet : " + (err.message || err));

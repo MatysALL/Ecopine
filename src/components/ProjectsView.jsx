@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useDb, db } from '../db';
 import { 
   Folder, Plus, Users, Crown, Shield, Eye, Calendar, 
-  ChevronRight, Sparkles, X, PiggyBank, Gift, Handshake, AlertCircle
+  ChevronRight, Sparkles, X, PiggyBank, Gift, Handshake, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import ProjectDetailView from './ProjectDetailView';
 
@@ -11,6 +11,16 @@ export default function ProjectsView() {
   
   // Selected project ID for detailed view
   const [selectedProjectId, setSelectedProjectId] = useState(null);
+
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   // New Project Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,7 +90,10 @@ export default function ProjectsView() {
     return (
       <ProjectDetailView 
         project={activeProject} 
-        onBack={() => setSelectedProjectId(null)} 
+        onBack={(msg) => {
+          setSelectedProjectId(null);
+          if (msg) setToastMessage(msg);
+        }} 
       />
     );
   }
@@ -245,6 +258,14 @@ export default function ProjectsView() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce-in bg-ac-green text-white font-black text-xs px-5 py-3 rounded-2xl border-2 border-ac-brown shadow-ac-md flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{toastMessage}</span>
         </div>
       )}
     </div>

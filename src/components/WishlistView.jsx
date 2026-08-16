@@ -35,7 +35,6 @@ export default function WishlistView() {
     return wishes
       .filter(w => {
         if (!w.projectId) return true;
-        if (w.allowedUsers && w.allowedUsers.includes(user?.uid)) return true;
         const proj = projects?.find(p => p.id === w.projectId);
         return Boolean(proj && (proj.ownerId === user?.uid || proj.memberUids?.includes(user?.uid)));
       })
