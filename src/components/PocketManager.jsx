@@ -43,6 +43,10 @@ export default function PocketManager({ accountId, role }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (role === 'viewer') {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     if (!name || !allocatedAmount || isSubmitting) return;
 
     const allocated = parseFloat(allocatedAmount);
@@ -120,6 +124,10 @@ export default function PocketManager({ accountId, role }) {
   };
 
   const handleEdit = (pocket) => {
+    if (role === 'viewer') {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     setEditingPocket(pocket);
     setName(pocket.name);
     setAllocatedAmount(pocket.allocatedAmount.toString());
@@ -131,6 +139,10 @@ export default function PocketManager({ accountId, role }) {
   };
 
   const handleDelete = async (id) => {
+    if (role === 'viewer') {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     if (window.confirm("Es-tu sûr de vouloir supprimer cette poche ? Les transactions liées perdront leur association.")) {
       try {
         await db.pockets.delete(id);
@@ -143,6 +155,10 @@ export default function PocketManager({ accountId, role }) {
 
   // Quick Debit handlers
   const openDebitModal = (pocket) => {
+    if (role === 'viewer') {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     setDebitTargetPocket(pocket);
     setDebitAmount('');
     setDebitModalOpen(true);

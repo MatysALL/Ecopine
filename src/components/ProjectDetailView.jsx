@@ -189,10 +189,13 @@ export default function ProjectDetailView({ project, onBack }) {
     if (window.confirm("Es-tu sûr de vouloir quitter ce projet partagé ?")) {
       try {
         await db.projects.leaveProject(project.id);
+        setSelectedAccId(null);
+        setEditingWish(null);
+        setBuyingWish(null);
         onBack();
       } catch (err) {
         console.error(err);
-        alert("Erreur lors du départ du projet.");
+        alert("Erreur lors du départ du projet : " + (err.message || err));
       }
     }
   };
@@ -757,7 +760,7 @@ export default function ProjectDetailView({ project, onBack }) {
               </div>
 
               {/* Pockets Manager inside project account */}
-              <PocketManager accountId={selectedAccId} />
+              <PocketManager accountId={selectedAccId} role={myRole} />
 
               {/* Account Transactions header */}
               <div className="bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm space-y-4">

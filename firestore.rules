@@ -8,14 +8,17 @@ service cloud.firestore {
         (request.auth.token.admin == true || request.auth.token.email == "matysallanet@gmail.com" || request.auth.uid == "admin");
     }
 
-    // Helper to check if user owns or is legacy member of a document
+    // Helper to check if user owns or is member of a document
     function isDocOwner(docData) {
       return request.auth != null && (
         docData == null || 
-        docData.userId == request.auth.uid || 
-        docData.creatorId == request.auth.uid || 
-        docData.ownerId == request.auth.uid || 
-        (docData.allowedUsers != null && request.auth.uid in docData.allowedUsers)
+        (docData.data.projectId == null && (
+          docData.data.userId == request.auth.uid || 
+          docData.data.creatorId == request.auth.uid || 
+          docData.data.ownerId == request.auth.uid ||
+          (docData.data.allowedUsers != null && request.auth.uid in docData.data.allowedUsers)
+        )) ||
+        (docData.data.projectId != null && docData.data.allowedUsers != null && request.auth.uid in docData.data.allowedUsers)
       );
     }
 

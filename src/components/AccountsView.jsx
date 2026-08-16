@@ -62,8 +62,15 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   const sortedAccounts = useMemo(() => {
     if (!accounts) return [];
-    return [...accounts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [accounts]);
+    return accounts
+      .filter(acc => {
+        if (!acc.projectId) return true;
+        if (acc.allowedUsers && acc.allowedUsers.includes(user?.uid)) return true;
+        const proj = projects?.find(p => p.id === acc.projectId);
+        return Boolean(proj && (proj.ownerId === user?.uid || proj.memberUids?.includes(user?.uid)));
+      })
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [accounts, user, projects]);
 
   const reorderAccounts = async (dragIndex, hoverIndex) => {
     if (dragIndex === hoverIndex || isNaN(dragIndex) || isNaN(hoverIndex)) return;
@@ -146,16 +153,29 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   // Fetch transactions for the active account
   const activeAccount = accounts?.find(a => a.id === selectedAccountId);
 
+  // Determine current project if account is associated with a project
+  const currentProject = useMemo(() => {
+    if (!activeAccount?.projectId) return null;
+    return projects?.find(p => p.id === activeAccount.projectId) || null;
+  }, [activeAccount, projects]);
+
   // Determine role for active account
   const myRole = useMemo(() => {
     if (!activeAccount) return 'owner';
+    if (activeAccount.projectId) {
+      if (!currentProject) return 'viewer';
+      if (currentProject.ownerId === user?.uid) return 'owner';
+      return currentProject.members?.[user?.uid]?.role || 'viewer';
+    }
     if (activeAccount.role) return activeAccount.role;
     const ownerId = activeAccount.userId || activeAccount.creatorId;
     if (ownerId && user?.uid && ownerId !== user.uid) {
       return 'viewer';
     }
     return 'owner';
-  }, [activeAccount, user]);
+  }, [activeAccount, currentProject, user]);
+
+  const canEdit = myRole === 'owner' || myRole === 'editor';
 
   const transactions = useMemo(() => {
     if (!selectedAccountId || !allTransactions) return [];
@@ -297,6 +317,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   };
 
   const handleEditAccount = (acc) => {
+    if (!canEdit) {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     setEditingAccount(acc);
     setAccName(acc.name || '');
     setAccBankName(acc.bankName || '');
@@ -306,6 +330,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   };
 
   const handleDeleteAccount = async (accId) => {
+    if (!canEdit) {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     const acc = accounts?.find(a => a.id === accId);
     if (!acc) return;
     const confirmDelete = window.confirm(
@@ -318,6 +346,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   };
 
   const handleAddTransactionFromBudget = (budgetId) => {
+    if (!canEdit) {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     setPreselectedBudgetId(budgetId);
     setEditingTransaction(null);
     setTxModalOpen(true);
@@ -325,6 +357,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   // Transaction CRUD handlers
   const handleSaveTransaction = async (txData) => {
+    if (!canEdit) {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     if (editingTransaction) {
       await db.transactions.update(editingTransaction.id, txData);
     } else {
@@ -335,6 +371,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   };
 
   const handleDeleteTransaction = async (txId) => {
+    if (!canEdit) {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     if (window.confirm("Supprimer cette transaction ?")) {
       await db.transactions.delete(txId);
     }
@@ -770,12 +810,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
           {/* Account Edit/Export/Import/Delete Controls */}
           <div className="flex flex-wrap gap-3 items-center">
-            <button
-              onClick={() => handleEditAccount(activeAccount)}
-              className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
-            >
-              <Edit className="w-4 h-4" /> Modifier le Compte
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => handleEditAccount(activeAccount)}
+                className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
+              >
+                <Edit className="w-4 h-4" /> Modifier le Compte
+              </button>
+            )}
 
             {/* 📤 Exporter en CSV */}
             <button
@@ -787,22 +829,32 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             </button>
 
             {/* 📥 Importer un CSV */}
-            <label className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer">
-              <Upload className="w-4 h-4 text-ac-sky" /> 📥 Importer un CSV
-              <input 
-                type="file" 
-                accept=".csv" 
-                className="hidden" 
-                onChange={handleFileInput} 
-              />
-            </label>
+            {canEdit && (
+              <label className="bg-white hover:bg-ac-cream text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer">
+                <Upload className="w-4 h-4 text-ac-sky" /> 📥 Importer un CSV
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  className="hidden" 
+                  onChange={handleFileInput} 
+                />
+              </label>
+            )}
 
-            <button
-              onClick={() => handleDeleteAccount(activeAccount.id)}
-              className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" /> Supprimer le Compte
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => handleDeleteAccount(activeAccount.id)}
+                className="bg-ac-red-light hover:bg-ac-red/10 text-ac-red font-extrabold text-xs px-4 py-2.5 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-transform active:translate-y-[1px] cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" /> Supprimer le Compte
+              </button>
+            )}
+
+            {!canEdit && (
+              <span className="text-xs font-bold text-ac-brown-light bg-slate-100 px-3 py-1.5 rounded-full border border-slate-300">
+                Mode spectateur (lecture seule)
+              </span>
+            )}
           </div>
 
           {/* Nested Pocket Section */}
@@ -819,17 +871,19 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   Visualise, ajoute ou modifie tes écritures comptables.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3 self-start sm:self-auto">
-                <button
-                  onClick={() => {
-                    setEditingTransaction(null);
-                    setTxModalOpen(true);
-                  }}
-                  className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Nouvelle Transaction
-                </button>
-              </div>
+              {canEdit && (
+                <div className="flex flex-wrap gap-3 self-start sm:self-auto">
+                  <button
+                    onClick={() => {
+                      setEditingTransaction(null);
+                      setTxModalOpen(true);
+                    }}
+                    className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Nouvelle Transaction
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* CSV Error Banner */}

@@ -3,7 +3,7 @@ import { auth, googleProvider, db as firestoreDb } from './firebase';
 import { 
   collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, 
   setDoc, query, where, onSnapshot, writeBatch, runTransaction,
-  arrayUnion, arrayRemove
+  arrayUnion, arrayRemove, deleteField
 } from 'firebase/firestore';
 import { 
   createUserWithEmailAndPassword, 
@@ -1308,32 +1308,46 @@ export const db = {
     },
     removeMember: async (projectId, memberUid) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const ref = doc(firestoreDb, 'projects', projectId);
-      const projSnap = await getDoc(ref);
+      const projRef = doc(firestoreDb, 'projects', projectId);
+      const projSnap = await getDoc(projRef);
       if (!projSnap.exists()) return;
-      const data = projSnap.data();
-      const newMembers = { ...data.members };
-      delete newMembers[memberUid];
-      const newMemberUids = (data.memberUids || []).filter(u => u !== memberUid);
+      const projData = projSnap.data();
 
-      await updateDoc(ref, {
-        memberUids: newMemberUids,
-        members: newMembers
+      const batch = writeBatch(firestoreDb);
+
+      // 1. In project document: remove memberUid from memberUids & delete user from members object
+      batch.update(projRef, {
+        memberUids: arrayRemove(memberUid),
+        [`members.${memberUid}`]: deleteField()
       });
 
-      // Update allowedUsers on project resources
+      // 2. In project resources (accounts, wishlist, debts, pockets, transactions): remove memberUid from allowedUsers
       const collectionsToUpdate = ['accounts', 'wishlist', 'debts', 'pockets', 'transactions'];
-      for (const col of collectionsToUpdate) {
-        const qCol = query(collection(firestoreDb, col), where('projectId', '==', projectId));
+      for (const colName of collectionsToUpdate) {
+        const qCol = query(collection(firestoreDb, colName), where('projectId', '==', projectId));
         const snap = await getDocs(qCol);
-        if (!snap.empty) {
-          const batch = writeBatch(firestoreDb);
-          snap.docs.forEach(d => {
-            batch.update(d.ref, { allowedUsers: newMemberUids });
-          });
-          await batch.commit();
-        }
+        snap.docs.forEach(d => {
+          const docData = d.data();
+          const updatePayload = {
+            allowedUsers: arrayRemove(memberUid)
+          };
+          if (docData.userId === memberUid) {
+            updatePayload.userId = projData.ownerId || auth.currentUser.uid;
+          }
+          if (docData.creatorId === memberUid) {
+            updatePayload.creatorId = projData.ownerId || auth.currentUser.uid;
+          }
+          if (docData.ownerId === memberUid) {
+            updatePayload.ownerId = projData.ownerId || auth.currentUser.uid;
+          }
+          batch.update(d.ref, updatePayload);
+        });
       }
+
+      await batch.commit();
+    },
+    removeMemberFromProject: async (projectId, memberUid) => {
+      return db.projects.removeMember(projectId, memberUid);
     },
     updateMemberRole: async (projectId, memberUid, newRole) => {
       const ref = doc(firestoreDb, 'projects', projectId);
@@ -2118,14 +2132,42 @@ export const DbProvider = ({ children }) => {
     return list;
   }, [usersMetaDoc]);
 
+  // Helper: check if a project resource is accessible to currentUser
+  const isResourceAccessible = useMemo(() => {
+    return (item) => {
+      if (!item.projectId) return true;
+      if (item.allowedUsers && item.allowedUsers.includes(currentUser?.uid)) return true;
+      const proj = projects?.find(p => p.id === item.projectId);
+      return Boolean(proj && (proj.ownerId === currentUser?.uid || proj.memberUids?.includes(currentUser?.uid)));
+    };
+  }, [projects, currentUser]);
+
+  // Derived state: accessible accounts list
+  const accessibleAccounts = useMemo(() => {
+    if (!accounts) return [];
+    return accounts.filter(isResourceAccessible);
+  }, [accounts, isResourceAccessible]);
+
   // Derived state: accountsData with live balances pre-calculated
   const accountsData = useMemo(() => {
-    if (!accounts || !transactions) return [];
-    return accounts.map(acc => {
+    if (!accessibleAccounts || !transactions) return [];
+    return accessibleAccounts.map(acc => {
       const balance = getAccountBalanceSync(acc, transactions);
       return { ...acc, balance, visibleBalance: balance };
     }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [accounts, transactions]);
+  }, [accessibleAccounts, transactions]);
+
+  // Filtered wishlist (exclude project wishes if user is no longer member)
+  const filteredWishlist = useMemo(() => {
+    if (!wishlist) return [];
+    return wishlist.filter(isResourceAccessible);
+  }, [wishlist, isResourceAccessible]);
+
+  // Filtered debts (exclude project debts if user is no longer member)
+  const filteredDebts = useMemo(() => {
+    if (!debts) return [];
+    return debts.filter(isResourceAccessible);
+  }, [debts, isResourceAccessible]);
 
   // Derived state: favoriteAccountDetails
   const favoriteAccountDetails = useMemo(() => {
@@ -2217,12 +2259,12 @@ export const DbProvider = ({ children }) => {
     userProfile: usersMetaDoc,
     usersMetaDoc,
     userMeta,
-    accounts,
+    accounts: accessibleAccounts,
     transactions,
     pockets,
-    wishlist,
+    wishlist: filteredWishlist,
     categories,
-    debts,
+    debts: filteredDebts,
     friendships,
     projects,
     acceptedFriends,

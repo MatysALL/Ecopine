@@ -32,8 +32,15 @@ export default function WishlistView() {
 
   const sortedWishes = useMemo(() => {
     if (!wishes) return [];
-    return [...wishes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [wishes]);
+    return wishes
+      .filter(w => {
+        if (!w.projectId) return true;
+        if (w.allowedUsers && w.allowedUsers.includes(user?.uid)) return true;
+        const proj = projects?.find(p => p.id === w.projectId);
+        return Boolean(proj && (proj.ownerId === user?.uid || proj.memberUids?.includes(user?.uid)));
+      })
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [wishes, user, projects]);
 
   // Drag & Drop handlers for Wishes
   const handleDragStart = (e, index) => {
@@ -112,7 +119,20 @@ export default function WishlistView() {
     }
   };
 
+  const canUserEditWish = (wish) => {
+    if (!wish?.projectId) return true;
+    const proj = projects?.find(p => p.id === wish.projectId);
+    if (!proj) return false;
+    if (proj.ownerId === user?.uid) return true;
+    const memberRole = proj.members?.[user?.uid]?.role;
+    return memberRole === 'editor';
+  };
+
   const handleEditWish = (wish) => {
+    if (!canUserEditWish(wish)) {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     setEditingWish(wish);
     setWishName(wish.name || '');
     setWishDescription(wish.description || '');
@@ -120,6 +140,11 @@ export default function WishlistView() {
   };
 
   const handleDeleteWish = async (id) => {
+    const wish = wishes?.find(w => w.id === id);
+    if (wish && !canUserEditWish(wish)) {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     if (window.confirm("Es-tu sûr de vouloir retirer ce souhait de ton catalogue ?")) {
       await db.wishlist.delete(id);
     }
@@ -134,6 +159,10 @@ export default function WishlistView() {
 
   // Handlers for Purchase flow
   const openPurchaseModal = (wish) => {
+    if (!canUserEditWish(wish)) {
+      alert("Action non autorisée en mode spectateur.");
+      return;
+    }
     setBuyingWish(wish);
     setRealPrice(wish.price ? wish.price.toString() : '');
     setSelectedAccountId('');
@@ -353,39 +382,47 @@ export default function WishlistView() {
 
                 {/* Action Buttons Group */}
                 <div className={`mt-6 pt-4 border-t flex items-center justify-between ${isProjectWish ? 'border-slate-700' : 'border-ac-brown/10'}`}>
-                  {/* Edit & Delete */}
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={() => handleEditWish(wish)}
-                      className={`p-2 rounded-xl border cursor-pointer transition-colors ${
-                        isProjectWish 
-                          ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
-                          : 'hover:bg-ac-cream text-ac-brown-light hover:text-ac-brown border-ac-brown/15'
-                      }`}
-                      title="Modifier ce souhait"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteWish(wish.id)}
-                      className={`p-2 rounded-xl border cursor-pointer transition-colors ${
-                        isProjectWish 
-                          ? 'bg-slate-800 hover:bg-red-900/40 text-red-400 border-slate-700' 
-                          : 'hover:bg-ac-red-light text-ac-brown-light hover:text-ac-red border-ac-brown/15'
-                      }`}
-                      title="Supprimer ce souhait"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {canUserEditWish(wish) ? (
+                    <>
+                      {/* Edit & Delete */}
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => handleEditWish(wish)}
+                          className={`p-2 rounded-xl border cursor-pointer transition-colors ${
+                            isProjectWish 
+                              ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
+                              : 'hover:bg-ac-cream text-ac-brown-light hover:text-ac-brown border-ac-brown/15'
+                          }`}
+                          title="Modifier ce souhait"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteWish(wish.id)}
+                          className={`p-2 rounded-xl border cursor-pointer transition-colors ${
+                            isProjectWish 
+                              ? 'bg-slate-800 hover:bg-red-900/40 text-red-400 border-slate-700' 
+                              : 'hover:bg-ac-red-light text-ac-brown-light hover:text-ac-red border-ac-brown/15'
+                          }`}
+                          title="Supprimer ce souhait"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
 
-                  {/* Purchase Button */}
-                  <button
-                    onClick={() => openPurchaseModal(wish)}
-                    className="bg-ac-green text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 fill-white" /> Solder le souhait
-                  </button>
+                      {/* Purchase Button */}
+                      <button
+                        onClick={() => openPurchaseModal(wish)}
+                        className="bg-ac-green text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 fill-white" /> Solder le souhait
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-400 italic">
+                      Mode lecture seule (spectateur)
+                    </span>
+                  )}
                 </div>
               </div>
             );
