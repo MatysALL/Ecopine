@@ -414,7 +414,7 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                         <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border mt-1 inline-block ${
                           isProj ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-ac-brown/20 text-ac-brown-light'
                         }`}>
-                          🏦 {acc.bankName || '—'}
+                          🏦 {acc.bank || acc.bankName || '—'}
                         </span>
                       </div>
                       <div className="text-right flex items-center gap-2">

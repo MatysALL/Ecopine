@@ -56,11 +56,11 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
       const transactionData = {
         accountId: accountId,
         name: name.trim(),
-        label: name.trim(),
         description: name.trim(),
         amount: numAmount,
-        type: type === 'income' ? 'income' : 'expense',
+        type: type === 'income' ? 'credit' : 'debit',
         date,
+        createdAt: transaction?.createdAt || new Date().toISOString(),
         pocketId: pocketId || null
       };
 

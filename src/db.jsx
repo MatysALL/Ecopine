@@ -523,6 +523,221 @@ export function getProjectedBalanceSync(selectedAccountIds, targetDateStr, accou
 }
 
 /**
+ * Script de migration automatique batch Cloud Firestore
+ */
+export async function runFirestoreMigration() {
+  const stats = {
+    users_meta: 0,
+    accounts: 0,
+    wishlist: 0,
+    transactions: 0,
+    debts: 0,
+    project_debts: 0,
+    pockets: 0,
+    errors: []
+  };
+
+  const CHUNK_SIZE = 450;
+
+  // 1. users_meta
+  try {
+    const usersSnap = await getDocs(collection(firestoreDb, 'users_meta'));
+    for (let i = 0; i < usersSnap.docs.length; i += CHUNK_SIZE) {
+      const chunk = usersSnap.docs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(firestoreDb);
+      chunk.forEach(docSnap => {
+        const data = docSnap.data();
+        const updates = {
+          dashboardNote: deleteField()
+        };
+
+        if (Array.isArray(data.unlockedThemes) && data.unlockedThemes.length > 1) {
+          updates.unlockedThemes = ['default'];
+        }
+
+        if (typeof data.photoURL === 'string' && (data.photoURL.includes('googleusercontent.com') || data.photoURL.includes('lh3.google'))) {
+          updates.photoURL = '/pfp-ac.jpg';
+        }
+
+        if (!data.createdAt) {
+          updates.createdAt = new Date().toISOString();
+        }
+
+        batch.update(docSnap.ref, updates);
+        stats.users_meta++;
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    stats.errors.push(`users_meta: ${err.message}`);
+  }
+
+  // 2. accounts
+  try {
+    const accountsSnap = await getDocs(collection(firestoreDb, 'accounts'));
+    for (let i = 0; i < accountsSnap.docs.length; i += CHUNK_SIZE) {
+      const chunk = accountsSnap.docs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(firestoreDb);
+      chunk.forEach(docSnap => {
+        const data = docSnap.data();
+        const updates = {
+          bank: data.bank || data.bankName || '',
+          bankName: deleteField(),
+          initialBalance: deleteField(),
+          currentBalance: deleteField(),
+          accountType: deleteField(),
+          interestRate: deleteField(),
+          rib: deleteField(),
+          iban: deleteField(),
+          color: data.color || '#6CBAD8',
+          order: data.order ?? 0,
+          isFavorite: data.isFavorite ?? false,
+          projectId: data.projectId || null,
+          projectName: data.projectName || null,
+          createdAt: data.createdAt || new Date().toISOString()
+        };
+        batch.update(docSnap.ref, updates);
+        stats.accounts++;
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    stats.errors.push(`accounts: ${err.message}`);
+  }
+
+  // 3. wishlist
+  try {
+    const wishSnap = await getDocs(collection(firestoreDb, 'wishlist'));
+    for (let i = 0; i < wishSnap.docs.length; i += CHUNK_SIZE) {
+      const chunk = wishSnap.docs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(firestoreDb);
+      chunk.forEach(docSnap => {
+        const data = docSnap.data();
+        const updates = {
+          name: data.name || data.title || 'Souhait',
+          title: deleteField(),
+          estimatedPrice: deleteField(),
+          category: deleteField(),
+          isCompleted: data.isCompleted || false,
+          projectId: data.projectId || null,
+          createdAt: data.createdAt || new Date().toISOString()
+        };
+        batch.update(docSnap.ref, updates);
+        stats.wishlist++;
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    stats.errors.push(`wishlist: ${err.message}`);
+  }
+
+  // 4. transactions
+  try {
+    const txSnap = await getDocs(collection(firestoreDb, 'transactions'));
+    for (let i = 0; i < txSnap.docs.length; i += CHUNK_SIZE) {
+      const chunk = txSnap.docs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(firestoreDb);
+      chunk.forEach(docSnap => {
+        const data = docSnap.data();
+        const isCredit = data.type === 'credit' || data.type === 'income' || data.isIncome === true;
+        const updates = {
+          name: data.name || data.title || data.description || data.note || 'Transaction',
+          title: deleteField(),
+          note: deleteField(),
+          description: deleteField(),
+          category: deleteField(),
+          categoryId: deleteField(),
+          budgetId: deleteField(),
+          importBatchId: deleteField(),
+          importFileName: deleteField(),
+          importedAt: deleteField(),
+          isImported: deleteField(),
+          executionType: deleteField(),
+          recurrenceEnd: deleteField(),
+          recurrencePeriod: deleteField(),
+          type: isCredit ? 'credit' : 'debit',
+          createdAt: data.createdAt || new Date().toISOString(),
+          date: data.date || new Date().toISOString().split('T')[0]
+        };
+        batch.update(docSnap.ref, updates);
+        stats.transactions++;
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    stats.errors.push(`transactions: ${err.message}`);
+  }
+
+  // 5. debts -> project_debts or personal debts
+  try {
+    const debtsSnap = await getDocs(collection(firestoreDb, 'debts'));
+    for (let i = 0; i < debtsSnap.docs.length; i += CHUNK_SIZE) {
+      const chunk = debtsSnap.docs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(firestoreDb);
+      chunk.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.projectId) {
+          // Move to project_debts
+          const projectDebtRef = doc(collection(firestoreDb, 'project_debts'), docSnap.id);
+          batch.set(projectDebtRef, {
+            debtorName: data.debtorName || data.person || data.name || 'Débiteur',
+            creditorName: data.creditorName || '',
+            amount: Math.abs(Number(data.amount) || 0),
+            description: data.description || '',
+            date: data.date || new Date().toISOString().split('T')[0],
+            status: data.status || 'pending',
+            projectId: data.projectId,
+            projectName: data.projectName || '',
+            userId: data.userId || (auth.currentUser ? auth.currentUser.uid : ''),
+            allowedUsers: data.allowedUsers || [data.userId].filter(Boolean),
+            createdAt: data.createdAt || new Date().toISOString()
+          });
+          // Delete old doc from debts
+          batch.delete(docSnap.ref);
+          stats.project_debts++;
+        } else {
+          // Personal debt update
+          const updates = {
+            entityName: data.entityName || data.name || data.person || 'Entité',
+            name: deleteField(),
+            person: deleteField(),
+            type: data.type || 'to_pay',
+            createdAt: data.createdAt || new Date().toISOString()
+          };
+          batch.update(docSnap.ref, updates);
+          stats.debts++;
+        }
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    stats.errors.push(`debts: ${err.message}`);
+  }
+
+  // 6. pockets
+  try {
+    const pocketsSnap = await getDocs(collection(firestoreDb, 'pockets'));
+    for (let i = 0; i < pocketsSnap.docs.length; i += CHUNK_SIZE) {
+      const chunk = pocketsSnap.docs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(firestoreDb);
+      chunk.forEach(docSnap => {
+        const data = docSnap.data();
+        const updates = {
+          createdAt: data.createdAt || new Date().toISOString()
+        };
+        batch.update(docSnap.ref, updates);
+        stats.pockets++;
+      });
+      await batch.commit();
+    }
+  } catch (err) {
+    stats.errors.push(`pockets: ${err.message}`);
+  }
+
+  return stats;
+}
+
+/**
  * Legacy API compatibility layer mapping Dexie actions to Cloud Firestore
  */
 export const db = {
@@ -534,7 +749,6 @@ export const db = {
       const fieldMap = {
         'username': 'username',
         'favorite_account_id': 'favoriteAccountId',
-        'dashboard_note': 'dashboardNote',
         'photoURL': 'photoURL',
         'theme_preference': 'themePreference',
         'unlocked_themes': 'unlockedThemes',
@@ -556,10 +770,9 @@ export const db = {
         const data = docSnap.data();
         if (key === 'username') return { key: 'username', value: data.username };
         if (key === 'favorite_account_id') return { key: 'favorite_account_id', value: data.favoriteAccountId };
-        if (key === 'dashboard_note') return { key: 'dashboard_note', value: data.dashboardNote };
         if (key === 'photoURL') return { key: 'photoURL', value: data.photoURL };
         if (key === 'theme_preference') return { key: 'theme_preference', value: data.themePreference || 'default' };
-        if (key === 'unlocked_themes') return { key: 'unlocked_themes', value: data.unlockedThemes || ['default', 'red', 'blue', 'yellow'] };
+        if (key === 'unlocked_themes') return { key: 'unlocked_themes', value: data.unlockedThemes || ['default'] };
         if (key === 'tutorial_progress') return { key: 'tutorial_progress', value: data.tutorialProgress || { isCompleted: false, steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false } } };
       }
       return null;
@@ -580,7 +793,6 @@ export const db = {
       list.forEach(m => {
         if (m.key === 'username') fields.username = m.value;
         if (m.key === 'favorite_account_id') fields.favoriteAccountId = m.value;
-        if (m.key === 'dashboard_note') fields.dashboardNote = m.value;
         if (m.key === 'photoURL') fields.photoURL = m.value;
         if (m.key === 'theme_preference') fields.themePreference = m.value;
         if (m.key === 'unlocked_themes') fields.unlockedThemes = m.value;
@@ -597,7 +809,15 @@ export const db = {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
-        ...data,
+        name: data.name || 'Compte',
+        bank: data.bank || data.bankName || '',
+        description: data.description || '',
+        color: data.color || '#6CBAD8',
+        order: data.order ?? 0,
+        isFavorite: data.isFavorite ?? false,
+        projectId: data.projectId || null,
+        projectName: data.projectName || null,
+        createdAt: data.createdAt || new Date().toISOString(),
         userId: auth.currentUser.uid,
         allowedUsers: data.allowedUsers || (data.projectId ? (data.memberUids || [auth.currentUser.uid]) : [auth.currentUser.uid])
       };
@@ -611,10 +831,22 @@ export const db = {
     },
     update: async (id, data) => {
       const ref = doc(firestoreDb, 'accounts', id);
+      const cleanData = { ...data };
+      if (cleanData.bankName !== undefined && cleanData.bank === undefined) {
+        cleanData.bank = cleanData.bankName;
+      }
+      delete cleanData.bankName;
+      delete cleanData.initialBalance;
+      delete cleanData.currentBalance;
+      delete cleanData.accountType;
+      delete cleanData.interestRate;
+      delete cleanData.rib;
+      delete cleanData.iban;
+
       if (db._activeBatch) {
-        db._activeBatch.update(ref, data);
+        db._activeBatch.update(ref, cleanData);
       } else {
-        await updateDoc(ref, data);
+        await updateDoc(ref, cleanData);
       }
     },
     delete: async (id) => {
@@ -655,7 +887,15 @@ export const db = {
         const ref = doc(collection(firestoreDb, 'accounts'));
         const { id, ...rest } = item;
         batch.set(ref, {
-          ...rest,
+          name: rest.name || 'Compte',
+          bank: rest.bank || rest.bankName || '',
+          description: rest.description || '',
+          color: rest.color || '#6CBAD8',
+          order: rest.order ?? 0,
+          isFavorite: rest.isFavorite ?? false,
+          projectId: rest.projectId || null,
+          projectName: rest.projectName || null,
+          createdAt: rest.createdAt || new Date().toISOString(),
           userId: auth.currentUser.uid,
           allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
         });
@@ -668,8 +908,15 @@ export const db = {
   transactions: {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
+      const isCredit = data.type === 'credit' || data.type === 'income' || data.isIncome === true;
       const docData = {
-        ...data,
+        accountId: data.accountId,
+        name: data.name || data.title || data.description || data.note || 'Transaction',
+        amount: Math.abs(Number(data.amount) || 0),
+        type: isCredit ? 'credit' : 'debit',
+        date: data.date || new Date().toISOString().split('T')[0],
+        pocketId: data.pocketId || null,
+        createdAt: data.createdAt || new Date().toISOString(),
         userId: auth.currentUser.uid,
         allowedUsers: data.allowedUsers || [auth.currentUser.uid]
       };
@@ -684,7 +931,7 @@ export const db = {
           const pocketData = pocketSnap.data();
           const current = Number(pocketData.currentAmount) || 0;
           const txAmt = Number(data.amount) || 0;
-          const isExpense = data.type === 'expense' || data.type === 'debit';
+          const isExpense = docData.type === 'debit';
           const newAmt = isExpense ? current - txAmt : current + txAmt;
           batch.update(pocketRef, { currentAmount: newAmt });
         }
@@ -738,14 +985,35 @@ export const db = {
           }
 
           const txAmt = Number(data.amount !== undefined ? data.amount : oldTx.amount) || 0;
-          const type = data.type !== undefined ? data.type : oldTx.type;
-          const isExpense = type === 'expense' || type === 'debit';
+          const rawType = data.type !== undefined ? data.type : oldTx.type;
+          const isExpense = rawType === 'debit' || rawType === 'expense';
           const newAmt = isExpense ? current - txAmt : current + txAmt;
           batch.update(newPocketRef, { currentAmount: newAmt });
         }
       }
 
-      batch.update(txRef, data);
+      const cleanData = { ...data };
+      if (cleanData.type !== undefined) {
+        cleanData.type = (cleanData.type === 'credit' || cleanData.type === 'income') ? 'credit' : 'debit';
+      }
+      if (cleanData.title !== undefined && cleanData.name === undefined) {
+        cleanData.name = cleanData.title;
+      }
+      delete cleanData.title;
+      delete cleanData.note;
+      delete cleanData.description;
+      delete cleanData.category;
+      delete cleanData.categoryId;
+      delete cleanData.budgetId;
+      delete cleanData.importBatchId;
+      delete cleanData.importFileName;
+      delete cleanData.importedAt;
+      delete cleanData.isImported;
+      delete cleanData.executionType;
+      delete cleanData.recurrenceEnd;
+      delete cleanData.recurrencePeriod;
+
+      batch.update(txRef, cleanData);
 
       if (!db._activeBatch) {
         await batch.commit();
@@ -798,8 +1066,14 @@ export const db = {
         chunk.forEach(tx => {
           const ref = doc(collection(firestoreDb, 'transactions'));
           const { id, ...rest } = tx;
+          const isCredit = rest.type === 'credit' || rest.type === 'income' || rest.isIncome === true;
           batch.set(ref, {
-            ...rest,
+            accountId: rest.accountId,
+            name: rest.name || rest.title || rest.description || rest.note || 'Transaction',
+            amount: Math.abs(Number(rest.amount) || 0),
+            type: isCredit ? 'credit' : 'debit',
+            date: rest.date || nowIso.split('T')[0],
+            pocketId: rest.pocketId || null,
             userId: currentUid,
             allowedUsers: rest.allowedUsers || [currentUid],
             createdAt: rest.createdAt || nowIso
@@ -814,6 +1088,7 @@ export const db = {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
         ...data,
+        createdAt: data.createdAt || new Date().toISOString(),
         userId: auth.currentUser.uid,
         allowedUsers: data.allowedUsers || [auth.currentUser.uid]
       };
@@ -859,6 +1134,7 @@ export const db = {
         const { id, ...rest } = item;
         batch.set(ref, {
           ...rest,
+          createdAt: rest.createdAt || new Date().toISOString(),
           userId: auth.currentUser.uid,
           allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
         });
@@ -872,10 +1148,21 @@ export const db = {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
-        ...data,
+        name: data.name || data.title || 'Souhait',
+        description: data.description || '',
+        isCompleted: data.isCompleted || false,
+        completedAt: data.completedAt || null,
+        completedAmount: data.completedAmount || null,
+        order: data.order ?? 0,
+        projectId: data.projectId || null,
+        createdAt: data.createdAt || new Date().toISOString(),
         userId: auth.currentUser.uid,
         allowedUsers: data.allowedUsers || (data.projectId ? (data.memberUids || [auth.currentUser.uid]) : [auth.currentUser.uid])
       };
+      delete docData.title;
+      delete docData.estimatedPrice;
+      delete docData.category;
+
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'wishlist'));
         db._activeBatch.set(ref, docData);
@@ -886,10 +1173,18 @@ export const db = {
     },
     update: async (id, data) => {
       const ref = doc(firestoreDb, 'wishlist', id);
+      const cleanData = { ...data };
+      if (cleanData.title !== undefined && cleanData.name === undefined) {
+        cleanData.name = cleanData.title;
+      }
+      delete cleanData.title;
+      delete cleanData.estimatedPrice;
+      delete cleanData.category;
+
       if (db._activeBatch) {
-        db._activeBatch.update(ref, data);
+        db._activeBatch.update(ref, cleanData);
       } else {
-        await updateDoc(ref, data);
+        await updateDoc(ref, cleanData);
       }
     },
     delete: async (id) => {
@@ -917,9 +1212,16 @@ export const db = {
         const ref = doc(collection(firestoreDb, 'wishlist'));
         const { id, ...rest } = item;
         batch.set(ref, {
-          ...rest,
+          name: rest.name || rest.title || 'Souhait',
+          description: rest.description || '',
+          isCompleted: rest.isCompleted || false,
+          completedAt: rest.completedAt || null,
+          completedAmount: rest.completedAmount || null,
+          order: rest.order ?? 0,
+          projectId: rest.projectId || null,
+          createdAt: rest.createdAt || new Date().toISOString(),
           userId: auth.currentUser.uid,
-          allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
+          allowedUsers: rest.allowedUsers || (rest.projectId ? (rest.memberUids || [auth.currentUser.uid]) : [auth.currentUser.uid])
         });
       });
       if (!db._activeBatch) {
@@ -1081,10 +1383,21 @@ export const db = {
     add: async (data) => {
       if (!auth.currentUser) throw new Error("Non connecté");
       const docData = {
-        ...data,
+        entityName: data.entityName || data.name || data.person || 'Entité',
+        amount: Math.abs(Number(data.amount) || 0),
+        type: data.type || 'to_pay',
+        description: data.description || '',
+        status: data.status || 'pending',
+        date: data.date || new Date().toISOString().split('T')[0],
+        associatedFriendId: data.associatedFriendId || null,
+        associatedFriendName: data.associatedFriendName || null,
+        createdAt: data.createdAt || new Date().toISOString(),
         userId: data.userId || auth.currentUser.uid,
-        allowedUsers: data.allowedUsers || (data.projectId ? (data.memberUids || [auth.currentUser.uid]) : [auth.currentUser.uid])
+        allowedUsers: data.allowedUsers || [auth.currentUser.uid]
       };
+      delete docData.name;
+      delete docData.person;
+
       if (db._activeBatch) {
         const ref = doc(collection(firestoreDb, 'debts'));
         db._activeBatch.set(ref, docData);
@@ -1095,10 +1408,19 @@ export const db = {
     },
     update: async (id, data) => {
       const ref = doc(firestoreDb, 'debts', id);
+      const cleanData = { ...data };
+      if (cleanData.person !== undefined && cleanData.entityName === undefined) {
+        cleanData.entityName = cleanData.person;
+      } else if (cleanData.name !== undefined && cleanData.entityName === undefined) {
+        cleanData.entityName = cleanData.name;
+      }
+      delete cleanData.name;
+      delete cleanData.person;
+
       if (db._activeBatch) {
-        db._activeBatch.update(ref, data);
+        db._activeBatch.update(ref, cleanData);
       } else {
-        await updateDoc(ref, data);
+        await updateDoc(ref, cleanData);
       }
     },
     delete: async (id) => {
@@ -1126,7 +1448,90 @@ export const db = {
         const ref = doc(collection(firestoreDb, 'debts'));
         const { id, ...rest } = item;
         batch.set(ref, {
-          ...rest,
+          entityName: rest.entityName || rest.name || rest.person || 'Entité',
+          amount: Math.abs(Number(rest.amount) || 0),
+          type: rest.type || 'to_pay',
+          description: rest.description || '',
+          status: rest.status || 'pending',
+          date: rest.date || new Date().toISOString().split('T')[0],
+          associatedFriendId: rest.associatedFriendId || null,
+          associatedFriendName: rest.associatedFriendName || null,
+          createdAt: rest.createdAt || new Date().toISOString(),
+          userId: auth.currentUser.uid,
+          allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
+        });
+      });
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
+    }
+  },
+  project_debts: {
+    add: async (data) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const docData = {
+        debtorName: data.debtorName || data.name || 'Débiteur',
+        creditorName: data.creditorName || '',
+        amount: Math.abs(Number(data.amount) || 0),
+        description: data.description || '',
+        date: data.date || new Date().toISOString().split('T')[0],
+        status: data.status || 'pending',
+        projectId: data.projectId,
+        projectName: data.projectName || '',
+        createdAt: data.createdAt || new Date().toISOString(),
+        userId: data.userId || auth.currentUser.uid,
+        allowedUsers: data.allowedUsers || (data.projectId ? (data.memberUids || [auth.currentUser.uid]) : [auth.currentUser.uid])
+      };
+      if (db._activeBatch) {
+        const ref = doc(collection(firestoreDb, 'project_debts'));
+        db._activeBatch.set(ref, docData);
+        return ref.id;
+      }
+      const docRef = await addDoc(collection(firestoreDb, 'project_debts'), docData);
+      return docRef.id;
+    },
+    update: async (id, data) => {
+      const ref = doc(firestoreDb, 'project_debts', id);
+      if (db._activeBatch) {
+        db._activeBatch.update(ref, data);
+      } else {
+        await updateDoc(ref, data);
+      }
+    },
+    delete: async (id) => {
+      const ref = doc(firestoreDb, 'project_debts', id);
+      if (db._activeBatch) {
+        db._activeBatch.delete(ref);
+      } else {
+        await deleteDoc(ref);
+      }
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const q = query(collection(firestoreDb, 'project_debts'), where('userId', '==', auth.currentUser.uid));
+      const snap = await getDocs(q);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'project_debts', docSnap.id)));
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
+    },
+    bulkAdd: async (list) => {
+      if (!auth.currentUser) return;
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      list.forEach(item => {
+        const ref = doc(collection(firestoreDb, 'project_debts'));
+        const { id, ...rest } = item;
+        batch.set(ref, {
+          debtorName: rest.debtorName || rest.name || 'Débiteur',
+          creditorName: rest.creditorName || '',
+          amount: Math.abs(Number(rest.amount) || 0),
+          description: rest.description || '',
+          date: rest.date || new Date().toISOString().split('T')[0],
+          status: rest.status || 'pending',
+          projectId: rest.projectId,
+          projectName: rest.projectName || '',
+          createdAt: rest.createdAt || new Date().toISOString(),
           userId: auth.currentUser.uid,
           allowedUsers: rest.allowedUsers || [auth.currentUser.uid]
         });
@@ -1166,9 +1571,9 @@ export const db = {
       const ref = doc(firestoreDb, 'projects', id);
       await updateDoc(ref, data);
 
-      // If project name changed, sync projectName on project accounts/wishes/debts
+      // If project name changed, sync projectName on project accounts/wishes/debts/project_debts
       if (data.name) {
-        const collectionsToSync = ['accounts', 'wishlist', 'debts'];
+        const collectionsToSync = ['accounts', 'wishlist', 'debts', 'project_debts'];
         for (const col of collectionsToSync) {
           const qCol = query(collection(firestoreDb, col), where('projectId', '==', id));
           const snap = await getDocs(qCol);
@@ -1211,11 +1616,11 @@ export const db = {
         }
       });
 
-      // Update allowedUsers on all project accounts, wishlist, debts, pockets, transactions
+      // Update allowedUsers on all project accounts, wishlist, debts, project_debts, pockets, transactions
       const projSnap = await getDoc(ref);
       if (projSnap.exists()) {
         const updatedMemberUids = projSnap.data().memberUids || [];
-        const collectionsToUpdate = ['accounts', 'wishlist', 'debts', 'pockets', 'transactions'];
+        const collectionsToUpdate = ['accounts', 'wishlist', 'debts', 'project_debts', 'pockets', 'transactions'];
         for (const col of collectionsToUpdate) {
           const qCol = query(collection(firestoreDb, col), where('projectId', '==', projectId));
           const snap = await getDocs(qCol);
@@ -1273,13 +1678,21 @@ export const db = {
         await batch1.commit();
       }
 
-      // 3. Purge all debts
+      // 3. Purge all debts & project_debts
       const debtsQuery = query(collection(firestoreDb, 'debts'), where('projectId', '==', projectId));
       const debtsSnap = await getDocs(debtsQuery);
       if (!debtsSnap.empty) {
         const batch2 = writeBatch(firestoreDb);
         debtsSnap.docs.forEach(d => batch2.delete(d.ref));
         await batch2.commit();
+      }
+
+      const projDebtsQuery = query(collection(firestoreDb, 'project_debts'), where('projectId', '==', projectId));
+      const projDebtsSnap = await getDocs(projDebtsQuery);
+      if (!projDebtsSnap.empty) {
+        const batch3 = writeBatch(firestoreDb);
+        projDebtsSnap.docs.forEach(d => batch3.delete(d.ref));
+        await batch3.commit();
       }
 
       // 4. Delete project document
@@ -1329,6 +1742,7 @@ export async function purgeUserCascadeData(targetUid) {
     { name: 'wishlist', fields: ['userId', 'creatorId', 'ownerId'] },
     { name: 'wishlists', fields: ['userId', 'creatorId', 'ownerId'] },
     { name: 'debts', fields: ['userId', 'creatorId', 'ownerId'] },
+    { name: 'project_debts', fields: ['userId', 'creatorId', 'ownerId'] },
     { name: 'imports', fields: ['userId', 'creatorId', 'ownerId'] }
   ];
 
@@ -1397,7 +1811,6 @@ export async function adminResetUser(targetUid) {
   const userRef = doc(firestoreDb, 'users_meta', targetUid);
   await updateDoc(userRef, {
     favoriteAccountId: null,
-    dashboardNote: '',
     tutorialProgress: {
       isCompleted: false,
       steps: {
@@ -1482,15 +1895,10 @@ export const useDb = () => {
 };
 
 /**
- * Calculates the active theme based on user profile preferences and category list,
- * strictly applying the following priority:
- * 1. Priority 1 (Easter Egg 3): Category name exactly "waif" (case-insensitive) -> "NEON_MULTICOLOR"
- * 2. Priority 2 (Easter Egg 2): User's username is exactly "Wayfs" (case-insensitive) -> "DARK_BLUE_PURPLE"
- * 3. Priority 3 (Easter Egg 1): User's username is "Léa" or "Lea" (case-insensitive) -> "SAKURA_PINK_PURPLE"
- * 4. Priority 4: Manual choice themePreference ('default', 'red', 'blue', 'yellow')
+ * Calculates the active theme based on user profile preferences
  */
 export function getActiveTheme(userProfile) {
-  const unlocked = userProfile?.unlockedThemes || ['default', 'red', 'blue', 'yellow'];
+  const unlocked = userProfile?.unlockedThemes || ['default'];
   const pref = userProfile?.themePreference || 'default';
   if (unlocked.includes(pref)) {
     return pref;
@@ -1508,6 +1916,7 @@ export const DbProvider = ({ children }) => {
   const [pockets, setPockets] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [debts, setDebts] = useState([]);
+  const [projectDebts, setProjectDebts] = useState([]);
   const [friendships, setFriendships] = useState([]);
   const [projects, setProjects] = useState([]);
   
@@ -1525,7 +1934,7 @@ export const DbProvider = ({ children }) => {
   useEffect(() => {
     if (!currentUser || !usersMetaDoc) return;
 
-    const unlocked = usersMetaDoc.unlockedThemes || ['default', 'red', 'blue', 'yellow'];
+    const unlocked = usersMetaDoc.unlockedThemes || ['default'];
     const username = usersMetaDoc.username || '';
     const themePref = usersMetaDoc.themePreference || 'default';
 
@@ -1573,9 +1982,8 @@ export const DbProvider = ({ children }) => {
       photoURL: '/pfp-ac.jpg',
       role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
       themePreference: 'default',
-      unlockedThemes: ['default', 'red', 'blue', 'yellow'],
+      unlockedThemes: ['default'],
       favoriteAccountId: null,
-      dashboardNote: '',
       createdAt: new Date().toISOString(),
       tutorialProgress: {
         isCompleted: false,
@@ -1612,12 +2020,11 @@ export const DbProvider = ({ children }) => {
             uid: user.uid,
             email: user.email ? user.email.toLowerCase() : '',
             username: user.displayName || "Habitant",
-            photoURL: user.photoURL || "/pfp-ac.jpg",
+            photoURL: "/pfp-ac.jpg",
             role: user.email?.toLowerCase() === "matysallanet@gmail.com" ? "admin" : "member",
             themePreference: "default",
-            unlockedThemes: ["default", "red", "blue", "yellow"],
+            unlockedThemes: ["default"],
             favoriteAccountId: null,
-            dashboardNote: "",
             createdAt: new Date().toISOString(),
             tutorialProgress: {
               isCompleted: false,
@@ -1626,8 +2033,7 @@ export const DbProvider = ({ children }) => {
           });
         } else {
           await setDoc(metaRef, {
-            email: user.email ? user.email.toLowerCase() : '',
-            photoURL: user.photoURL || docSnap.data().photoURL || "/pfp-ac.jpg"
+            email: user.email ? user.email.toLowerCase() : ''
           }, { merge: true });
         }
       }
@@ -1659,6 +2065,7 @@ export const DbProvider = ({ children }) => {
         setPockets([]);
         setWishlist([]);
         setDebts([]);
+        setProjectDebts([]);
         setFriendships([]);
         setProjects([]);
         setUsersMetaDoc(null);
@@ -1707,7 +2114,7 @@ export const DbProvider = ({ children }) => {
           updates.email = currentUser.email.toLowerCase();
         }
         if (!data.photoURL) {
-          updates.photoURL = currentUser.photoURL || '/pfp-ac.jpg';
+          updates.photoURL = '/pfp-ac.jpg';
         }
         if (currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' && data.role !== 'admin') {
           updates.role = 'admin';
@@ -1718,8 +2125,6 @@ export const DbProvider = ({ children }) => {
           updateDoc(metaRef, updates).catch(err => console.error(err));
         }
       } else {
-        // Only trigger immediate logout if the document previously existed during this active session
-        // (i.e. was just deleted in real-time by an admin)
         if (hadDoc) {
           console.warn("Profil utilisateur supprimé en temps réel par l'administrateur. Déconnexion...");
           signOut(auth).then(() => {
@@ -1749,14 +2154,11 @@ export const DbProvider = ({ children }) => {
     });
     unsubscribes.push(unsubAllMeta);
 
-    // Helpers for snapshot listeners targeting document owner (userId or legacy fields: creatorId, ownerId, allowedUsers)
+    // Helpers for snapshot listeners targeting document owner
     const subscribeCollectionOwned = (colName, setList) => {
       const docsMap = {};
       const notify = () => {
         const list = Object.values(docsMap);
-        if (colName === 'debts') {
-          console.log("Dettes brutes Firestore :", list);
-        }
         setList(list);
       };
 
@@ -1790,9 +2192,9 @@ export const DbProvider = ({ children }) => {
     unsubscribes.push(subscribeCollectionOwned('accounts', setAccounts));
     unsubscribes.push(subscribeCollectionOwned('wishlist', setWishlist));
     unsubscribes.push(subscribeCollectionOwned('debts', setDebts));
+    unsubscribes.push(subscribeCollectionOwned('project_debts', setProjectDebts));
 
-
-    // Friendships Subscriptions (both senderId and receiverId)
+    // Friendships Subscriptions
     const qFriendshipsSender = query(collection(firestoreDb, 'friendships'), where('senderId', '==', currentUser.uid));
     const qFriendshipsReceiver = query(collection(firestoreDb, 'friendships'), where('receiverId', '==', currentUser.uid));
     
@@ -1827,7 +2229,7 @@ export const DbProvider = ({ children }) => {
     });
     unsubscribes.push(unsubReceivers);
 
-    // Projects Subscriptions (where memberUids array-contains currentUser.uid or ownerId == currentUser.uid)
+    // Projects Subscriptions
     const qProjectsMember = query(collection(firestoreDb, 'projects'), where('memberUids', 'array-contains', currentUser.uid));
     const qProjectsOwner = query(collection(firestoreDb, 'projects'), where('ownerId', '==', currentUser.uid));
 
@@ -1888,7 +2290,6 @@ export const DbProvider = ({ children }) => {
       return;
     }
 
-    // Chunk size 30 for 'in' operator limits in Firestore (safest batching)
     const chunks = [];
     for (let i = 0; i < accountIds.length; i += 30) {
       chunks.push(accountIds.slice(i, i + 30));
@@ -1982,7 +2383,7 @@ export const DbProvider = ({ children }) => {
     updateRenewals().catch(err => console.error("Error auto-renewing pockets:", err));
   }, [pockets, currentUser]);
 
-  // Derived userMeta compatibility format (array of {key, value})
+  // Derived userMeta compatibility format
   const userMeta = useMemo(() => {
     const list = [];
     if (usersMetaDoc) {
@@ -1991,9 +2392,6 @@ export const DbProvider = ({ children }) => {
       }
       if (usersMetaDoc.favoriteAccountId !== undefined) {
         list.push({ key: 'favorite_account_id', value: usersMetaDoc.favoriteAccountId });
-      }
-      if (usersMetaDoc.dashboardNote !== undefined) {
-        list.push({ key: 'dashboard_note', value: usersMetaDoc.dashboardNote });
       }
       if (usersMetaDoc.photoURL !== undefined) {
         list.push({ key: 'photoURL', value: usersMetaDoc.photoURL });
@@ -2035,17 +2433,23 @@ export const DbProvider = ({ children }) => {
     }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [accessibleAccounts, transactions]);
 
-  // Filtered wishlist (exclude project wishes if user is no longer member)
+  // Filtered wishlist
   const filteredWishlist = useMemo(() => {
     if (!wishlist) return [];
     return wishlist.filter(isResourceAccessible);
   }, [wishlist, isResourceAccessible]);
 
-  // Filtered debts (exclude project debts if user is no longer member)
+  // Filtered personal debts (exclude project debts)
   const filteredDebts = useMemo(() => {
     if (!debts) return [];
-    return debts.filter(isResourceAccessible);
-  }, [debts, isResourceAccessible]);
+    return debts.filter(d => !d.projectId);
+  }, [debts]);
+
+  // Filtered project debts
+  const filteredProjectDebts = useMemo(() => {
+    if (!projectDebts) return [];
+    return projectDebts.filter(isResourceAccessible);
+  }, [projectDebts, isResourceAccessible]);
 
   // Derived state: favoriteAccountDetails
   const favoriteAccountDetails = useMemo(() => {
@@ -2096,7 +2500,7 @@ export const DbProvider = ({ children }) => {
       .slice(0, 5);
   }, [transactions]);
 
-  // Derived state: acceptedFriends (friends with status === 'accepted', strictly sorted alphabetically by name)
+  // Derived state: acceptedFriends
   const acceptedFriends = useMemo(() => {
     if (!friendships || !currentUser) return [];
     return friendships
@@ -2114,10 +2518,8 @@ export const DbProvider = ({ children }) => {
           email: isSender ? f.receiverEmail : f.senderEmail,
           name: meta?.username || (isSender ? f.receiverName : f.senderName) || (isSender ? f.receiverEmail : f.senderEmail) || 'Habitant',
           photoURL: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg',
-          // What current user allows this friend to do on current user's account:
           myAllowDebts: myPermissions.allowDebts !== false,
           myAllowProjects: myPermissions.allowProjects !== false,
-          // What this friend allows current user to do on friend's account:
           allowDebts: friendPermissions.allowDebts !== false,
           allowProjects: friendPermissions.allowProjects !== false,
           permissions: f.permissions || {}
@@ -2144,6 +2546,8 @@ export const DbProvider = ({ children }) => {
     pockets,
     wishlist: filteredWishlist,
     debts: filteredDebts,
+    projectDebts: filteredProjectDebts,
+    project_debts: filteredProjectDebts,
     friendships,
     projects,
     acceptedFriends,
@@ -2158,13 +2562,14 @@ export const DbProvider = ({ children }) => {
     allUsersMeta,
     activeTheme,
     getActiveTheme,
-    unlockedThemes: usersMetaDoc?.unlockedThemes || ['default', 'red', 'blue', 'yellow'],
+    unlockedThemes: usersMetaDoc?.unlockedThemes || ['default'],
     pendingRequestsCount,
     adminResetUser,
     adminDeleteUser,
     purgeUserCascadeData,
     resetMyAccount,
     deleteMyAccount,
+    runFirestoreMigration,
     isAdmin: usersMetaDoc?.role === 'admin' || currentUser?.email?.toLowerCase() === 'matysallanet@gmail.com',
     tutorialProgress: {
       isCompleted: usersMetaDoc?.tutorialProgress?.isCompleted ?? false,

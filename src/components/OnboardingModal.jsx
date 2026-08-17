@@ -36,11 +36,12 @@ export default function OnboardingModal() {
       // 2. Add first personal account
       const newAccountId = await db.accounts.add({
         name: accountName.trim(),
-        bankName: bankName.trim(),
+        bank: bankName.trim(),
         description: description.trim() || 'Compte initial de mon île',
-        color: color || '#78B159',
+        color: color || '#6CBAD8',
         order: 0,
-        isFavorite: true
+        isFavorite: true,
+        createdAt: new Date().toISOString()
       });
 
       // 3. Mark as default favorite account

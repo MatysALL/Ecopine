@@ -193,10 +193,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     try {
       const data = {
         name: accName.trim(),
-        bankName: accBankName.trim(),
         bank: accBankName.trim(),
         description: accDescription.trim(),
-        color: editingAccount?.projectId ? '#1E232A' : (accColor || '#78B159'),
+        color: editingAccount?.projectId ? '#1E232A' : (accColor || '#6CBAD8'),
       };
 
       if (editingAccount) {
@@ -205,7 +204,8 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       } else {
         const newId = await db.accounts.add({
           ...data,
-          order: sortedAccounts.length
+          order: sortedAccounts.length,
+          createdAt: new Date().toISOString()
         });
         setSelectedAccountId(newId);
 
@@ -229,7 +229,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccName('');
     setAccBankName('');
     setAccDescription('');
-    setAccColor('#78B159');
+    setAccColor('#6CBAD8');
   };
 
   const handleTransferSubmit = async (e) => {
@@ -260,33 +260,26 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
     const desc = transferDesc.trim() || 'Virement';
     const dateStr = new Date().toISOString().split('T')[0];
+    const nowIso = new Date().toISOString();
 
     const sourceTx = {
       accountId: transferSourceId,
       name: `Virement vers ${destAccount.name} : ${desc}`,
-      label: `Virement vers ${destAccount.name} : ${desc}`,
       description: `Virement vers ${destAccount.name} : ${desc}`,
       amount: amount,
-      type: 'expense',
+      type: 'debit',
       date: dateStr,
-      executionType: 'spontaneous',
-      isRecurring: false,
-      recurrencePeriod: 'none',
-      recurrenceEnd: ''
+      createdAt: nowIso
     };
 
     const destTx = {
       accountId: transferDestId,
       name: `Virement depuis ${sourceAccount.name} : ${desc}`,
-      label: `Virement depuis ${sourceAccount.name} : ${desc}`,
       description: `Virement depuis ${sourceAccount.name} : ${desc}`,
       amount: amount,
-      type: 'income',
+      type: 'credit',
       date: dateStr,
-      executionType: 'spontaneous',
-      isRecurring: false,
-      recurrencePeriod: 'none',
-      recurrenceEnd: ''
+      createdAt: nowIso
     };
 
     await db.transaction('rw', db.transactions, async () => {
@@ -312,9 +305,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
     setEditingAccount(acc);
     setAccName(acc.name || '');
-    setAccBankName(acc.bankName || '');
+    setAccBankName(acc.bank || acc.bankName || '');
     setAccDescription(acc.description || '');
-    setAccColor(acc.projectId ? '#1E232A' : (acc.color || '#78B159'));
+    setAccColor(acc.projectId ? '#1E232A' : (acc.color || '#6CBAD8'));
     setAccountFormOpen(true);
   };
 
@@ -642,17 +635,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     console.log(`Validation de l'importation de ${csvPreviewTxs.length} transactions...`);
 
     const preparedTxs = csvPreviewTxs.map(tx => ({
-      ...tx,
       accountId: String(selectedAccountId),
       userId: currentUid,
       allowedUsers: currentUid ? [currentUid] : [],
       name: String(tx.name || tx.description || 'Transaction sans nom'),
       description: String(tx.description || tx.name || 'Transaction sans nom'),
-      title: String(tx.name || tx.description || 'Transaction sans nom'),
       amount: Math.abs(Number(tx.amount) || 0),
       type: tx.type === 'credit' ? 'credit' : 'debit',
       date: String(tx.date),
-      executionType: 'spontaneous',
       createdAt: tx.createdAt || nowIso
     }));
 
@@ -700,7 +690,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               <div>
                 <h2 className={`text-2xl font-black flex items-center gap-2 flex-wrap ${activeAccount.projectId ? 'text-white' : 'text-ac-brown'}`}>
                   {(() => {
-                    const accountName = activeAccount.name || activeAccount.title || "Compte";
+                    const accountName = activeAccount.name || "Compte";
                     const projectName = activeAccount.projectName || (projects?.find(p => p.id === activeAccount.projectId)?.name) || "";
                     return projectName ? `${accountName} - ${projectName}` : accountName;
                   })()}
@@ -714,7 +704,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       ? 'bg-slate-800 text-slate-300 border-slate-700' 
                       : 'text-ac-brown-light bg-ac-cream border-ac-brown/15'
                   }`}>
-                    {activeAccount.bankName || '—'}
+                    {activeAccount.bank || activeAccount.bankName || '—'}
                   </span>
                 </h2>
                 {activeAccount.description && (
@@ -1133,7 +1123,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                           )}
                         </div>
                         <span className={`text-[10px] font-bold block mt-1.5 ${isProjectAcc ? 'text-slate-300' : 'text-ac-brown-light'}`}>
-                          🏦 {acc.bankName || '—'}
+                          🏦 {acc.bank || acc.bankName || '—'}
                         </span>
                       </div>
 

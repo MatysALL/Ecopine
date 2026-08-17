@@ -95,7 +95,6 @@ export default function WishlistView() {
     setIsSubmitting(true);
     try {
       const wishData = {
-        title: wishName.trim(),
         name: wishName.trim(),
         description: wishDescription.trim(),
         isCompleted: false,
@@ -139,7 +138,7 @@ export default function WishlistView() {
       return;
     }
     setEditingWish(wish);
-    setWishName(wish.title || wish.name || '');
+    setWishName(wish.name || wish.title || '');
     setWishDescription(wish.description || '');
     setFormOpen(true);
   };
@@ -193,17 +192,17 @@ export default function WishlistView() {
     setIsBuying(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const wishTitle = buyingWish.title || buyingWish.name;
+      const wishTitle = buyingWish.name || buyingWish.title;
 
-      // Create the debit transaction (expense)
+      // Create the debit transaction
       const newTx = {
         accountId: selectedAccountId,
         name: `Achat : ${wishTitle}`,
-        label: `Achat : ${wishTitle}`,
         description: buyingWish.description || `Achat depuis le Catalogue : ${wishTitle}`,
         amount: priceValue,
-        type: 'expense',
+        type: 'debit',
         date: todayStr,
+        createdAt: new Date().toISOString(),
         pocketId: null
       };
 

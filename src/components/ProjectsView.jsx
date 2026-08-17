@@ -7,7 +7,7 @@ import {
 import ProjectDetailView from './ProjectDetailView';
 
 export default function ProjectsView() {
-  const { projects = [], user, accounts = [], wishlist = [], debts = [], allUsersMeta = [] } = useDb();
+  const { projects = [], user, accounts = [], wishlist = [], projectDebts = [] } = useDb();
   
   // Selected project ID for detailed view
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -144,7 +144,7 @@ export default function ProjectsView() {
             const memberCount = (proj.memberUids || []).length;
             const projAccountsCount = accounts.filter(a => a.projectId === proj.id).length;
             const projWishesCount = wishlist.filter(w => w.projectId === proj.id).length;
-            const projDebtsCount = debts.filter(d => d.projectId === proj.id && d.status !== 'resolved' && d.status !== 'settled').length;
+            const projDebtsCount = projectDebts.filter(d => d.projectId === proj.id && d.status !== 'settled').length;
 
             const formattedDate = proj.createdAt 
               ? new Date(proj.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })

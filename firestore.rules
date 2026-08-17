@@ -32,6 +32,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null && (isDocOwner(resource) || isAdmin());
     }
 
+    // Project Debts collection
+    match /project_debts/{debtId} {
+      allow read, write: if request.auth != null && (isDocOwner(resource) || isAdmin());
+    }
+
     // Wishlist collection
     match /wishlist/{wishId} {
       allow read, write: if request.auth != null && (isDocOwner(resource) || isAdmin());

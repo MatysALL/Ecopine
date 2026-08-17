@@ -110,7 +110,8 @@ export default function PocketManager({ accountId, role }) {
         await db.pockets.add({
           ...pocketData,
           currentAmount: allocated,
-          order: pockets.length
+          order: pockets.length,
+          createdAt: new Date().toISOString()
         });
       }
 
@@ -181,11 +182,11 @@ export default function PocketManager({ accountId, role }) {
         accountId,
         pocketId: debitTargetPocket.id,
         name: `Débit : ${debitTargetPocket.name}`,
-        label: `Débit : ${debitTargetPocket.name}`,
         description: `Débit rapide de la poche ${debitTargetPocket.name}`,
         amount: amt,
-        type: 'expense',
-        date: todayStr
+        type: 'debit',
+        date: todayStr,
+        createdAt: new Date().toISOString()
       });
       setDebitModalOpen(false);
       setDebitTargetPocket(null);

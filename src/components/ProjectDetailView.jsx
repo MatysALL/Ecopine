@@ -17,7 +17,7 @@ export default function ProjectDetailView({ project, onBack }) {
     transactions, 
     pockets, 
     wishlist, 
-    debts, 
+    projectDebts: allProjectDebts, 
     acceptedFriends, 
     allUsersMeta 
   } = useDb();
@@ -117,10 +117,10 @@ export default function ProjectDetailView({ project, onBack }) {
 
   // Filter project-specific debts
   const projectDebts = useMemo(() => {
-    return (debts || [])
+    return (allProjectDebts || [])
       .filter(d => d.projectId === project.id)
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  }, [debts, project.id]);
+  }, [allProjectDebts, project.id]);
 
   // Members list with metadata resolved
   const projectMemberList = useMemo(() => {
@@ -248,12 +248,12 @@ export default function ProjectDetailView({ project, onBack }) {
     try {
       await db.accounts.add({
         name: accName.trim(),
-        bankName: accBankName.trim(),
         bank: accBankName.trim(),
         description: accDescription.trim(),
         color: '#1E232A',
         projectId: project.id,
         projectName: project.name,
+        createdAt: new Date().toISOString(),
         allowedUsers: project.memberUids || [user.uid]
       });
       setAccName('');
@@ -288,6 +288,7 @@ export default function ProjectDetailView({ project, onBack }) {
         accountId: selectedAccId,
         projectId: project.id,
         projectName: project.name,
+        createdAt: txData.createdAt || new Date().toISOString(),
         allowedUsers: project.memberUids || [user.uid]
       };
       if (editingTx) {
@@ -321,7 +322,6 @@ export default function ProjectDetailView({ project, onBack }) {
     if (!wishName.trim() || !canEdit) return;
     try {
       const wishData = {
-        title: wishName.trim(),
         name: wishName.trim(),
         description: wishDesc.trim(),
         isCompleted: false,
@@ -329,6 +329,7 @@ export default function ProjectDetailView({ project, onBack }) {
         completedAmount: null,
         projectId: project.id,
         projectName: project.name,
+        createdAt: new Date().toISOString(),
         allowedUsers: project.memberUids || [user.uid]
       };
       if (editingWish) {
@@ -371,16 +372,15 @@ export default function ProjectDetailView({ project, onBack }) {
     }
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const wishTitle = buyingWish.title || buyingWish.name;
+      const wishTitle = buyingWish.name || buyingWish.title;
       await db.transactions.add({
         accountId: buyingAccountId,
         name: `Achat souhait : ${wishTitle}`,
-        label: `Achat souhait : ${wishTitle}`,
         description: buyingWish.description || 'Souhait projet réalisé',
         amount: priceVal,
-        type: 'expense',
+        type: 'debit',
         date: todayStr,
-        executionType: 'spontaneous',
+        createdAt: new Date().toISOString(),
         projectId: project.id,
         projectName: project.name,
         allowedUsers: project.memberUids || [user.uid]
@@ -425,19 +425,16 @@ export default function ProjectDetailView({ project, onBack }) {
 
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      await db.debts.add({
+      await db.project_debts.add({
         debtorName: finalDebtor,
         creditorName: finalCreditor,
-        person: finalDebtor,
-        entityName: finalDebtor,
-        name: `${finalDebtor} doit à ${finalCreditor}`,
         amount: amt,
         description: debtDescription.trim(),
         projectId: project.id,
         projectName: project.name,
         allowedUsers: project.memberUids || [user.uid],
         status: 'pending',
-        createdAt: todayStr,
+        createdAt: new Date().toISOString(),
         date: todayStr
       });
       setDebtorFreeName('');
@@ -455,7 +452,7 @@ export default function ProjectDetailView({ project, onBack }) {
     if (!canEdit) return;
     if (window.confirm("Marquer cette dette collective comme réglée ?")) {
       try {
-        await db.debts.update(debtId, { status: 'settled', isPaid: true });
+        await db.project_debts.update(debtId, { status: 'settled' });
       } catch (err) {
         console.error(err);
         alert("Erreur lors de la mise à jour.");
@@ -467,7 +464,7 @@ export default function ProjectDetailView({ project, onBack }) {
     if (!canEdit) return;
     if (window.confirm("Supprimer cette dette ?")) {
       try {
-        await db.debts.delete(debtId);
+        await db.project_debts.delete(debtId);
       } catch (err) {
         console.error(err);
         alert("Erreur lors de la suppression.");
@@ -489,20 +486,22 @@ export default function ProjectDetailView({ project, onBack }) {
     }
     try {
       const todayStr = new Date().toISOString().split('T')[0];
+      const srcAcc = projectAccounts.find(a => a.id === transferSourceId);
+      const destAcc = projectAccounts.find(a => a.id === transferDestId);
       const srcName = srcAcc?.name || 'compte projet';
       const destName = destAcc?.name || 'compte projet';
       const desc = transferDesc.trim() || 'Virement interne projet';
+      const nowIso = new Date().toISOString();
 
       await db.transaction(async () => {
         await db.transactions.add({
           accountId: transferSourceId,
           name: `Virement vers ${destName} : ${desc}`,
-          label: `Virement vers ${destName} : ${desc}`,
           description: desc,
           amount: amt,
-          type: 'expense',
+          type: 'debit',
           date: todayStr,
-          executionType: 'spontaneous',
+          createdAt: nowIso,
           projectId: project.id,
           projectName: project.name,
           allowedUsers: project.memberUids || [user.uid]
@@ -510,12 +509,11 @@ export default function ProjectDetailView({ project, onBack }) {
         await db.transactions.add({
           accountId: transferDestId,
           name: `Virement depuis ${srcName} : ${desc}`,
-          label: `Virement depuis ${srcName} : ${desc}`,
           description: desc,
           amount: amt,
-          type: 'income',
+          type: 'credit',
           date: todayStr,
-          executionType: 'spontaneous',
+          createdAt: nowIso,
           projectId: project.id,
           projectName: project.name,
           allowedUsers: project.memberUids || [user.uid]
@@ -755,9 +753,9 @@ export default function ProjectDetailView({ project, onBack }) {
                   <div>
                     <h3 className="text-xl font-black text-white flex items-center gap-2">
                       {activeAccount.name}
-                      {activeAccount.bankName && (
+                      {(activeAccount.bank || activeAccount.bankName) && (
                         <span className="text-xs font-black bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md border border-slate-700">
-                          {activeAccount.bankName}
+                          {activeAccount.bank || activeAccount.bankName}
                         </span>
                       )}
                     </h3>
@@ -894,11 +892,11 @@ export default function ProjectDetailView({ project, onBack }) {
                       <div className="flex justify-between items-start">
                         <div>
                           <h4 className="font-black text-base text-white leading-tight break-words">
-                            {acc.name || acc.title || "Compte"}
+                            {acc.name || "Compte"}
                           </h4>
-                          {acc.bankName && (
+                          {(acc.bank || acc.bankName) && (
                             <span className="text-[10px] font-bold text-slate-400 block mt-1">
-                              🏦 {acc.bankName}
+                              🏦 {acc.bank || acc.bankName}
                             </span>
                           )}
                         </div>

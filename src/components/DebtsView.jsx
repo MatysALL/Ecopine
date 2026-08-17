@@ -118,21 +118,19 @@ export default function DebtsView() {
     setIsSubmitting(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const createdAt = todayStr;
+      const createdAt = new Date().toISOString();
       const currentUserPseudo = username?.trim() || user?.displayName || 'Habitant';
 
       if (editingDebt) {
         // Mode modification : modification stricte et locale de cette dette uniquement
         await db.debts.update(editingDebt.id, {
           entityName: targetEntityName,
-          person: targetEntityName,
-          name: targetEntityName,
           amount: amt,
           type: debtType,
           description: debtDescription.trim(),
           status: editingDebt.status || 'pending',
           date: editingDebt.date || todayStr,
-          createdAt: editingDebt.createdAt || todayStr,
+          createdAt: editingDebt.createdAt || createdAt,
           associatedFriendId: targetFriend ? targetFriend.uid : (editingDebt.associatedFriendId || null),
           associatedFriendName: targetFriend ? targetFriend.name : (editingDebt.associatedFriendName || null)
         });
@@ -144,8 +142,6 @@ export default function DebtsView() {
           await db.debts.add({
             userId: user?.uid,
             entityName: targetFriend.name,
-            person: targetFriend.name,
-            name: targetFriend.name,
             amount: amt,
             type: debtType,
             description: debtDescription.trim(),
@@ -168,8 +164,6 @@ export default function DebtsView() {
           await db.debts.add({
             userId: targetFriend.uid,
             entityName: currentUserPseudo,
-            person: currentUserPseudo,
-            name: currentUserPseudo,
             amount: amt,
             type: mirrorType,
             description: debtDescription.trim(),
@@ -189,8 +183,6 @@ export default function DebtsView() {
           await db.debts.add({
             userId: user?.uid,
             entityName: targetEntityName,
-            person: targetEntityName,
-            name: targetEntityName,
             amount: amt,
             type: debtType,
             description: debtDescription.trim(),
@@ -282,17 +274,17 @@ export default function DebtsView() {
 
       const rawType = (settlingDebt.type || '').toLowerCase().trim();
       const isToPay = ['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(rawType) || (typeof settlingDebt.amount === 'number' && settlingDebt.amount < 0);
-      const txType = isToPay ? 'expense' : 'income';
+      const txType = isToPay ? 'debit' : 'credit';
       const label = isToPay ? `Remboursement : ${debtorOrCreditor}` : `Encaissement : ${debtorOrCreditor}`;
 
       const newTx = {
         accountId: selectedAccountId,
         name: label,
-        label: label,
         description: txDescription,
         amount: Math.abs(settlingDebt.amount),
         type: txType,
         date: todayStr,
+        createdAt: new Date().toISOString(),
         pocketId: null
       };
 

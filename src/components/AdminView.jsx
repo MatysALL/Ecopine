@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useDb, COLOR_PALETTE, getCustomCardStyle, adminResetUser, adminDeleteUser } from '../db';
+import { useDb, COLOR_PALETTE, getCustomCardStyle, adminResetUser, adminDeleteUser, runFirestoreMigration } from '../db';
 import { db as firestoreDb } from '../firebase';
 import { 
   collection, 
@@ -36,7 +36,8 @@ import {
   Clock,
   Mail,
   User,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Zap
 } from 'lucide-react';
 
 const COLLECTIONS = [
@@ -46,6 +47,7 @@ const COLLECTIONS = [
   { id: 'transactions', name: 'Transactions', icon: Database, colName: 'transactions', ownerField: 'userId', color: 'text-ac-orange', bg: 'bg-ac-orange/10' },
   { id: 'wishlist', name: 'Souhaits', icon: Gift, colName: 'wishlist', ownerField: 'creatorId', color: 'text-ac-red', bg: 'bg-ac-red/10' },
   { id: 'debts', name: 'Dettes', icon: Handshake, colName: 'debts', ownerField: 'creatorId', color: 'text-purple-600', bg: 'bg-purple-100' },
+  { id: 'project_debts', name: 'Dettes Projets', icon: Handshake, colName: 'project_debts', ownerField: 'userId', color: 'text-orange-600', bg: 'bg-orange-100' },
   { id: 'friendships', name: 'Amitiés', icon: UserPlus, colName: 'friendships', ownerField: 'senderId', color: 'text-pink-600', bg: 'bg-pink-100' }
 ];
 
@@ -85,6 +87,27 @@ export default function AdminView() {
   const [editFormData, setEditFormData] = useState({});
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   
+  // Migration state
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationStats, setMigrationStats] = useState(null);
+
+  const handleRunMigration = async () => {
+    if (!window.confirm("Lancer le script de migration batch et d'homogénéisation Firestore ? Cette opération nettoie les champs obsolètes et restructure les données.")) {
+      return;
+    }
+    setIsMigrating(true);
+    try {
+      const stats = await runFirestoreMigration();
+      setMigrationStats(stats);
+      showToast("Migration Firestore terminée avec succès !");
+    } catch (err) {
+      console.error("Erreur de migration:", err);
+      showToast(`Erreur lors de la migration : ${err.message}`, 'error');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   // Double-confirmation Purge/Delete user modal state
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
@@ -205,7 +228,7 @@ export default function AdminView() {
       if (userFilter !== 'all') {
         if (activeTab === 'users') {
           if (item.uid !== userFilter) return false;
-        } else if (activeTab === 'accounts' || activeTab === 'debts' || activeTab === 'wishlist') {
+        } else if (activeTab === 'accounts' || activeTab === 'debts' || activeTab === 'wishlist' || activeTab === 'project_debts') {
           if (item.creatorId !== userFilter && item.userId !== userFilter) return false;
         } else if (activeTab === 'transactions' || activeTab === 'pockets') {
           if (item.userId !== userFilter && item.creatorId !== userFilter) return false;
@@ -221,20 +244,22 @@ export default function AdminView() {
       const searchFields = [
         item.id,
         item.name,
-        item.title,
         item.description,
         item.username,
         item.email,
         item.senderEmail,
         item.receiverEmail,
+        item.bank,
         item.bankName,
-        item.category,
+        item.entityName,
+        item.debtorName,
+        item.creditorName,
+        item.projectName,
         item.person,
         item.role,
         item.type,
         String(item.amount ?? ''),
         String(item.currentBalance ?? item.balance ?? item.initialBalance ?? ''),
-        String(item.price ?? ''),
         String(item.allocatedAmount ?? item.currentAmount ?? '')
       ];
 
@@ -420,16 +445,51 @@ export default function AdminView() {
           </p>
         </div>
 
-        <button
-          onClick={loadCollectionData}
-          disabled={loadingTable}
-          className="bg-ac-cream hover:bg-ac-cream-dark text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-xs flex items-center gap-2 cursor-pointer transition-transform active:translate-y-0.5 disabled:opacity-50"
-          title="Actualiser les données"
-        >
-          <RefreshCw className={`w-4 h-4 text-ac-green ${loadingTable ? 'animate-spin' : ''}`} />
-          <span>Actualiser</span>
-        </button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={handleRunMigration}
+            disabled={isMigrating}
+            className="bg-ac-gold hover:bg-ac-gold-dark text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-xs flex items-center gap-2 cursor-pointer transition-transform active:translate-y-0.5 disabled:opacity-50"
+            title="Lancer le nettoyage et l'homogénéisation Firestore"
+          >
+            <Zap className={`w-4 h-4 text-white ${isMigrating ? 'animate-spin' : ''}`} />
+            <span>{isMigrating ? 'Migration en cours...' : 'Homogénéiser Firestore'}</span>
+          </button>
+
+          <button
+            onClick={loadCollectionData}
+            disabled={loadingTable}
+            className="bg-ac-cream hover:bg-ac-cream-dark text-ac-brown font-extrabold text-xs px-4 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-xs flex items-center gap-2 cursor-pointer transition-transform active:translate-y-0.5 disabled:opacity-50"
+            title="Actualiser les données"
+          >
+            <RefreshCw className={`w-4 h-4 text-ac-green ${loadingTable ? 'animate-spin' : ''}`} />
+            <span>Actualiser</span>
+          </button>
+        </div>
       </div>
+
+      {/* Migration Stats Banner if available */}
+      {migrationStats && (
+        <div className="bg-emerald-50 border-2 border-emerald-400 text-emerald-900 rounded-3xl p-4 shadow-ac-xs flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-6 h-6 text-emerald-600 shrink-0" />
+            <div>
+              <p className="text-xs font-black text-emerald-900">
+                Migration Firestore terminée avec succès !
+              </p>
+              <p className="text-[11px] font-bold text-emerald-700">
+                {migrationStats.usersMeta} utilisateurs mis à jour • {migrationStats.accounts} comptes nettoyés • {migrationStats.wishlist} souhaits harmonisés • {migrationStats.transactions} transactions normalisées • {migrationStats.projectDebtsMigrated} dettes de projets migrées • {migrationStats.personalDebtsCleaned} dettes personnelles nettoyées.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setMigrationStats(null)}
+            className="text-emerald-700 hover:text-emerald-950 p-1 font-black text-xs cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Collection Navigation Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
@@ -773,9 +833,20 @@ function renderTableHeaders(tableId) {
     case 'debts':
       return (
         <>
-          <th className="p-3.5">Libellé</th>
+          <th className="p-3.5">Entité / Créancier</th>
           <th className="p-3.5">Montant</th>
-          <th className="p-3.5">Personne Concernée</th>
+          <th className="p-3.5">Description</th>
+          <th className="p-3.5">Statut</th>
+          <th className="p-3.5">Propriétaire</th>
+        </>
+      );
+    case 'project_debts':
+      return (
+        <>
+          <th className="p-3.5">Débiteur (Doit)</th>
+          <th className="p-3.5">Créancier (À)</th>
+          <th className="p-3.5">Montant</th>
+          <th className="p-3.5">Projet</th>
           <th className="p-3.5">Statut</th>
           <th className="p-3.5">Propriétaire</th>
         </>
@@ -846,7 +917,7 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
             )}
             <span>{row.name || 'Compte sans nom'}</span>
           </td>
-          <td className="p-3.5 font-bold text-ac-brown-light">{row.bankName || '—'}</td>
+          <td className="p-3.5 font-bold text-ac-brown-light">{row.bank || row.bankName || '—'}</td>
           <td className="p-3.5 font-black text-ac-gold-dark">
             {displayBalance}
           </td>
@@ -881,12 +952,12 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
     }
 
     case 'transactions': {
-      const isCredit = row.type === 'credit';
+      const isCredit = row.type === 'credit' || row.type === 'income';
       const formattedDate = row.date ? (row.date?.toDate ? row.date.toDate().toLocaleDateString('fr-FR') : String(row.date)) : '—';
       return (
         <>
           <td className="p-3.5 font-black text-ac-brown truncate max-w-[200px]" title={row.name || row.description}>
-            {row.name || row.description || 'Transaction'}
+            {row.name || row.title || row.description || 'Transaction'}
           </td>
           <td className={`p-3.5 font-black ${isCredit ? 'text-ac-green' : 'text-ac-brown'}`}>
             {isCredit ? '+' : '-'}{(row.amount ?? 0).toLocaleString('fr-FR')} 🔔
@@ -895,7 +966,7 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
               isCredit ? 'bg-ac-green-light text-ac-green border border-ac-green/30' : 'bg-ac-cream text-ac-brown border border-ac-brown/20'
             }`}>
-              {row.type || 'débit'}
+              {row.type || 'debit'}
             </span>
           </td>
           <td className="p-3.5 font-bold text-ac-brown-light text-[11px]">{formattedDate}</td>
@@ -907,7 +978,7 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
     case 'wishlist': {
       return (
         <>
-          <td className="p-3.5 font-black text-ac-brown">{row.title || row.name || 'Souhait'}</td>
+          <td className="p-3.5 font-black text-ac-brown">{row.name || row.title || 'Souhait'}</td>
           <td className="p-3.5 font-bold text-ac-brown-light italic">{row.description || row.note || '—'}</td>
           <td className="p-3.5">{renderOwnerBadge(row.creatorId || row.userId)}</td>
         </>
@@ -918,9 +989,9 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
       const isSettled = row.isSettled === true || row.status === 'settled';
       return (
         <>
-          <td className="p-3.5 font-black text-ac-brown">{row.description || row.name || 'Dette'}</td>
+          <td className="p-3.5 font-black text-ac-brown">{row.entityName || row.name || row.person || 'Entité'}</td>
           <td className="p-3.5 font-black text-ac-brown">{(row.amount ?? 0).toLocaleString('fr-FR')} 🔔</td>
-          <td className="p-3.5 font-bold text-ac-brown-light">{row.person || row.debtorName || '—'}</td>
+          <td className="p-3.5 font-bold text-ac-brown-light italic">{row.description || '—'}</td>
           <td className="p-3.5">
             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
               isSettled ? 'bg-ac-green-light text-ac-green border-ac-green/30' : 'bg-ac-red-light text-ac-red border-ac-red/30'
@@ -929,6 +1000,26 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
             </span>
           </td>
           <td className="p-3.5">{renderOwnerBadge(row.creatorId || row.userId)}</td>
+        </>
+      );
+    }
+
+    case 'project_debts': {
+      const isSettled = row.status === 'settled';
+      return (
+        <>
+          <td className="p-3.5 font-black text-ac-brown">{row.debtorName || '—'}</td>
+          <td className="p-3.5 font-bold text-ac-brown">{row.creditorName || '—'}</td>
+          <td className="p-3.5 font-black text-ac-brown">{(row.amount ?? 0).toLocaleString('fr-FR')} 🔔</td>
+          <td className="p-3.5 font-bold text-ac-brown-light text-xs">{row.projectName || row.projectId || '—'}</td>
+          <td className="p-3.5">
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
+              isSettled ? 'bg-ac-green-light text-ac-green border-ac-green/30' : 'bg-ac-red-light text-ac-red border-ac-red/30'
+            }`}>
+              {isSettled ? 'Réglée' : 'En cours'}
+            </span>
+          </td>
+          <td className="p-3.5">{renderOwnerBadge(row.userId || row.creatorId)}</td>
         </>
       );
     }
@@ -1030,16 +1121,6 @@ function renderEditFormFields(tableId, data, setData) {
               <option value="night">Nuit étoilée</option>
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Note du tableau de bord</label>
-            <textarea
-              rows={2}
-              value={data.dashboardNote || ''}
-              onChange={(e) => handleChange('dashboardNote', e.target.value)}
-              placeholder="Note personnelle ou mémo..."
-              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
-            />
-          </div>
         </>
       );
 
@@ -1060,8 +1141,11 @@ function renderEditFormFields(tableId, data, setData) {
             <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Banque</label>
             <input
               type="text"
-              value={data.bankName || ''}
-              onChange={(e) => handleChange('bankName', e.target.value)}
+              value={data.bank || data.bankName || ''}
+              onChange={(e) => {
+                handleChange('bank', e.target.value);
+                delete data.bankName;
+              }}
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
             />
           </div>
@@ -1190,7 +1274,6 @@ function renderEditFormFields(tableId, data, setData) {
               value={data.name || data.description || ''}
               onChange={(e) => {
                 handleChange('name', e.target.value);
-                handleChange('description', e.target.value);
               }}
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
               required
@@ -1239,10 +1322,10 @@ function renderEditFormFields(tableId, data, setData) {
             <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Nom du souhait</label>
             <input
               type="text"
-              value={data.title || data.name || ''}
+              value={data.name || data.title || ''}
               onChange={(e) => {
-                handleChange('title', e.target.value);
                 handleChange('name', e.target.value);
+                delete data.title;
               }}
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
               required
@@ -1255,7 +1338,6 @@ function renderEditFormFields(tableId, data, setData) {
               value={data.description || data.note || ''}
               onChange={(e) => {
                 handleChange('description', e.target.value);
-                handleChange('note', e.target.value);
               }}
               placeholder="Détails, liens ou note..."
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
@@ -1268,7 +1350,6 @@ function renderEditFormFields(tableId, data, setData) {
               value={data.url || data.link || ''}
               onChange={(e) => {
                 handleChange('url', e.target.value);
-                handleChange('link', e.target.value);
               }}
               placeholder="https://..."
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
@@ -1281,13 +1362,14 @@ function renderEditFormFields(tableId, data, setData) {
       return (
         <>
           <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Libellé de la dette</label>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Entité / Créancier</label>
             <input
               type="text"
-              value={data.description || data.name || ''}
+              value={data.entityName || data.name || data.person || ''}
               onChange={(e) => {
-                handleChange('description', e.target.value);
-                handleChange('name', e.target.value);
+                handleChange('entityName', e.target.value);
+                delete data.name;
+                delete data.person;
               }}
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
               required
@@ -1305,14 +1387,11 @@ function renderEditFormFields(tableId, data, setData) {
               />
             </div>
             <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Personne concernée</label>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description</label>
               <input
                 type="text"
-                value={data.person || data.debtorName || ''}
-                onChange={(e) => {
-                  handleChange('person', e.target.value);
-                  handleChange('debtorName', e.target.value);
-                }}
+                value={data.description || ''}
+                onChange={(e) => handleChange('description', e.target.value)}
                 className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
               />
             </div>
@@ -1321,29 +1400,85 @@ function renderEditFormFields(tableId, data, setData) {
             <div>
               <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Type</label>
               <select
-                value={data.type || 'i_owe'}
+                value={data.type || 'to_pay'}
                 onChange={(e) => handleChange('type', e.target.value)}
                 className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
               >
-                <option value="i_owe">Je dois de l'argent</option>
-                <option value="they_owe">On me doit de l'argent</option>
+                <option value="to_pay">À payer</option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Statut</label>
               <select
-                value={data.isSettled ? 'settled' : 'active'}
+                value={data.status || (data.isSettled ? 'settled' : 'pending')}
                 onChange={(e) => {
-                  const isSettled = e.target.value === 'settled';
-                  handleChange('isSettled', isSettled);
                   handleChange('status', e.target.value);
                 }}
                 className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
               >
-                <option value="active">En cours</option>
+                <option value="pending">En cours</option>
                 <option value="settled">Réglée / Clôturée</option>
               </select>
             </div>
+          </div>
+        </>
+      );
+
+    case 'project_debts':
+      return (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Débiteur (Celui qui doit)</label>
+              <input
+                type="text"
+                value={data.debtorName || ''}
+                onChange={(e) => handleChange('debtorName', e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Créancier (Celui à qui on doit)</label>
+              <input
+                type="text"
+                value={data.creditorName || ''}
+                onChange={(e) => handleChange('creditorName', e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (🔔)</label>
+              <input
+                type="number"
+                value={data.amount || 0}
+                onChange={(e) => handleChange('amount', e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Statut</label>
+              <select
+                value={data.status || 'pending'}
+                onChange={(e) => handleChange('status', e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+              >
+                <option value="pending">En cours</option>
+                <option value="settled">Réglée</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Description</label>
+            <input
+              type="text"
+              value={data.description || ''}
+              onChange={(e) => handleChange('description', e.target.value)}
+              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white"
+            />
           </div>
         </>
       );
