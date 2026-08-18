@@ -1068,15 +1068,17 @@ export const db = {
           const { id, ...rest } = tx;
           const isCredit = rest.type === 'credit' || rest.type === 'income' || rest.isIncome === true;
           batch.set(ref, {
-            accountId: rest.accountId,
-            name: rest.name || rest.title || rest.description || rest.note || 'Transaction',
-            amount: Math.abs(Number(rest.amount) || 0),
+            name: rest.name || 'Transaction importée',
+            amount: Math.abs(Number(rest.amount)) || 0,
             type: isCredit ? 'credit' : 'debit',
             date: rest.date || nowIso.split('T')[0],
+            createdAt: rest.createdAt || nowIso,
+            isRecurring: false,
             pocketId: rest.pocketId || null,
-            userId: currentUid,
-            allowedUsers: rest.allowedUsers || [currentUid],
-            createdAt: rest.createdAt || nowIso
+            userId: rest.userId || currentUid,
+            accountId: rest.accountId,
+            projectId: rest.projectId || null,
+            allowedUsers: rest.allowedUsers || [currentUid]
           });
         });
         await batch.commit();

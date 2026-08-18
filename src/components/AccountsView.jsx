@@ -435,23 +435,21 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const handleExportCSV = () => {
     if (!activeAccount || !transactions) return;
 
-    // Required columns: Date;Libellé;Montant;Type;Note
-    const headers = ['Date', 'Libellé', 'Montant', 'Type', 'Note'];
+    // Colonnes générées : Date,Libellé,Type,Montant (séparateur point-virgule pour compatibilité Excel FR)
+    const headers = ['Date', 'Libellé', 'Type', 'Montant'];
     const rows = transactions.map(tx => {
-      const typeLabel = tx.type === 'credit' ? 'Recette' : 'Dépense';
+      const typeLabel = tx.type === 'credit' ? 'Crédit' : 'Débit';
       const amountVal = Math.abs(Number(tx.amount) || 0).toFixed(2);
-      const noteVal = tx.note || tx.description || '';
 
       return [
         escapeCSV(tx.date || ''),
-        escapeCSV(tx.name || tx.description || 'Transaction'),
-        escapeCSV(amountVal),
+        escapeCSV(tx.name || 'Transaction'),
         escapeCSV(typeLabel),
-        escapeCSV(noteVal)
+        escapeCSV(amountVal)
       ].join(';');
     });
 
-    // UTF-8 with BOM (\uFEFF) and semicolon separator (;)
+    // UTF-8 avec BOM (\uFEFF) et séparateur point-virgule (;)
     const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -483,6 +481,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
       } else if (parts[0].length === 4) { // YYYY-MM-DD
         return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      } else if (parts[2].length === 2) { // DD/MM/YY
+        const year = parseInt(parts[2], 10) > 50 ? `19${parts[2]}` : `20${parts[2]}`;
+        return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
       }
     }
     try {
@@ -494,7 +495,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   const parseCSVAmount = (amountStr) => {
     if (!amountStr) return 0;
-    let clean = amountStr.replace(/\s/g, '').replace(',', '.').replace('€', '').replace('🔔', '').replace('$', '').trim();
+    const clean = String(amountStr)
+      .replace(/[\s\u00A0\u202F€$£🔔]/g, '')
+      .replace(',', '.')
+      .trim();
     const parsed = parseFloat(clean);
     return isNaN(parsed) ? 0 : parsed;
   };
@@ -502,10 +506,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const processCSVFile = (file) => {
     setCsvError('');
     if (!file) return;
-
-    const currentFileName = file.name || 'Import_CSV.csv';
-    const currentBatchId = 'import_' + Date.now();
-    const currentImportDate = new Date().toISOString();
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -515,11 +515,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       const lines = cleanText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
       
       if (lines.length < 2) {
-        setCsvError("Le fichier CSV est vide ou ne contient pas assez de données.");
+        setCsvError("Le fichier CSV est vide ou ne contient pas assez de données. Veuillez vérifier les colonnes du CSV.");
         return;
       }
 
-      // Detect separator: ';' default, fallback ','
+      // Detect separator: ';' default, fallback ',' or '\t'
       let delimiter = ';';
       if (!lines[0].includes(';') && lines[0].includes(',')) {
         delimiter = ',';
@@ -553,18 +553,19 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
       const rows = lines.map(parseCSVLine);
       
-      const headers = rows[0].map(h => h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+      const headers = rows[0].map(h => 
+        h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+      );
       
-      let dateCol = headers.findIndex(h => h.includes('date') || h.includes('valeur'));
-      let descCol = headers.findIndex(h => h.includes('libelle') || h.includes('description') || h.includes('name') || h.includes('motif') || h.includes('nom') || h.includes('details'));
-      let amountCol = headers.findIndex(h => h.includes('montant') || h.includes('amount') || h.includes('somme') || h.includes('valeur'));
-      let typeCol = headers.findIndex(h => h.includes('type'));
-      let catCol = headers.findIndex(h => h.includes('categorie') || h.includes('category'));
-      let noteCol = headers.findIndex(h => h.includes('note') || h.includes('remarque'));
+      // Detection of column headers
+      const dateCol = headers.findIndex(h => h.includes('date') || h.includes('valeur') || h.includes('operation'));
+      const nameCol = headers.findIndex(h => h.includes('libelle') || h.includes('nom') || h.includes('name') || h.includes('description') || h.includes('detail') || h.includes('motif'));
+      const amountCol = headers.findIndex(h => h.includes('montant') || h.includes('amount') || h.includes('somme') || h.includes('valeur'));
+      const typeCol = headers.findIndex(h => h.includes('type') || h.includes('sens') || h.includes('mouvement'));
 
       // Validate minimal presence of Date and Montant columns
       if (dateCol === -1 || amountCol === -1) {
-        setCsvError("Le fichier CSV doit impérativement contenir les colonnes 'Date' et 'Montant'.");
+        setCsvError("Format de fichier non reconnu. Veuillez vérifier que votre fichier CSV contient au moins les colonnes 'Date' et 'Montant' (ou 'Libellé').");
         return;
       }
 
@@ -574,51 +575,42 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         if (row.length <= Math.max(dateCol, amountCol)) continue;
 
         const rawDate = row[dateCol];
-        const rawDesc = descCol !== -1 && row[descCol] ? row[descCol] : 'Transaction Importée';
-        const rawAmount = row[amountCol];
+        const rawName = nameCol !== -1 && row[nameCol] ? row[nameCol].trim() : 'Transaction importée';
+        const rawAmountStr = row[amountCol];
         const rawType = typeCol !== -1 ? row[typeCol] : '';
-        const rawCat = catCol !== -1 ? row[catCol] : 'Import CSV';
-        const rawNote = noteCol !== -1 ? row[noteCol] : '';
 
         const date = parseCSVDate(rawDate);
-        const amount = parseCSVAmount(rawAmount);
+        const amountNum = parseCSVAmount(rawAmountStr);
 
-        if (date && amount !== 0) {
-          let isIncome = amount > 0;
+        if (date && amountNum !== 0) {
+          let detectedType = amountNum > 0 ? 'credit' : 'debit';
+          
           if (rawType) {
-            const normalizedType = rawType.toLowerCase();
-            if (normalizedType.includes('recette') || normalizedType.includes('credit')) {
-              isIncome = true;
-            } else if (normalizedType.includes('dépense') || normalizedType.includes('depense') || normalizedType.includes('debit')) {
-              isIncome = false;
+            const normalizedType = rawType.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            if (normalizedType.includes('credit') || normalizedType.includes('recette') || normalizedType.includes('revenu') || normalizedType === '+' || normalizedType === 'c') {
+              detectedType = 'credit';
+            } else if (normalizedType.includes('debit') || normalizedType.includes('depense') || normalizedType.includes('charge') || normalizedType === '-' || normalizedType === 'd') {
+              detectedType = 'debit';
             }
           }
 
           parsedTransactions.push({
-            date,
-            name: rawDesc || 'Transaction sans nom',
-            description: rawDesc || 'Transaction sans nom',
-            amount: Math.abs(amount),
-            type: isIncome ? 'credit' : 'debit',
-            budgetId: null,
-            executionType: 'spontaneous',
-            isRecurring: false,
-            recurrencePeriod: 'none',
-            recurrenceEnd: '',
-            note: rawNote || '',
-            isImported: true,
-            importBatchId: currentBatchId,
-            importFileName: currentFileName,
-            importedAt: currentImportDate
+            name: rawName || 'Transaction importée',
+            amount: Math.abs(amountNum) || 0,
+            type: detectedType,
+            date: date || new Date().toISOString().split('T')[0]
           });
         }
       }
 
       if (parsedTransactions.length === 0) {
-        setCsvError("Aucune transaction valide n'a pu être lue dans le fichier.");
+        setCsvError("Aucune transaction valide n'a pu être lue dans le fichier. Veuillez vérifier les colonnes du CSV.");
       } else {
         setCsvPreviewTxs(parsedTransactions);
       }
+    };
+    reader.onerror = () => {
+      setCsvError("Erreur lors de la lecture du fichier CSV. Veuillez vérifier les colonnes et le format de votre CSV.");
     };
     reader.readAsText(file, 'UTF-8');
   };
@@ -627,38 +619,37 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
     }
-    if (!csvPreviewTxs || !selectedAccountId) return;
+    if (!csvPreviewTxs || !selectedAccountId || !activeAccount) return;
     
-    const currentUid = user?.uid || auth.currentUser?.uid;
+    const currentUser = user || auth.currentUser;
+    if (!currentUser) return;
     const nowIso = new Date().toISOString();
 
-    console.log(`Validation de l'importation de ${csvPreviewTxs.length} transactions...`);
-
     const preparedTxs = csvPreviewTxs.map(tx => ({
-      accountId: String(selectedAccountId),
-      userId: currentUid,
-      allowedUsers: currentUid ? [currentUid] : [],
-      name: String(tx.name || tx.description || 'Transaction sans nom'),
-      description: String(tx.description || tx.name || 'Transaction sans nom'),
-      amount: Math.abs(Number(tx.amount) || 0),
+      name: tx.name || "Transaction importée",
+      amount: Math.abs(Number(tx.amount)) || 0,
       type: tx.type === 'credit' ? 'credit' : 'debit',
-      date: String(tx.date),
-      createdAt: tx.createdAt || nowIso
+      date: tx.date || nowIso.split('T')[0],
+      createdAt: nowIso,
+      isRecurring: false,
+      pocketId: null,
+      userId: currentUser.uid,
+      accountId: activeAccount.id,
+      projectId: activeAccount.projectId || null,
+      allowedUsers: activeAccount.allowedUsers || [currentUser.uid]
     }));
 
     try {
       await db.transactions.bulkAdd(preparedTxs);
       const count = preparedTxs.length;
-      console.log(`Validation de l'importation de ${count} transactions réussie.`);
       setCsvPreviewTxs(null);
-      setToastMessage(`${count} transactions importées avec succès ! 🎉`);
+      setToastMessage(`${count} transaction${count > 1 ? 's' : ''} importée${count > 1 ? 's' : ''} avec succès ! 🍃`);
       setTimeout(() => {
         setToastMessage(null);
       }, 4000);
     } catch (err) {
       console.error("Erreur lors de l'importation des transactions CSV :", err);
-      setCsvError(`Erreur lors de l'importation : ${err.message || err}`);
-      alert(`Erreur lors de l'importation des transactions : ${err.message || err}`);
+      setCsvError(`Erreur lors de l'importation : ${err.message || err}. Veuillez vérifier les colonnes du CSV.`);
     }
   };
 
