@@ -361,19 +361,40 @@ export function calculateBudgetsState(budgets, transactions, todayStr) {
 }
 
 /**
+ * Standard universal reducer for calculating an account balance from transactions
+ */
+export const calculateAccountBalance = (accountId, transactionsList) => {
+  if (!transactionsList || !Array.isArray(transactionsList)) return 0;
+  
+  return transactionsList
+    .filter(t => String(t.accountId) === String(accountId))
+    .reduce((total, t) => {
+      const amount = Number(t.amount) || 0;
+      const isCredit = t.type === 'credit' || t.type === 'income';
+      return isCredit ? total + amount : total - amount;
+    }, 0);
+};
+
+/**
  * Calculates the dynamic REAL balance of an account at a specific date (solde = somme des transactions)
  */
 export function getAccountBalanceSync(account, transactions, targetDateStr = null) {
   if (!account) return 0;
+  const accId = typeof account === 'object' ? account.id : account;
+  if (!transactions || !Array.isArray(transactions)) return 0;
+
+  if (!targetDateStr) {
+    return calculateAccountBalance(accId, transactions);
+  }
 
   const todayStr = new Date().toISOString().split('T')[0];
   const target = targetDateStr || todayStr;
 
-  const accTxs = transactions.filter(t => t.accountId === account.id);
+  const accTxs = transactions.filter(t => String(t.accountId) === String(accId));
 
   const validTxs = accTxs.filter(t => {
     const exeType = t.executionType || 'spontaneous';
-    const isEffective = exeType === 'spontaneous' || (exeType === 'planned' && t.date <= todayStr);
+    const isEffective = exeType === 'spontaneous' || exeType === 'import' || (exeType === 'planned' && t.date <= todayStr) || (exeType === 'past');
     return isEffective && t.date <= target;
   });
 
@@ -2477,10 +2498,13 @@ export const DbProvider = ({ children }) => {
   const accountsData = useMemo(() => {
     if (!accessibleAccounts || !transactions) return [];
     return accessibleAccounts.map(acc => {
-      const balance = getAccountBalanceSync(acc, transactions);
-      return { ...acc, balance, visibleBalance: balance };
+      const balance = calculateAccountBalance(acc.id, transactions);
+      const accPockets = pockets ? pockets.filter(p => String(p.accountId) === String(acc.id)) : [];
+      const totalAllouePoches = accPockets.reduce((sum, p) => sum + (Number(p.allocatedAmount) || 0), 0);
+      const visibleBalance = balance - totalAllouePoches;
+      return { ...acc, balance, visibleBalance, totalAllouePoches };
     }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [accessibleAccounts, transactions]);
+  }, [accessibleAccounts, transactions, pockets]);
 
   // Filtered wishlist
   const filteredWishlist = useMemo(() => {
@@ -2602,6 +2626,7 @@ export const DbProvider = ({ children }) => {
     acceptedFriends,
     redlist: Array.isArray(usersMetaDoc?.redlist) ? usersMetaDoc.redlist : [],
     accountsData,
+    calculateAccountBalance: (accId) => calculateAccountBalance(accId, transactions),
     favoriteAccountDetails,
     globalLatestTransactions,
     signUpUser,

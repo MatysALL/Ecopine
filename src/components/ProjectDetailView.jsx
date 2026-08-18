@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { db, useDb, COLOR_PALETTE, getCustomCardStyle, getAccountBalanceSync } from '../db';
+import { db, useDb, COLOR_PALETTE, getCustomCardStyle, calculateAccountBalance, getAccountBalanceSync } from '../db';
 import { 
   ArrowLeft, Users, Shield, Crown, Edit3, Trash2, Plus, 
   PiggyBank, Gift, Handshake, Landmark, LogOut, Check, X, 
@@ -89,11 +89,14 @@ export default function ProjectDetailView({ project, onBack }) {
     return (accounts || [])
       .filter(a => a.projectId === project.id)
       .map(acc => {
-        const bal = getAccountBalanceSync(acc, transactions || []);
-        return { ...acc, balance: bal, visibleBalance: bal };
+        const bal = calculateAccountBalance(acc.id, transactions || []);
+        const accPockets = pockets ? pockets.filter(p => String(p.accountId) === String(acc.id)) : [];
+        const totalAllouePoches = accPockets.reduce((sum, p) => sum + (Number(p.allocatedAmount) || 0), 0);
+        const visibleBal = bal - totalAllouePoches;
+        return { ...acc, balance: bal, visibleBalance: visibleBal, totalAllouePoches };
       })
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [accounts, transactions, project.id]);
+  }, [accounts, transactions, project.id, pockets]);
 
   // Selected project account object
   const activeAccount = useMemo(() => {
