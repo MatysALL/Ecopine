@@ -39,6 +39,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [selectedCsvFile, setSelectedCsvFile] = useState(null);
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [accountImports, setAccountImports] = useState([]);
   const [importsLoading, setImportsLoading] = useState(false);
@@ -638,52 +639,104 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
     }
-    if (!csvPreviewTxs || !selectedAccountId || !activeAccount) return;
+    if (!csvPreviewTxs || csvPreviewTxs.length === 0 || !activeAccount) return;
     
     const currentUser = user || auth.currentUser;
-    if (!currentUser) return;
-    const nowIso = new Date().toISOString();
-    const batchId = "import_" + Date.now();
-    const fileName = selectedCsvFile?.name || 'Import CSV';
+    if (!currentUser) {
+      alert("Vous devez être connecté pour importer des transactions.");
+      return;
+    }
 
-    // 1. Enregistre le lot dans la collection imports
-    await setDoc(doc(firestoreDb, "imports", batchId), {
-      id: batchId,
-      accountId: activeAccount.id,
-      userId: currentUser.uid,
-      fileName: fileName,
-      transactionCount: csvPreviewTxs.length,
-      importedAt: nowIso
-    });
-
-    // 2. Injecte les champs d'identification dans chaque transaction du lot
-    const preparedTxs = csvPreviewTxs.map(t => ({
-      name: t.name || "Transaction importée",
-      amount: Math.abs(Number(t.amount)) || 0,
-      type: t.type === 'credit' ? 'credit' : 'debit',
-      date: t.date || nowIso.split('T')[0],
-      createdAt: nowIso,
-      executionType: "import",
-      importBatchId: batchId,
-      importFileName: fileName,
-      userId: currentUser.uid,
-      accountId: activeAccount.id,
-      projectId: activeAccount.projectId || null,
-      allowedUsers: activeAccount.allowedUsers || [currentUser.uid]
-    }));
+    setIsImporting(true);
+    setCsvError('');
 
     try {
-      await db.transactions.bulkAdd(preparedTxs);
-      const count = preparedTxs.length;
+      const batchId = "import_" + Date.now();
+      const nowIso = new Date().toISOString();
+      const fileName = selectedCsvFile?.name || "import.csv";
+      const totalCount = csvPreviewTxs.length;
+
+      // Batch write in chunks of up to 450 (Firestore limit is 500 ops per batch)
+      const chunkSize = 450;
+      
+      // 1. Premier lot incluant le document 'imports' et les premières transactions
+      const firstChunk = csvPreviewTxs.slice(0, chunkSize);
+      const firstBatch = writeBatch(firestoreDb);
+
+      // Enregistrement du document du lot dans 'imports'
+      const importDocRef = doc(firestoreDb, "imports", batchId);
+      firstBatch.set(importDocRef, {
+        id: batchId,
+        accountId: activeAccount.id,
+        userId: currentUser.uid,
+        fileName: fileName,
+        transactionCount: totalCount,
+        importedAt: nowIso
+      });
+
+      // Ajout des transactions du premier lot
+      firstChunk.forEach((t) => {
+        const transRef = doc(collection(firestoreDb, "transactions"));
+        const isCredit = t.type === 'credit' || t.type === 'income';
+        firstBatch.set(transRef, {
+          name: t.name || "Transaction importée",
+          amount: Math.abs(Number(t.amount)) || 0,
+          type: isCredit ? 'credit' : 'debit',
+          date: t.date || nowIso.split('T')[0],
+          createdAt: nowIso,
+          executionType: "import",
+          importBatchId: batchId,
+          importFileName: fileName,
+          userId: currentUser.uid,
+          accountId: activeAccount.id,
+          projectId: activeAccount.projectId || null,
+          allowedUsers: activeAccount.allowedUsers || [currentUser.uid],
+          pocketId: null,
+          isRecurring: false
+        });
+      });
+
+      await firstBatch.commit();
+
+      // Lots suivants si le fichier contient plus de 450 transactions
+      for (let i = chunkSize; i < csvPreviewTxs.length; i += chunkSize) {
+        const chunk = csvPreviewTxs.slice(i, i + chunkSize);
+        const subBatch = writeBatch(firestoreDb);
+        chunk.forEach((t) => {
+          const transRef = doc(collection(firestoreDb, "transactions"));
+          const isCredit = t.type === 'credit' || t.type === 'income';
+          subBatch.set(transRef, {
+            name: t.name || "Transaction importée",
+            amount: Math.abs(Number(t.amount)) || 0,
+            type: isCredit ? 'credit' : 'debit',
+            date: t.date || nowIso.split('T')[0],
+            createdAt: nowIso,
+            executionType: "import",
+            importBatchId: batchId,
+            importFileName: fileName,
+            userId: currentUser.uid,
+            accountId: activeAccount.id,
+            projectId: activeAccount.projectId || null,
+            allowedUsers: activeAccount.allowedUsers || [currentUser.uid],
+            pocketId: null,
+            isRecurring: false
+          });
+        });
+        await subBatch.commit();
+      }
+
       setCsvPreviewTxs(null);
       setSelectedCsvFile(null);
-      setToastMessage(`${count} transaction${count > 1 ? 's' : ''} importée${count > 1 ? 's' : ''} avec succès ! 🍃`);
+      setToastMessage(`${totalCount} transaction${totalCount > 1 ? 's' : ''} importée${totalCount > 1 ? 's' : ''} avec succès ! 🍃`);
       setTimeout(() => {
         setToastMessage(null);
       }, 4000);
-    } catch (err) {
-      console.error("Erreur lors de l'importation des transactions CSV :", err);
-      setCsvError(`Erreur lors de l'importation : ${err.message || err}. Veuillez vérifier les colonnes du CSV.`);
+    } catch (error) {
+      console.error("Erreur lors de l'importation CSV :", error);
+      setCsvError(`Erreur lors de l'enregistrement des transactions : ${error.message || error}`);
+      alert("Erreur lors de l'enregistrement des transactions : " + (error.message || error));
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -880,20 +933,25 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
                     <div className="flex gap-2 justify-end">
                       <button 
+                        type="button"
                         onClick={() => {
                           setCsvPreviewTxs(null);
                           setSelectedCsvFile(null);
                         }}
-                        className="bg-white hover:bg-ac-cream border border-ac-brown text-ac-brown font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer"
+                        disabled={isImporting}
+                        className="bg-white hover:bg-ac-cream border border-ac-brown text-ac-brown font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer disabled:opacity-50"
                       >
                         Annuler
                       </button>
                       <button 
                         type="button"
-                        onClick={(e) => handleConfirmCSVImport(e)}
-                        className="bg-ac-green text-white font-extrabold text-xs px-3 py-1.5 rounded-xl border border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+                        onClick={handleConfirmCSVImport}
+                        disabled={isImporting}
+                        className={`bg-ac-green text-white font-extrabold text-xs px-3 py-1.5 rounded-xl border border-ac-brown shadow-ac-sm flex items-center gap-1.5 transition-all ${
+                          isImporting ? 'opacity-70 cursor-not-allowed' : 'hover:translate-y-[1px] cursor-pointer'
+                        }`}
                       >
-                        <CheckCircle className="w-4 h-4" /> Importer
+                        <CheckCircle className="w-4 h-4" /> {isImporting ? 'Importation en cours...' : 'Importer'}
                       </button>
                     </div>
                   </div>
