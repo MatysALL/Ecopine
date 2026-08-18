@@ -287,19 +287,22 @@ export default function EconomicCalendar() {
                             <div key={index} className="flex justify-between items-center text-[10px] border-b border-ac-cream pb-1.5 last:border-b-0">
                               <div className="truncate pr-2">
                                 <p className="font-extrabold text-ac-brown truncate">{tx.name || tx.description}</p>
-                                
                                 <div className="flex gap-1.5 mt-0.5">
-                                  <span className="text-[7px] font-bold text-ac-brown-light bg-ac-cream px-1 rounded uppercase">
-                                    {acc?.name || 'Compte'}
-                                  </span>
-                                  {tx.executionType && tx.executionType !== 'spontaneous' && (
-                                    <span className={`text-[7px] font-bold px-1 rounded uppercase border ${
-                                      tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/10 text-ac-sky' : 'bg-ac-cream-dark/40 border-ac-brown/10 text-ac-brown-light'
-                                    }`}>
-                                      {tx.executionType === 'planned' ? 'Prévu' : 'Passé'}
-                                    </span>
-                                  )}
-                                </div>
+                                   <span className="text-[7px] font-bold text-ac-brown-light bg-ac-cream px-1 rounded uppercase">
+                                     {acc?.name || 'Compte'}
+                                   </span>
+                                   {(tx.executionType === 'import' || tx.importBatchId != null) ? (
+                                     <span className="text-[7px] font-bold px-1 rounded uppercase border bg-slate-100 border-slate-300 text-slate-600">
+                                       Import
+                                     </span>
+                                   ) : (tx.executionType && tx.executionType !== 'spontaneous') ? (
+                                     <span className={`text-[7px] font-bold px-1 rounded uppercase border ${
+                                       tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/10 text-ac-sky' : 'bg-ac-cream-dark/40 border-ac-brown/10 text-ac-brown-light'
+                                     }`}>
+                                       {tx.executionType === 'planned' ? 'Prévu' : 'Passé'}
+                                     </span>
+                                   ) : null}
+                                 </div>
                               </div>
 
                               <span className={`font-black whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
@@ -350,13 +353,17 @@ export default function EconomicCalendar() {
                         <span className="text-[8px] font-black text-ac-brown-light bg-white border border-ac-brown/15 px-1.5 py-0.5 rounded uppercase">
                           {acc?.name || 'Compte'}
                         </span>
-                        {tx.executionType && tx.executionType !== 'spontaneous' && (
+                        {(tx.executionType === 'import' || tx.importBatchId != null) ? (
+                          <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase border bg-slate-100 border-slate-300 text-slate-600">
+                            Import
+                          </span>
+                        ) : (tx.executionType && tx.executionType !== 'spontaneous') ? (
                           <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase border ${
                             tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' : 'bg-ac-cream-dark/50 border-ac-brown/15 text-ac-brown-light'
                           }`}>
                             {tx.executionType === 'planned' ? 'Prévu' : 'Passé'}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                     <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
@@ -410,13 +417,17 @@ export default function EconomicCalendar() {
                           <span className="text-[8px] font-black text-ac-brown-light bg-white border border-ac-brown/15 px-1.5 py-0.5 rounded uppercase">
                             {acc?.name || 'Compte'}
                           </span>
-                          {tx.executionType && tx.executionType !== 'spontaneous' && (
+                          {(tx.executionType === 'import' || tx.importBatchId != null) ? (
+                            <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase border bg-slate-100 border-slate-300 text-slate-600">
+                              Import
+                            </span>
+                          ) : (tx.executionType && tx.executionType !== 'spontaneous') ? (
                             <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase border ${
                               tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' : 'bg-ac-cream-dark/50 border-ac-brown/15 text-ac-brown-light'
                             }`}>
                               {tx.executionType === 'planned' ? 'Prévu' : 'Passé'}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                       <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>

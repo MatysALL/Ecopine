@@ -546,13 +546,17 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                           
                           {/* Badges for Execution Types */}
                           <div className="mt-1 flex gap-1">
-                            {tx.executionType && tx.executionType !== 'spontaneous' && (
+                            {(tx.executionType === 'import' || tx.importBatchId != null) ? (
+                              <span className="text-[7px] font-black uppercase px-1 rounded border bg-slate-100 border-slate-300 text-slate-600">
+                                Importée
+                              </span>
+                            ) : (tx.executionType && tx.executionType !== 'spontaneous') ? (
                               <span className={`text-[7px] font-black uppercase px-1 rounded border ${
                                 tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' : 'bg-ac-cream-dark/50 border-ac-brown/15 text-ac-brown-light'
                               }`}>
                                 {tx.executionType === 'planned' ? 'Planifiée' : 'Passée'}
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         </div>
 

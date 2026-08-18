@@ -915,6 +915,9 @@ export const db = {
         amount: Math.abs(Number(data.amount) || 0),
         type: isCredit ? 'credit' : 'debit',
         date: data.date || new Date().toISOString().split('T')[0],
+        executionType: data.executionType || 'spontaneous',
+        importBatchId: data.importBatchId || null,
+        importFileName: data.importFileName || null,
         pocketId: data.pocketId || null,
         createdAt: data.createdAt || new Date().toISOString(),
         userId: auth.currentUser.uid,
@@ -1005,13 +1008,8 @@ export const db = {
       delete cleanData.category;
       delete cleanData.categoryId;
       delete cleanData.budgetId;
-      delete cleanData.importBatchId;
-      delete cleanData.importFileName;
-      delete cleanData.importedAt;
       delete cleanData.isImported;
-      delete cleanData.executionType;
       delete cleanData.recurrenceEnd;
-      delete cleanData.recurrencePeriod;
 
       batch.update(txRef, cleanData);
 
@@ -1074,6 +1072,9 @@ export const db = {
             date: rest.date || nowIso.split('T')[0],
             createdAt: rest.createdAt || nowIso,
             isRecurring: false,
+            executionType: rest.executionType || 'import',
+            importBatchId: rest.importBatchId || null,
+            importFileName: rest.importFileName || null,
             pocketId: rest.pocketId || null,
             userId: rest.userId || currentUid,
             accountId: rest.accountId,
@@ -1081,6 +1082,52 @@ export const db = {
             allowedUsers: rest.allowedUsers || [currentUid]
           });
         });
+        await batch.commit();
+      }
+    }
+  },
+  imports: {
+    add: async (data) => {
+      if (!auth.currentUser) throw new Error("Non connecté");
+      const batchId = data.id || ("import_" + Date.now());
+      const ref = doc(firestoreDb, 'imports', batchId);
+      const docData = {
+        id: batchId,
+        accountId: data.accountId,
+        userId: auth.currentUser.uid,
+        fileName: data.fileName || 'Import CSV',
+        transactionCount: data.transactionCount || 0,
+        importedAt: data.importedAt || new Date().toISOString()
+      };
+      if (db._activeBatch) {
+        db._activeBatch.set(ref, docData);
+      } else {
+        await setDoc(ref, docData);
+      }
+      return batchId;
+    },
+    delete: async (batchId) => {
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      const importRef = doc(firestoreDb, 'imports', batchId);
+      batch.delete(importRef);
+      
+      const txsQuery = query(collection(firestoreDb, 'transactions'), where('importBatchId', '==', batchId));
+      const txsSnap = await getDocs(txsQuery);
+      txsSnap.docs.forEach(docSnap => {
+        batch.delete(doc(firestoreDb, 'transactions', docSnap.id));
+      });
+      
+      if (!db._activeBatch) {
+        await batch.commit();
+      }
+    },
+    clear: async () => {
+      if (!auth.currentUser) return;
+      const q = query(collection(firestoreDb, 'imports'), where('userId', '==', auth.currentUser.uid));
+      const snap = await getDocs(q);
+      const batch = db._activeBatch || writeBatch(firestoreDb);
+      snap.docs.forEach(docSnap => batch.delete(doc(firestoreDb, 'imports', docSnap.id)));
+      if (!db._activeBatch) {
         await batch.commit();
       }
     }

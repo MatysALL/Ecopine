@@ -61,6 +61,9 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
         type: type === 'income' ? 'credit' : 'debit',
         date,
         createdAt: transaction?.createdAt || new Date().toISOString(),
+        executionType: transaction?.executionType || 'spontaneous',
+        importBatchId: transaction?.importBatchId || null,
+        importFileName: transaction?.importFileName || null,
         pocketId: pocketId || null
       };
 

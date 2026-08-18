@@ -1,6 +1,8 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { db, useDb, COLOR_PALETTE, getCustomCardStyle } from '../db';
-import { doc, writeBatch } from 'firebase/firestore';
+import { 
+  collection, doc, setDoc, deleteDoc, query, where, onSnapshot, getDocs, writeBatch 
+} from 'firebase/firestore';
 import { auth, db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
@@ -34,10 +36,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [transferDesc, setTransferDesc] = useState('');
 
   // CSV Dropzone state
+  const [selectedCsvFile, setSelectedCsvFile] = useState(null);
   const [csvPreviewTxs, setCsvPreviewTxs] = useState(null);
   const [csvError, setCsvError] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
-  const [importHistoryModalOpen, setImportHistoryModalOpen] = useState(false);
+  const [accountImports, setAccountImports] = useState([]);
+  const [importsLoading, setImportsLoading] = useState(false);
 
   const { accountsData: accounts, transactions: allTransactions, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
 
@@ -364,56 +368,71 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   const handleFileInput = (e) => {
     if (e.target.files && e.target.files[0]) {
-      processCSVFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setSelectedCsvFile(file);
+      processCSVFile(file);
     }
   };
 
-  // Group imported transactions by importBatchId
-  const accountImportBatches = useMemo(() => {
-    if (!transactions) return [];
-    
-    const imported = transactions.filter(t => t.isImported || t.importBatchId);
-    
-    const batchesMap = {};
-    imported.forEach(tx => {
-      const batchId = tx.importBatchId || 'batch_legacy';
-      if (!batchesMap[batchId]) {
-        batchesMap[batchId] = {
-          batchId,
-          fileName: tx.importFileName || 'Import CSV',
-          importedAt: tx.importedAt || tx.date || new Date().toISOString(),
-          transactionsCount: 0,
-          txIds: []
-        };
-      }
-      batchesMap[batchId].transactionsCount += 1;
-      batchesMap[batchId].txIds.push(tx.id);
+  // Real-time listener for import batches of the account currently being edited
+  useEffect(() => {
+    if (!editingAccount?.id) {
+      setAccountImports([]);
+      return;
+    }
+
+    setImportsLoading(true);
+    const q = query(
+      collection(firestoreDb, 'imports'),
+      where('accountId', '==', editingAccount.id)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.importedAt || '').localeCompare(a.importedAt || ''));
+      setAccountImports(docs);
+      setImportsLoading(false);
+    }, (err) => {
+      console.error("Erreur lors de la récupération des lots d'importation :", err);
+      setImportsLoading(false);
     });
 
-    return Object.values(batchesMap).sort((a, b) => (b.importedAt || '').localeCompare(a.importedAt || ''));
-  }, [transactions]);
+    return () => unsubscribe();
+  }, [editingAccount?.id]);
 
-  // Delete all transactions linked to a specific importBatchId via writeBatch
+  // Delete all transactions linked to a specific import batch and the import doc itself
   const handleDeleteImportBatch = async (batch) => {
-    if (!batch || !batch.txIds || batch.txIds.length === 0) return;
-
-    const count = batch.transactionsCount;
-    const confirmMsg = `Voulez-vous vraiment supprimer cet import "${batch.fileName}" et ses ${count} transaction(s) ?`;
+    if (!batch?.id) return;
+    const batchId = batch.id;
+    const count = batch.transactionCount ?? 0;
+    const confirmMsg = `Voulez-vous vraiment supprimer cet import "${batch.fileName || 'CSV'}" et ses ${count} transaction(s) ?`;
     
     if (!window.confirm(confirmMsg)) return;
 
     try {
+      // 1. Récupère toutes les transactions où importBatchId == batchId
+      const txQuery = query(
+        collection(firestoreDb, 'transactions'),
+        where('importBatchId', '==', batchId)
+      );
+      const txSnap = await getDocs(txQuery);
+
+      // 2. Supprime ces transactions en batch
+      const txDocs = txSnap.docs;
       const chunkSize = 450;
-      for (let i = 0; i < batch.txIds.length; i += chunkSize) {
-        const chunk = batch.txIds.slice(i, i + chunkSize);
+      for (let i = 0; i < txDocs.length; i += chunkSize) {
+        const chunk = txDocs.slice(i, i + chunkSize);
         const batchObj = writeBatch(firestoreDb);
-        chunk.forEach(txId => {
-          batchObj.delete(doc(firestoreDb, 'transactions', txId));
+        chunk.forEach(docSnap => {
+          batchObj.delete(docSnap.ref);
         });
         await batchObj.commit();
       }
 
-      setToastMessage(`Import "${batch.fileName}" (${count} transactions) supprimé avec succès !`);
+      // 3. Supprime le document correspondant dans imports/{batchId}
+      await deleteDoc(doc(firestoreDb, 'imports', batchId));
+
+      setToastMessage("Lot d'importation et ses transactions supprimés avec succès ! 🍃");
       setTimeout(() => setToastMessage(null), 4000);
     } catch (err) {
       console.error("Error deleting import batch:", err);
@@ -624,15 +643,29 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     const currentUser = user || auth.currentUser;
     if (!currentUser) return;
     const nowIso = new Date().toISOString();
+    const batchId = "import_" + Date.now();
+    const fileName = selectedCsvFile?.name || 'Import CSV';
 
-    const preparedTxs = csvPreviewTxs.map(tx => ({
-      name: tx.name || "Transaction importée",
-      amount: Math.abs(Number(tx.amount)) || 0,
-      type: tx.type === 'credit' ? 'credit' : 'debit',
-      date: tx.date || nowIso.split('T')[0],
+    // 1. Enregistre le lot dans la collection imports
+    await setDoc(doc(firestoreDb, "imports", batchId), {
+      id: batchId,
+      accountId: activeAccount.id,
+      userId: currentUser.uid,
+      fileName: fileName,
+      transactionCount: csvPreviewTxs.length,
+      importedAt: nowIso
+    });
+
+    // 2. Injecte les champs d'identification dans chaque transaction du lot
+    const preparedTxs = csvPreviewTxs.map(t => ({
+      name: t.name || "Transaction importée",
+      amount: Math.abs(Number(t.amount)) || 0,
+      type: t.type === 'credit' ? 'credit' : 'debit',
+      date: t.date || nowIso.split('T')[0],
       createdAt: nowIso,
-      isRecurring: false,
-      pocketId: null,
+      executionType: "import",
+      importBatchId: batchId,
+      importFileName: fileName,
       userId: currentUser.uid,
       accountId: activeAccount.id,
       projectId: activeAccount.projectId || null,
@@ -643,6 +676,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       await db.transactions.bulkAdd(preparedTxs);
       const count = preparedTxs.length;
       setCsvPreviewTxs(null);
+      setSelectedCsvFile(null);
       setToastMessage(`${count} transaction${count > 1 ? 's' : ''} importée${count > 1 ? 's' : ''} avec succès ! 🍃`);
       setTimeout(() => {
         setToastMessage(null);
@@ -846,7 +880,10 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
                     <div className="flex gap-2 justify-end">
                       <button 
-                        onClick={() => setCsvPreviewTxs(null)}
+                        onClick={() => {
+                          setCsvPreviewTxs(null);
+                          setSelectedCsvFile(null);
+                        }}
                         className="bg-white hover:bg-ac-cream border border-ac-brown text-ac-brown font-extrabold text-xs px-3 py-1.5 rounded-xl cursor-pointer"
                       >
                         Annuler
@@ -887,6 +924,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       {transactions.map((tx) => {
                         const isIncome = tx.type === 'credit';
                         const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
+                        const isImport = tx.executionType === 'import' || tx.importBatchId != null;
                         return (
                           <tr key={tx.id} className="hover:bg-ac-cream-light/35 transition-colors group">
                             <td className="py-3.5 pl-2 text-xs font-bold text-ac-brown-light">
@@ -904,11 +942,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                             </td>
                             <td className="py-3.5">
                               <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
+                                isImport ? 'bg-slate-100 border-slate-300 text-slate-600' :
                                 tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
                                 tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :
                                 'bg-ac-green-light border-ac-green/20 text-ac-green'
                               }`}>
-                                {tx.executionType === 'planned' ? 'À prévoir' :
+                                {isImport ? 'Importée' :
+                                 tx.executionType === 'planned' ? 'À prévoir' :
                                  tx.executionType === 'past' ? 'Passée' : 'Spontanée'}
                               </span>
                             </td>
@@ -952,6 +992,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   {transactions.map((tx) => {
                     const isIncome = tx.type === 'credit';
                     const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
+                    const isImport = tx.executionType === 'import' || tx.importBatchId != null;
                     return (
                       <div key={tx.id} className="bg-ac-cream/20 border-2 border-ac-brown rounded-2xl p-4 flex flex-col gap-2 relative">
                         <div className="flex justify-between items-start">
@@ -975,11 +1016,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
                         <div className="flex flex-wrap gap-1.5 items-center mt-1">
                           <span className={`text-[9px] font-black px-2 py-0.5 rounded border ${
+                            isImport ? 'bg-slate-100 border-slate-300 text-slate-600' :
                             tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
                             tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :
                             'bg-ac-green-light border-ac-green/20 text-ac-green'
                           }`}>
-                            {tx.executionType === 'planned' ? 'À prévoir' :
+                            {isImport ? 'Importée' :
+                             tx.executionType === 'planned' ? 'À prévoir' :
                              tx.executionType === 'past' ? 'Passée' : 'Spontanée'}
                           </span>
                         </div>
@@ -1364,17 +1407,28 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   <h4 className="text-xs font-black uppercase text-ac-brown flex items-center gap-1.5">
                     <FileSpreadsheet className="w-4 h-4 text-ac-green" /> Historique &amp; Gestion des imports CSV
                   </h4>
-                  {accountImportBatches.length === 0 ? (
+                  {importsLoading ? (
+                    <p className="text-xs text-ac-brown-light italic bg-ac-cream/50 p-3 rounded-2xl border border-ac-brown/10">
+                      Chargement de l'historique des imports...
+                    </p>
+                  ) : accountImports.length === 0 ? (
                     <p className="text-xs text-ac-brown-light italic bg-ac-cream/50 p-3 rounded-2xl border border-ac-brown/10">
                       Aucun lot d'importation CSV enregistré pour ce compte.
                     </p>
                   ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {accountImportBatches.map(batch => {
-                        const formattedDate = batch.importedAt ? (batch.importedAt?.toDate ? batch.importedAt.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(batch.importedAt).getTime()) ? String(batch.importedAt) : new Date(batch.importedAt).toLocaleDateString('fr-FR'))) : '';
+                      {accountImports.map(batch => {
+                        const formattedDate = batch.importedAt 
+                          ? (batch.importedAt?.toDate 
+                              ? batch.importedAt.toDate().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) 
+                              : (isNaN(new Date(batch.importedAt).getTime()) 
+                                  ? String(batch.importedAt) 
+                                  : new Date(batch.importedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })))
+                          : '—';
+                        const count = batch.transactionCount ?? 0;
                         return (
                           <div 
-                            key={batch.batchId} 
+                            key={batch.id} 
                             className="bg-white border-2 border-ac-brown/20 rounded-2xl p-3 flex justify-between items-center shadow-xs"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -1382,11 +1436,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                                 <FileText className="w-4 h-4" />
                               </div>
                               <div className="min-w-0">
-                                <p className="text-xs font-extrabold text-ac-brown truncate max-w-[180px] sm:max-w-[240px]">
-                                  {batch.fileName}
+                                <p className="text-xs font-extrabold text-ac-brown truncate max-w-[180px] sm:max-w-[240px]" title={batch.fileName}>
+                                  {batch.fileName || 'Import CSV'}
                                 </p>
                                 <p className="text-[10px] font-bold text-ac-brown-light">
-                                  {batch.transactionsCount} transaction{batch.transactionsCount > 1 ? 's' : ''} • {formattedDate}
+                                  {count} transaction{count > 1 ? 's' : ''} • {formattedDate}
                                 </p>
                               </div>
                             </div>
@@ -1394,7 +1448,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                               type="button"
                               onClick={() => handleDeleteImportBatch(batch)}
                               className="bg-ac-red-light hover:bg-ac-red/20 text-ac-red p-2 rounded-xl border border-ac-red/30 transition-transform active:scale-95 cursor-pointer shrink-0 ml-2"
-                              title="Supprimer cet import et ses transactions"
+                              title="Supprimer le lot"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
