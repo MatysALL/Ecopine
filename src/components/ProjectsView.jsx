@@ -85,15 +85,25 @@ export default function ProjectsView() {
     }
   };
 
+  // Secure return handler from project detail
+  const handleBackToProjects = (target = null) => {
+    // Si l'argument reçu est un événement React (objet contenant nativeEvent ou target), on force à null
+    if (target && (target.nativeEvent || target.target || typeof target !== 'string')) {
+      setSelectedProjectId(null);
+    } else {
+      setSelectedProjectId(null);
+      if (typeof target === 'string' && target.trim()) {
+        setToastMessage(target);
+      }
+    }
+  };
+
   // If a project is selected, render ProjectDetailView
   if (selectedProjectId && activeProject) {
     return (
       <ProjectDetailView 
         project={activeProject} 
-        onBack={(msg) => {
-          setSelectedProjectId(null);
-          if (msg) setToastMessage(msg);
-        }} 
+        onBack={handleBackToProjects} 
       />
     );
   }
@@ -166,14 +176,14 @@ export default function ProjectsView() {
                   </div>
 
                   <h3 className="font-black text-xl text-ac-brown group-hover:text-ac-green transition-colors leading-snug truncate">
-                    {proj.name}
+                    {String(proj?.name || '')}
                   </h3>
 
                   <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ac-brown-light mt-1.5">
-                    <span>Par <strong>{proj.ownerName || 'Habitant'}</strong></span>
+                    <span>Par <strong>{String(proj?.ownerName || 'Habitant')}</strong></span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" /> {formattedDate}
+                      <Calendar className="w-3.5 h-3.5" /> {String(formattedDate || '')}
                     </span>
                   </div>
                 </div>
@@ -182,19 +192,19 @@ export default function ProjectsView() {
                 <div className="mt-6 pt-4 border-t-2 border-ac-brown/10 flex justify-between items-center">
                   <div className="flex items-center gap-3 text-xs font-extrabold text-ac-brown-light">
                     <span className="flex items-center gap-1" title={`${projAccountsCount} compte(s) projet`}>
-                      <PiggyBank className="w-3.5 h-3.5 text-ac-gold" /> {projAccountsCount}
+                      <PiggyBank className="w-3.5 h-3.5 text-ac-gold" /> {Number(projAccountsCount || 0)}
                     </span>
                     <span className="flex items-center gap-1" title={`${projWishesCount} souhait(s)`}>
-                      <Gift className="w-3.5 h-3.5 text-ac-red" /> {projWishesCount}
+                      <Gift className="w-3.5 h-3.5 text-ac-red" /> {Number(projWishesCount || 0)}
                     </span>
                     <span className="flex items-center gap-1" title={`${projDebtsCount} dette(s) active(s)`}>
-                      <Handshake className="w-3.5 h-3.5 text-ac-orange" /> {projDebtsCount}
+                      <Handshake className="w-3.5 h-3.5 text-ac-orange" /> {Number(projDebtsCount || 0)}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-xs font-black text-ac-green">
                     <Users className="w-4 h-4" />
-                    <span>{memberCount}</span>
+                    <span>{Number(memberCount || 0)}</span>
                     <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
@@ -265,7 +275,7 @@ export default function ProjectsView() {
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce-in bg-ac-green text-white font-black text-xs px-5 py-3 rounded-2xl border-2 border-ac-brown shadow-ac-md flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4" />
-          <span>{toastMessage}</span>
+          <span>{String(toastMessage || '')}</span>
         </div>
       )}
     </div>

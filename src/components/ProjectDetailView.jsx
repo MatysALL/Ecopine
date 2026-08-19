@@ -552,7 +552,7 @@ export default function ProjectDetailView({ project, onBack }) {
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 relative z-10">
           <div className="flex items-start md:items-center gap-3.5">
             <button
-              onClick={onBack}
+              onClick={() => onBack && onBack(null)}
               className="bg-slate-800 hover:bg-slate-700 border-2 border-slate-600 text-white rounded-full p-2.5 transition-all hover:scale-105 cursor-pointer shrink-0 mt-0.5 md:mt-0"
               title="Retour à la liste des projets"
             >
