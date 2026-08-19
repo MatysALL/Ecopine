@@ -195,108 +195,127 @@ export default function Settings() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Profile Card */}
-        <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
-          <div>
-            <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-4">
-              <User className="w-5 h-5 text-ac-green" /> Profil d'habitant
-            </h3>
-            
-            <form onSubmit={handleProfileSave} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Prénom de l'habitant</label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Ex: Matys"
-                  className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-[10px] font-black uppercase text-ac-brown-light">
-                    Photo de profil / Avatar
-                  </label>
-                  <span className="text-[10px] font-bold text-ac-green flex items-center gap-1">
-                    ⚡ Clic = Sauvegarde instantanée
-                  </span>
+        {/* Left Column: Account Info Card + Dedicated Avatar Selector Widget */}
+        <div className="space-y-6">
+          {/* Widget 1: Account / Profile Management */}
+          <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
+            <div>
+              <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-4">
+                <User className="w-5 h-5 text-ac-green" /> Informations du compte
+              </h3>
+              
+              <form onSubmit={handleProfileSave} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Prénom de l'habitant</label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Ex: Matys"
+                    className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
+                    required
+                  />
                 </div>
 
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                  {AVAILABLE_AVATARS.map(avatar => {
-                    const isSelected = photoURL === avatar.src || (!photoURL && avatar.src === '/pfp-ac.jpg');
-                    return (
-                      <button
-                        key={avatar.id}
-                        type="button"
-                        onClick={() => handleSelectAvatar(avatar.src)}
-                        title={avatar.label}
-                        className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden flex items-center justify-center shrink-0 bg-white transition-all duration-200 cursor-pointer ${
-                          isSelected 
-                            ? 'border-4 border-green-500 ring-4 ring-ac-green/30 scale-105 shadow-md' 
-                            : 'border-2 border-ac-brown/30 hover:border-ac-brown opacity-85 hover:opacity-100 hover:scale-105'
-                        }`}
-                      >
-                        <img 
-                          src={avatar.src} 
-                          alt={avatar.label} 
-                          className="w-full h-full object-cover object-center block" 
-                        />
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-green-950/20 flex items-center justify-center backdrop-blur-[0.5px]">
-                            <div className="w-5 h-5 bg-ac-green rounded-full flex items-center justify-center text-white text-[11px] font-black shadow-sm">
-                              ✓
-                            </div>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {user?.email && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold text-ac-brown-light bg-ac-cream-dark/20 px-4 py-3 rounded-2xl border border-ac-brown/10">
-                  <div>
-                    <span className="block text-[9px] font-black uppercase text-ac-brown-light/65 mb-0.5">Adresse e-mail</span>
-                    <span className="text-ac-brown break-all">{user.email}</span>
+                {user?.email && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold text-ac-brown-light bg-ac-cream-dark/20 px-4 py-3 rounded-2xl border border-ac-brown/10">
+                    <div>
+                      <span className="block text-[9px] font-black uppercase text-ac-brown-light/65 mb-0.5">Adresse e-mail</span>
+                      <span className="text-ac-brown break-all">{user.email}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="bg-ac-red hover:bg-ac-red/90 text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px] cursor-pointer whitespace-nowrap self-start sm:self-center"
+                    >
+                      Se déconnecter
+                    </button>
                   </div>
+                )}
+
+                <div className="pt-2 flex items-center gap-3 flex-wrap">
+                  <button
+                    type="submit"
+                    className="bg-ac-green text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer"
+                  >
+                    Enregistrer le prénom
+                  </button>
+
                   <button
                     type="button"
-                    onClick={handleLogout}
-                    className="bg-ac-red hover:bg-ac-red/90 text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-sm active:translate-y-[1px] cursor-pointer whitespace-nowrap self-start sm:self-center"
+                    onClick={handleResetTutorial}
+                    className="bg-ac-gold text-ac-brown font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer flex items-center gap-1"
                   >
-                    Se déconnecter
+                    🐾 Revoir le tutoriel
                   </button>
+
+                  {saveSuccess && (
+                    <span className="text-[10px] font-black text-ac-green flex items-center gap-1 animate-bounce-in">
+                      <CheckCircle className="w-4 h-4" /> Sauvegardé !
+                    </span>
+                  )}
                 </div>
-              )}
+              </form>
+            </div>
+          </div>
 
-              <div className="pt-2 flex items-center gap-3 flex-wrap">
-                <button
-                  type="submit"
-                  className="bg-ac-green text-white font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer"
-                >
-                  Enregistrer les modifications
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleResetTutorial}
-                  className="bg-ac-gold text-ac-brown font-extrabold text-xs px-5 py-2.5 rounded-2xl border-2 border-ac-brown shadow-ac-sm hover:translate-y-[1px] cursor-pointer flex items-center gap-1"
-                >
-                  🐾 Revoir le tutoriel
-                </button>
-
-                {saveSuccess && (
-                  <span className="text-[10px] font-black text-ac-green flex items-center gap-1 animate-bounce-in">
-                    <CheckCircle className="w-4 h-4" /> Sauvegardé !
-                  </span>
-                )}
+          {/* Widget 2: Dedicated Avatar Selector Widget */}
+          <div className="bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm transition-all">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">🎨</span>
+              <div>
+                <h2 className="text-lg font-black text-ac-brown">
+                  Avatar de l'habitant
+                </h2>
+                <p className="text-xs font-semibold text-ac-brown-light">
+                  Choisis ton apparence. Le changement s'applique instantanément à toute l'application.
+                </p>
               </div>
-            </form>
+            </div>
+
+            {/* Grille des avatars disponibles */}
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-3.5 mt-5">
+              {AVAILABLE_AVATARS.map((avatar) => {
+                const isSelected = photoURL === avatar.src || (!photoURL && avatar.src === '/pfp-ac.jpg');
+                
+                return (
+                  <button
+                    key={avatar.id}
+                    type="button"
+                    onClick={() => handleSelectAvatar(avatar.src)}
+                    className={`relative group flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 cursor-pointer ${
+                      isSelected
+                        ? 'bg-ac-green/15 ring-3 ring-ac-green shadow-md scale-105 border-2 border-ac-green'
+                        : 'hover:bg-ac-cream hover:scale-105 active:scale-95 border-2 border-transparent'
+                    }`}
+                  >
+                    {/* Image de l'avatar */}
+                    <div className={`relative w-14 h-14 rounded-full overflow-hidden border-2 transition-colors shadow-inner ${
+                      isSelected ? 'border-ac-green' : 'border-ac-brown/30 group-hover:border-ac-green'
+                    }`}>
+                      <img
+                        src={avatar.src}
+                        alt={avatar.label}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.src = '/pfp-ac.jpg'; }}
+                      />
+                    </div>
+
+                    {/* Label de l'avatar */}
+                    <span className="mt-2 text-[11px] font-bold text-ac-brown text-center truncate max-w-full">
+                      {avatar.label}
+                    </span>
+
+                    {/* Badge de sélection active */}
+                    {isSelected && (
+                      <span className="absolute top-1 right-1 w-5 h-5 bg-ac-green text-white rounded-full flex items-center justify-center text-[10px] font-black shadow">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 

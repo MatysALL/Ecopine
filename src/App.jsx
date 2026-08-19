@@ -139,7 +139,16 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard onViewAccountDetails={handleViewAccountDetails} username={username} />;
+      case 'home':
+        return (
+          <Dashboard 
+            onViewAccountDetails={handleViewAccountDetails} 
+            username={username} 
+            setActiveTab={setActiveTab}
+            setCurrentView={setActiveTab}
+            onNavigate={setActiveTab}
+          />
+        );
       case 'accounts':
         return (
           <AccountsView

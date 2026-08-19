@@ -19,7 +19,7 @@ export default function Dashboard({
   };
 
   const { 
-    userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, 
+    userMeta, usersMetaDoc, accountsData, favoriteAccountDetails, globalLatestTransactions, 
     wishlist, pockets, debts, user 
   } = useDb();
 
@@ -84,9 +84,20 @@ export default function Dashboard({
     setIsNookCollapsed(!isNookCollapsed);
   };
 
-  if (!accountsData || accountsData.length === 0) {
+  // Loading state
+  if (!accountsData) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-ac-brown bg-white border-3 border-ac-brown rounded-3xl p-6 shadow-ac-sm text-center space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-ac-brown gap-3">
+        <div className="w-12 h-12 border-4 border-ac-green border-t-transparent rounded-full animate-spin"></div>
+        <p className="font-extrabold text-sm animate-pulse">Chargement de ton île financière...</p>
+      </div>
+    );
+  }
+
+  // If no accounts exist
+  if (accountsData.length === 0) {
+    return (
+      <div className="bg-white border-3 border-ac-brown rounded-3xl p-8 text-center text-ac-brown shadow-ac-md space-y-4 max-w-md mx-auto my-12 animate-bounce-in">
         <span className="text-4xl animate-bounce">🏝️</span>
         <h3 className="font-black text-sm">Bienvenue sur ton île budgétaire !</h3>
         <p className="text-xs text-ac-brown-light max-w-sm">
@@ -96,9 +107,15 @@ export default function Dashboard({
     );
   }
 
-  // Split favorite vs others using standardized resolution
-  const favMeta = userMeta?.find(m => m.key === 'favorite_account_id');
-  const resolvedFavoriteAccount = getActiveOrFavoriteAccount(accountsData, favMeta?.value);
+  // 1. Trie les comptes personnels
+  const personalAccounts = (accountsData || [])
+    .filter(acc => !acc.projectId)
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+  // 2. Résolution stricte du compte favori (favori explicite si valide, sinon index 0)
+  const favAccountId = usersMetaDoc?.favoriteAccountId || userMeta?.find(m => m.key === 'favorite_account_id')?.value;
+  const explicitFavorite = personalAccounts.find(acc => acc.id === favAccountId);
+  const resolvedFavoriteAccount = explicitFavorite || personalAccounts[0] || accountsData[0] || null;
   const favoriteId = resolvedFavoriteAccount?.id || null;
 
   // Limit other accounts to a maximum of 4

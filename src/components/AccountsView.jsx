@@ -53,24 +53,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
   }, [accountsData]);
 
-  // Favorite account calculation
-  const storedFavoriteId = useMemo(() => {
-    return usersMetaDoc?.favoriteAccountId || userMeta?.find(m => m.key === 'favorite_account_id')?.value || null;
-  }, [usersMetaDoc, userMeta]);
-
-  const activeFavoriteAccount = useMemo(() => {
-    return getActiveOrFavoriteAccount(accounts, storedFavoriteId);
-  }, [accounts, storedFavoriteId]);
-
-  const handleToggleFavorite = async (e, accId) => {
-    e.stopPropagation();
-    try {
-      await db.user_meta.put({ key: 'favorite_account_id', value: accId });
-    } catch (err) {
-      console.error("Erreur lors de la définition du compte favori :", err);
-    }
-  };
-
   // 1. Separation of personal accounts (reorderable by Drag & Drop) & project accounts
   const personalAccounts = useMemo(() => {
     if (!accounts) return [];
@@ -85,6 +67,39 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       .filter(acc => acc.projectId != null)
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
   }, [accounts]);
+
+  // Favorite account calculation
+  const storedFavoriteId = useMemo(() => {
+    return usersMetaDoc?.favoriteAccountId || userMeta?.find(m => m.key === 'favorite_account_id')?.value || null;
+  }, [usersMetaDoc, userMeta]);
+
+  // Résolution stricte : cherche le favori explicite si défini et valide, sinon prend strictement le premier de la liste (index 0)
+  const activeFavoriteAccount = useMemo(() => {
+    const explicitFavorite = personalAccounts.find(acc => acc.id === storedFavoriteId);
+    return explicitFavorite || personalAccounts[0] || null;
+  }, [personalAccounts, storedFavoriteId]);
+
+  // Auto-attribution dans Firestore si aucun favori valide n'est défini
+  useEffect(() => {
+    if (!user?.uid || personalAccounts.length === 0) return;
+
+    const hasValidFavorite = personalAccounts.some(acc => acc.id === storedFavoriteId);
+
+    if (!hasValidFavorite && personalAccounts[0]?.id) {
+      const defaultFavId = personalAccounts[0].id;
+      db.user_meta.put({ key: 'favorite_account_id', value: defaultFavId })
+        .catch(err => console.error("Erreur mise à jour favori par défaut :", err));
+    }
+  }, [personalAccounts, storedFavoriteId, user?.uid]);
+
+  const handleToggleFavorite = async (e, accId) => {
+    e.stopPropagation();
+    try {
+      await db.user_meta.put({ key: 'favorite_account_id', value: accId });
+    } catch (err) {
+      console.error("Erreur lors de la définition du compte favori :", err);
+    }
+  };
 
   // Drag & Drop states for Personal Accounts
   const [draggedIndex, setDraggedIndex] = useState(null);
