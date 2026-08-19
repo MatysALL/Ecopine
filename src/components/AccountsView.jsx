@@ -71,12 +71,17 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
   };
 
-  // 1. Initial sorting by order key (personal accounts)
-  const sortedAccounts = useMemo(() => {
+  // 1. Separation of personal accounts (reorderable by Drag & Drop) & project accounts
+  const personalAccounts = useMemo(() => {
     if (!accounts) return [];
     return [...accounts]
-      .filter(acc => !acc.projectId) // Ne réordonner que les comptes personnels entre eux
+      .filter(acc => !acc.projectId)
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+  }, [accounts]);
+
+  const projectAccounts = useMemo(() => {
+    if (!accounts) return [];
+    return [...accounts].filter(acc => acc.projectId != null);
   }, [accounts]);
 
   // Drag & Drop states for Accounts
@@ -105,12 +110,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       return;
     }
 
-    // 1. Réorganisation optimiste locale
-    const reordered = [...sortedAccounts];
+    // 1. Réorganisation optimiste locale sur les comptes personnels uniquement
+    const reordered = [...personalAccounts];
     const [movedItem] = reordered.splice(draggedIndex, 1);
     reordered.splice(dragOverIndex, 0, movedItem);
 
-    // Mise à jour immédiate de l'affichage local
+    // Mise à jour immédiate de l'affichage local en préservant les comptes de projets
     setAccounts(prev => {
       const projectAccs = (prev || []).filter(a => a.projectId);
       return [...reordered, ...projectAccs];
@@ -187,7 +192,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       } else {
         const newId = await db.accounts.add({
           ...data,
-          order: sortedAccounts.length,
+          order: personalAccounts.length,
           createdAt: new Date().toISOString()
         });
         setSelectedAccountId(newId);
@@ -1142,93 +1147,152 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
           {/* Accounts Grid */}
           {!accounts ? (
             <div className="text-center py-6 text-ac-brown-light">Chargement...</div>
-          ) : accounts.length === 0 ? (
+          ) : personalAccounts.length === 0 && projectAccounts.length === 0 ? (
             <div className="text-center py-10 bg-white rounded-3xl border-3 border-ac-brown text-ac-brown-light">
               <p className="font-extrabold mb-4">Tu n'as pas encore créé de compte ou de livret.</p>
               <p className="text-xs">Commence par créer ton compte courant principal en cliquant sur "Nouveau Compte" ci-dessus !</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {sortedAccounts.map((acc, index) => {
-                const isExplicitFavorite = storedFavoriteId === acc.id;
-                const isDefaultFavorite = !storedFavoriteId && activeFavoriteAccount?.id === acc.id;
-                const isFavorite = isExplicitFavorite || isDefaultFavorite;
-                const isProjectAcc = Boolean(acc.projectId);
-                
-                // 1. Calcul du titre garanti sans valeur vide
-                const titleText = acc.name || acc.title || (isProjectAcc ? "Compte Projet" : "Compte");
-                const projectName = acc.projectName || (projects?.find(p => p.id === acc.projectId)?.name) || "";
+            <div className="space-y-10">
+              {/* --- 1. SECTION COMPTES PERSONNELS --- */}
+              {personalAccounts.length > 0 && (
+                <div className="accounts-section">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {personalAccounts.map((acc, index) => {
+                      const isExplicitFavorite = storedFavoriteId === acc.id;
+                      const isDefaultFavorite = !storedFavoriteId && activeFavoriteAccount?.id === acc.id;
+                      const isFavorite = isExplicitFavorite || isDefaultFavorite;
+                      const titleText = acc.name || acc.title || "Compte";
 
-                return (
-                  <div 
-                    key={acc.id}
-                    draggable={true}
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragEnter={(e) => handleDragEnter(e, index)}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
-                    onClick={() => setSelectedAccountId(acc.id)}
-                    style={isProjectAcc ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(acc.color), color: '#ffffff' }}
-                    className={`ac-card account-card p-5 cursor-grab active:cursor-grabbing relative group overflow-visible flex flex-col justify-between transition-all duration-200 ${
-                      isProjectAcc 
-                        ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
-                        : 'border-ac-brown text-white'
-                    } ${
-                      draggedIndex === index ? 'opacity-40 scale-95 border-dashed border-2 border-green-500' : ''
-                    }`}
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className={`font-bold text-sm leading-tight break-words ${isProjectAcc ? 'text-white font-extrabold' : 'text-white'}`}>
-                            {titleText}
-                          </h3>
-                          {isProjectAcc && (
-                            <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
-                              📁 PROJET
+                      return (
+                        <div 
+                          key={acc.id}
+                          draggable={true}
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragEnter={(e) => handleDragEnter(e, index)}
+                          onDragOver={handleDragOver}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => setSelectedAccountId(acc.id)}
+                          style={{ backgroundColor: resolveColorHex(acc.color), color: '#ffffff' }}
+                          className={`ac-card account-card p-5 cursor-grab active:cursor-grabbing relative group overflow-visible flex flex-col justify-between transition-all duration-200 border-ac-brown text-white ${
+                            draggedIndex === index ? 'opacity-40 scale-95 border-dashed border-2 border-green-500' : ''
+                          }`}
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-sm leading-tight break-words text-white">
+                                {titleText}
+                              </h3>
+                              <span className="text-[10px] font-bold block mt-1.5 text-white/80">
+                                🏦 {acc.bank || acc.bankName || '—'}
+                              </span>
+                            </div>
+
+                            <div className="flex gap-1.5 shrink-0 items-center">
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => handleToggleFavorite(e, acc.id)}
+                                className="w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer bg-white/20 hover:bg-white/30 border-white/30"
+                                title={isExplicitFavorite ? "Compte favori actuel" : (isDefaultFavorite ? "Compte principal par défaut (index 0)" : "Définir comme compte favori")}
+                              >
+                                <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-300 fill-amber-300' : 'text-white/60 hover:text-amber-300'}`} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-white/20 flex justify-between items-baseline">
+                            <span className="text-[10px] font-black uppercase tracking-wide text-white/80">Solde Réel</span>
+                            <span className="font-black text-base text-white">
+                              {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                             </span>
+                          </div>
+
+                          {acc.balance !== acc.visibleBalance && (
+                            <div className="text-[9px] font-extrabold flex justify-between items-center mt-1 text-white/80">
+                              <span>Solde disponible :</span>
+                              <span className={acc.visibleBalance < 0 ? 'text-amber-300 font-black' : 'text-white/90 font-black'}>
+                                {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                              </span>
+                            </div>
                           )}
                         </div>
-                        <span className={`text-[10px] font-bold block mt-1.5 ${isProjectAcc ? 'text-slate-300' : 'text-white/80'}`}>
-                          🏦 {acc.bank || acc.bankName || '—'}
-                        </span>
-                      </div>
-
-                      <div className="flex gap-1.5 shrink-0 items-center">
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => handleToggleFavorite(e, acc.id)}
-                          className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
-                            isProjectAcc
-                              ? 'bg-slate-800 hover:bg-slate-700 border-slate-700'
-                              : 'bg-white/20 hover:bg-white/30 border-white/30'
-                          }`}
-                          title={isExplicitFavorite ? "Compte favori actuel" : (isDefaultFavorite ? "Compte principal par défaut (index 0)" : "Définir comme compte favori")}
-                        >
-                          <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-300 fill-amber-300' : (isProjectAcc ? 'text-slate-500 hover:text-amber-300' : 'text-white/60 hover:text-amber-300')}`} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className={`mt-4 pt-3 border-t flex justify-between items-baseline ${isProjectAcc ? 'border-slate-700' : 'border-white/20'}`}>
-                      <span className={`text-[10px] font-black uppercase tracking-wide ${isProjectAcc ? 'text-slate-400' : 'text-white/80'}`}>Solde Réel</span>
-                      <span className={`font-black text-base ${isProjectAcc ? 'text-white' : 'text-white'}`}>
-                        {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                      </span>
-                    </div>
-
-                    {acc.balance !== acc.visibleBalance && (
-                      <div className={`text-[9px] font-extrabold flex justify-between items-center mt-1 ${isProjectAcc ? 'text-slate-400' : 'text-white/80'}`}>
-                        <span>Solde disponible :</span>
-                        <span className={acc.visibleBalance < 0 ? 'text-amber-300 font-black' : (isProjectAcc ? 'text-ac-gold font-black' : 'text-white/90 font-black')}>
-                          {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                        </span>
-                      </div>
-                    )}
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              )}
+
+              {/* --- 2. SECTION COMPTES DE PROJETS (SI PRÉSENTS) --- */}
+              {projectAccounts.length > 0 && (
+                <div className="project-accounts-section mt-10">
+                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700">
+                    📁 Comptes de Projets Partagés ({projectAccounts.length})
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {projectAccounts.map((acc) => {
+                      const isExplicitFavorite = storedFavoriteId === acc.id;
+                      const isDefaultFavorite = !storedFavoriteId && activeFavoriteAccount?.id === acc.id;
+                      const isFavorite = isExplicitFavorite || isDefaultFavorite;
+                      const titleText = acc.name || acc.title || "Compte Projet";
+                      const projectName = acc.projectName || (projects?.find(p => p.id === acc.projectId)?.name) || "";
+
+                      return (
+                        <div 
+                          key={acc.id}
+                          onClick={() => setSelectedAccountId(acc.id)}
+                          style={{ backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' }}
+                          className="ac-card account-card p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all duration-200 project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md"
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-extrabold text-sm leading-tight break-words text-white">
+                                  {titleText}
+                                </h3>
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full inline-flex items-center gap-1 shrink-0">
+                                  📁 {projectName || 'PROJET'}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold block mt-1.5 text-slate-300">
+                                🏦 {acc.bank || acc.bankName || '—'}
+                              </span>
+                            </div>
+
+                            <div className="flex gap-1.5 shrink-0 items-center">
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => handleToggleFavorite(e, acc.id)}
+                                className="w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer bg-slate-800 hover:bg-slate-700 border-slate-700"
+                                title={isExplicitFavorite ? "Compte favori actuel" : (isDefaultFavorite ? "Compte principal par défaut (index 0)" : "Définir comme compte favori")}
+                              >
+                                <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-300 fill-amber-300' : 'text-slate-500 hover:text-amber-300'}`} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-700 flex justify-between items-baseline">
+                            <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">Solde Réel</span>
+                            <span className="font-black text-base text-white">
+                              {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                            </span>
+                          </div>
+
+                          {acc.balance !== acc.visibleBalance && (
+                            <div className="text-[9px] font-extrabold flex justify-between items-center mt-1 text-slate-400">
+                              <span>Solde disponible :</span>
+                              <span className={acc.visibleBalance < 0 ? 'text-amber-300 font-black' : 'text-ac-gold font-black'}>
+                                {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
