@@ -44,7 +44,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [accountImports, setAccountImports] = useState([]);
   const [importsLoading, setImportsLoading] = useState(false);
 
-  const { accountsData: accounts, transactions: allTransactions, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
+  const { accountsData, transactions: allTransactions, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
+  const [accounts, setAccounts] = useState([]);
+
+  useEffect(() => {
+    if (accountsData) {
+      setAccounts(accountsData);
+    }
+  }, [accountsData]);
 
   // Favorite account calculation
   const storedFavoriteId = useMemo(() => {
@@ -64,98 +71,65 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
   };
 
-  // Drag & Drop state for Accounts
-  const [draggableAccountId, setDraggableAccountId] = useState(null);
-  const isDraggingRef = useRef(false);
-  const touchStartIndexRef = useRef(null);
-
+  // 1. Initial sorting by order key (personal accounts)
   const sortedAccounts = useMemo(() => {
     if (!accounts) return [];
-    return accounts
-      .filter(acc => {
-        if (!acc.projectId) return true;
-        const proj = projects?.find(p => p.id === acc.projectId);
-        return Boolean(proj && (proj.ownerId === user?.uid || proj.memberUids?.includes(user?.uid)));
-      })
+    return [...accounts]
+      .filter(acc => !acc.projectId) // Ne réordonner que les comptes personnels entre eux
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-  }, [accounts, user, projects]);
+  }, [accounts]);
 
-  const reorderAccounts = async (dragIndex, hoverIndex) => {
-    if (dragIndex === hoverIndex || isNaN(dragIndex) || isNaN(hoverIndex)) return;
+  // Drag & Drop states for Accounts
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragEnter = (e, index) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDragEnd = async () => {
+    if (draggedIndex === null || dragOverIndex === null || draggedIndex === dragOverIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    // 1. Réorganisation optimiste locale
     const reordered = [...sortedAccounts];
-    const [dragged] = reordered.splice(dragIndex, 1);
-    reordered.splice(hoverIndex, 0, dragged);
+    const [movedItem] = reordered.splice(draggedIndex, 1);
+    reordered.splice(dragOverIndex, 0, movedItem);
 
-    // Save order sequence in Firestore
-    const batch = writeBatch(firestoreDb);
-    reordered.forEach((acc, idx) => {
-      const ref = doc(firestoreDb, 'accounts', acc.id);
-      batch.update(ref, { order: idx });
+    // Mise à jour immédiate de l'affichage local
+    setAccounts(prev => {
+      const projectAccs = (prev || []).filter(a => a.projectId);
+      return [...reordered, ...projectAccs];
     });
-    
-    await batch.commit();
-  };
 
-  // Drag & Drop handlers for Accounts
-  const handleAccountDragStart = (e, index) => {
-    e.dataTransfer.setData('text/plain', index);
-    e.dataTransfer.effectAllowed = 'move';
-    isDraggingRef.current = true;
-  };
+    setDraggedIndex(null);
+    setDragOverIndex(null);
 
-  const handleAccountDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  const handleAccountDrop = async (e, hoverIndex) => {
-    e.preventDefault();
-    const dragIndex = Number(e.dataTransfer.getData('text/plain'));
-    await reorderAccounts(dragIndex, hoverIndex);
-    setDraggableAccountId(null);
-    isDraggingRef.current = false;
-  };
-
-  const handleAccountDragEnd = () => {
-    setDraggableAccountId(null);
-    isDraggingRef.current = false;
-  };
-
-  const handleTouchStartHandle = (e, index, accId) => {
-    setDraggableAccountId(accId);
-    touchStartIndexRef.current = index;
-    isDraggingRef.current = true;
-  };
-
-  const handleTouchMoveHandle = (e) => {
-    if (!isDraggingRef.current || touchStartIndexRef.current === null) return;
-    const touch = e.touches[0];
-    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (!targetEl) return;
-    const cardEl = targetEl.closest('[data-account-index]');
-    if (cardEl) {
-      const hoverIndex = Number(cardEl.getAttribute('data-account-index'));
-      if (!isNaN(hoverIndex)) {
-        cardEl.classList.add('ring-2', 'ring-ac-green');
-      }
+    // 2. Persistance dans Firestore (Batch Write)
+    try {
+      const batch = writeBatch(firestoreDb);
+      reordered.forEach((acc, index) => {
+        const accRef = doc(firestoreDb, "accounts", acc.id);
+        batch.update(accRef, { order: index });
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde de l'ordre des comptes :", error);
     }
-  };
-
-  const handleTouchEndHandle = async (e, index) => {
-    if (!isDraggingRef.current) return;
-    const touch = e.changedTouches[0];
-    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
-    isDraggingRef.current = false;
-    setDraggableAccountId(null);
-    if (targetEl) {
-      const cardEl = targetEl.closest('[data-account-index]');
-      if (cardEl) {
-        const hoverIndex = Number(cardEl.getAttribute('data-account-index'));
-        if (!isNaN(hoverIndex) && hoverIndex !== touchStartIndexRef.current) {
-          await reorderAccounts(touchStartIndexRef.current, hoverIndex);
-        }
-      }
-    }
-    touchStartIndexRef.current = null;
   };
 
   // Fetch transactions for the active account
@@ -219,7 +193,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         setSelectedAccountId(newId);
 
         // Règle par défaut : Si un utilisateur crée son TOUT PREMIER compte (et qu'aucun favori n'existe), définis-le automatiquement comme le compte favori par défaut.
-        if (!currentFavoriteId || !accounts || accounts.length === 0) {
+        if (!storedFavoriteId || !accounts || accounts.length === 0) {
           await db.user_meta.put({ key: 'favorite_account_id', value: newId });
         }
       }
@@ -1176,7 +1150,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {sortedAccounts.map((acc, index) => {
-                const isDragging = draggableAccountId === acc.id;
                 const isExplicitFavorite = storedFavoriteId === acc.id;
                 const isDefaultFavorite = !storedFavoriteId && activeFavoriteAccount?.id === acc.id;
                 const isFavorite = isExplicitFavorite || isDefaultFavorite;
@@ -1189,20 +1162,19 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 return (
                   <div 
                     key={acc.id}
-                    data-account-index={index}
-                    draggable={draggableAccountId === acc.id}
-                    onDragStart={(e) => handleAccountDragStart(e, index)}
-                    onDragOver={handleAccountDragOver}
-                    onDrop={(e) => handleAccountDrop(e, index)}
-                    onDragEnd={handleAccountDragEnd}
+                    draggable={true}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnter={(e) => handleDragEnter(e, index)}
+                    onDragOver={handleDragOver}
+                    onDragEnd={handleDragEnd}
                     onClick={() => setSelectedAccountId(acc.id)}
                     style={isProjectAcc ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(acc.color), color: '#ffffff' }}
-                    className={`ac-card account-card p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
+                    className={`ac-card account-card p-5 cursor-grab active:cursor-grabbing relative group overflow-visible flex flex-col justify-between transition-all duration-200 ${
                       isProjectAcc 
                         ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
                         : 'border-ac-brown text-white'
                     } ${
-                      isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
+                      draggedIndex === index ? 'opacity-40 scale-95 border-dashed border-2 border-green-500' : ''
                     }`}
                   >
                     <div className="flex justify-between items-start gap-2">
@@ -1225,6 +1197,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       <div className="flex gap-1.5 shrink-0 items-center">
                         <button
                           type="button"
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => handleToggleFavorite(e, acc.id)}
                           className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
                             isProjectAcc
@@ -1235,24 +1208,6 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         >
                           <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-300 fill-amber-300' : (isProjectAcc ? 'text-slate-500 hover:text-amber-300' : 'text-white/60 hover:text-amber-300')}`} />
                         </button>
-
-                        <div 
-                          onMouseDown={(e) => { e.stopPropagation(); setDraggableAccountId(acc.id); isDraggingRef.current = true; }}
-                          onMouseEnter={() => { setDraggableAccountId(acc.id); }}
-                          onMouseLeave={() => { if (!isDraggingRef.current) setDraggableAccountId(null); }}
-                          onTouchStart={(e) => { e.stopPropagation(); handleTouchStartHandle(e, index, acc.id); }}
-                          onTouchMove={handleTouchMoveHandle}
-                          onTouchEnd={(e) => handleTouchEndHandle(e, index)}
-                          onClick={(e) => e.stopPropagation()}
-                          className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing ${
-                            isProjectAcc
-                              ? 'bg-slate-800 border-slate-700 hover:bg-slate-700'
-                              : 'bg-white/20 border-white/30 group-hover:bg-white/30'
-                          }`}
-                          title="Déplacer le compte (glisser-déposer)"
-                        >
-                          <PiggyBank className="w-5 h-5 text-white" />
-                        </div>
                       </div>
                     </div>
 
