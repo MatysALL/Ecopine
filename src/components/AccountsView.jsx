@@ -79,12 +79,14 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
   }, [accounts]);
 
-  const projectAccounts = useMemo(() => {
+  const sortedProjectAccounts = useMemo(() => {
     if (!accounts) return [];
-    return [...accounts].filter(acc => acc.projectId != null);
+    return [...accounts]
+      .filter(acc => acc.projectId != null)
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
   }, [accounts]);
 
-  // Drag & Drop states for Accounts
+  // Drag & Drop states for Personal Accounts
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
@@ -133,7 +135,59 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       });
       await batch.commit();
     } catch (error) {
-      console.error("Erreur lors de la sauvegarde de l'ordre des comptes :", error);
+      console.error("Erreur lors de la sauvegarde de l'ordre des comptes personnels :", error);
+    }
+  };
+
+  // Drag & Drop states for Shared Project Accounts
+  const [draggedProjIndex, setDraggedProjIndex] = useState(null);
+  const [dragOverProjIndex, setDragOverProjIndex] = useState(null);
+
+  const handleProjectDragStart = (e, index) => {
+    setDraggedProjIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleProjectDragEnter = (e, index) => {
+    e.preventDefault();
+    setDragOverProjIndex(index);
+  };
+
+  const handleProjectDragEnd = async () => {
+    if (
+      draggedProjIndex === null || 
+      dragOverProjIndex === null || 
+      draggedProjIndex === dragOverProjIndex
+    ) {
+      setDraggedProjIndex(null);
+      setDragOverProjIndex(null);
+      return;
+    }
+
+    // 1. Réorganisation locale optimiste
+    const reordered = [...sortedProjectAccounts];
+    const [movedItem] = reordered.splice(draggedProjIndex, 1);
+    reordered.splice(dragOverProjIndex, 0, movedItem);
+
+    // Mise à jour de l'état global
+    setAccounts(prev => {
+      const personalAccs = (prev || []).filter(a => !a.projectId);
+      return [...personalAccs, ...reordered];
+    });
+
+    setDraggedProjIndex(null);
+    setDragOverProjIndex(null);
+
+    // 2. Persistance dans Firestore (Batch Write)
+    try {
+      const batch = writeBatch(firestoreDb);
+      reordered.forEach((acc, index) => {
+        const accRef = doc(firestoreDb, "accounts", acc.id);
+        batch.update(accRef, { order: index });
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde de l'ordre des comptes de projet :", error);
     }
   };
 
@@ -164,13 +218,48 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
 
   const canEdit = myRole === 'owner' || myRole === 'editor';
 
+  // 1. Récupération ciblée des transactions dans Firestore pour le compte sélectionné
+  const [accountTransactions, setAccountTransactions] = useState(null);
+
+  useEffect(() => {
+    if (!selectedAccountId) {
+      setAccountTransactions(null);
+      return;
+    }
+
+    const q = query(
+      collection(firestoreDb, "transactions"),
+      where("accountId", "==", String(selectedAccountId))
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const transList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Tri par date décroissante
+      transList.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+      setAccountTransactions(transList);
+    }, (error) => {
+      console.error("Erreur chargement transactions :", error);
+    });
+
+    return () => unsubscribe();
+  }, [selectedAccountId]);
+
   const transactions = useMemo(() => {
-    if (!selectedAccountId || !allTransactions) return [];
-    return allTransactions
-      .filter(t => t.accountId === selectedAccountId)
-      .slice()
-      .sort((a, b) => b.date.localeCompare(a.date));
-  }, [selectedAccountId, allTransactions]);
+    if (!selectedAccountId) return [];
+    if (accountTransactions !== null) {
+      return accountTransactions;
+    }
+    if (allTransactions) {
+      return allTransactions
+        .filter(t => String(t.accountId) === String(selectedAccountId))
+        .slice()
+        .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+    }
+    return [];
+  }, [selectedAccountId, accountTransactions, allTransactions]);
 
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
@@ -1147,7 +1236,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
           {/* Accounts Grid */}
           {!accounts ? (
             <div className="text-center py-6 text-ac-brown-light">Chargement...</div>
-          ) : personalAccounts.length === 0 && projectAccounts.length === 0 ? (
+          ) : personalAccounts.length === 0 && sortedProjectAccounts.length === 0 ? (
             <div className="text-center py-10 bg-white rounded-3xl border-3 border-ac-brown text-ac-brown-light">
               <p className="font-extrabold mb-4">Tu n'as pas encore créé de compte ou de livret.</p>
               <p className="text-xs">Commence par créer ton compte courant principal en cliquant sur "Nouveau Compte" ci-dessus !</p>
@@ -1224,13 +1313,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               )}
 
               {/* --- 2. SECTION COMPTES DE PROJETS (SI PRÉSENTS) --- */}
-              {projectAccounts.length > 0 && (
+              {sortedProjectAccounts.length > 0 && (
                 <div className="project-accounts-section mt-10">
                   <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-700">
-                    📁 Comptes de Projets Partagés ({projectAccounts.length})
+                    📁 Comptes de Projets Partagés ({sortedProjectAccounts.length})
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {projectAccounts.map((acc) => {
+                    {sortedProjectAccounts.map((acc, index) => {
                       const isExplicitFavorite = storedFavoriteId === acc.id;
                       const isDefaultFavorite = !storedFavoriteId && activeFavoriteAccount?.id === acc.id;
                       const isFavorite = isExplicitFavorite || isDefaultFavorite;
@@ -1240,9 +1329,18 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                       return (
                         <div 
                           key={acc.id}
+                          draggable={true}
+                          onDragStart={(e) => handleProjectDragStart(e, index)}
+                          onDragEnter={(e) => handleProjectDragEnter(e, index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDragEnd={handleProjectDragEnd}
                           onClick={() => setSelectedAccountId(acc.id)}
                           style={{ backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' }}
-                          className="ac-card account-card p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all duration-200 project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md"
+                          className={`ac-card account-card p-5 cursor-grab active:cursor-grabbing relative group overflow-visible flex flex-col justify-between transition-all duration-200 project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md ${
+                            draggedProjIndex === index 
+                              ? 'opacity-40 scale-95 border-dashed border-2 border-indigo-400' 
+                              : ''
+                          }`}
                         >
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex-1 min-w-0">
