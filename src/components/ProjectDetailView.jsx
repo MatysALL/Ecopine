@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { db, useDb, COLOR_PALETTE, getCustomCardStyle, calculateAccountBalance, getAccountBalanceSync } from '../db';
 import { collection, doc, getDocs, query, where, writeBatch, onSnapshot, arrayUnion } from 'firebase/firestore';
-import { db as firestoreDb } from '../firebase';
+import { auth, db as firestoreDb } from '../firebase';
 import { 
   ArrowLeft, Users, Shield, Crown, Edit3, Trash2, Plus, 
   PiggyBank, Gift, Handshake, Landmark, LogOut, Check, X, 
@@ -364,6 +364,8 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
     e.preventDefault();
     if (!accName.trim() || !canEdit) return;
     try {
+      const currentUid = user?.uid || auth.currentUser?.uid;
+      const allowed = project.memberUids && project.memberUids.length > 0 ? project.memberUids : (currentUid ? [currentUid] : []);
       await db.accounts.add({
         name: accName.trim(),
         bank: accBankName.trim(),
@@ -371,8 +373,9 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
         color: '#1E232A',
         projectId: project.id,
         projectName: project.name,
-        createdAt: new Date().toISOString(),
-        allowedUsers: project.memberUids || [user.uid]
+        userId: currentUid,
+        allowedUsers: allowed,
+        createdAt: new Date().toISOString()
       });
       setAccName('');
       setAccBankName('');
@@ -401,13 +404,16 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
   const handleSaveTransaction = async (txData) => {
     if (!canEdit || !selectedAccId) return;
     try {
+      const currentUid = user?.uid || auth.currentUser?.uid;
+      const allowed = project.memberUids && project.memberUids.length > 0 ? project.memberUids : (currentUid ? [currentUid] : []);
       const preparedData = {
         ...txData,
         accountId: selectedAccId,
         projectId: project.id,
         projectName: project.name,
-        createdAt: txData.createdAt || new Date().toISOString(),
-        allowedUsers: project.memberUids || [user.uid]
+        userId: txData.userId || currentUid,
+        allowedUsers: txData.allowedUsers || allowed,
+        createdAt: txData.createdAt || new Date().toISOString()
       };
       if (editingTx) {
         await db.transactions.update(editingTx.id, preparedData);
@@ -491,6 +497,8 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
     try {
       const todayStr = new Date().toISOString().split('T')[0];
       const wishTitle = buyingWish.name || buyingWish.title;
+      const currentUid = user?.uid || auth.currentUser?.uid;
+      const allowed = project.memberUids && project.memberUids.length > 0 ? project.memberUids : (currentUid ? [currentUid] : []);
       await db.transactions.add({
         accountId: buyingAccountId,
         name: `Achat souhait : ${wishTitle}`,
@@ -498,10 +506,11 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
         amount: priceVal,
         type: 'debit',
         date: todayStr,
+        userId: currentUid,
+        allowedUsers: allowed,
         createdAt: new Date().toISOString(),
         projectId: project.id,
-        projectName: project.name,
-        allowedUsers: project.memberUids || [user.uid]
+        projectName: project.name
       });
       await db.wishlist.delete(buyingWish.id);
       setBuyingWish(null);
@@ -610,6 +619,8 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
       const destName = destAcc?.name || 'compte projet';
       const desc = transferDesc.trim() || 'Virement interne projet';
       const nowIso = new Date().toISOString();
+      const currentUid = user?.uid || auth.currentUser?.uid;
+      const allowed = project.memberUids && project.memberUids.length > 0 ? project.memberUids : (currentUid ? [currentUid] : []);
 
       await db.transaction(async () => {
         await db.transactions.add({
@@ -619,10 +630,11 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
           amount: amt,
           type: 'debit',
           date: todayStr,
+          userId: currentUid,
+          allowedUsers: allowed,
           createdAt: nowIso,
           projectId: project.id,
-          projectName: project.name,
-          allowedUsers: project.memberUids || [user.uid]
+          projectName: project.name
         });
         await db.transactions.add({
           accountId: transferDestId,
@@ -631,10 +643,11 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
           amount: amt,
           type: 'credit',
           date: todayStr,
+          userId: currentUid,
+          allowedUsers: allowed,
           createdAt: nowIso,
           projectId: project.id,
-          projectName: project.name,
-          allowedUsers: project.memberUids || [user.uid]
+          projectName: project.name
         });
       });
       setTransferSourceId('');

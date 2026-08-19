@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { db, useDb, getNextRenewalDate, COLOR_PALETTE, getCustomCardStyle, resolveColorHex } from '../db';
 import { doc, writeBatch, collection } from 'firebase/firestore';
-import { db as firestoreDb } from '../firebase';
+import { auth, db as firestoreDb } from '../firebase';
 import { 
   Plus, Trash2, Edit2, Sparkles, Coins, Clock, AlertCircle, X,
   Palette, Check
 } from 'lucide-react';
 
 export default function PocketManager({ accountId, role }) {
-  const { pockets: allPockets, accountsData } = useDb();
+  const { pockets: allPockets, accountsData, user } = useDb();
   
   // UI states
   const [formOpen, setFormOpen] = useState(false);
@@ -111,9 +111,17 @@ export default function PocketManager({ accountId, role }) {
           color: pocketData.color
         });
       } else {
+        const targetAccount = (accountsData || []).find(a => a.id === accountId);
+        const currentUid = user?.uid || auth.currentUser?.uid;
+        const allowedUsers = targetAccount?.allowedUsers && targetAccount.allowedUsers.length > 0 
+          ? targetAccount.allowedUsers 
+          : (currentUid ? [currentUid] : []);
+
         // New pocket gets full initial charge
         await db.pockets.add({
           ...pocketData,
+          userId: currentUid,
+          allowedUsers: allowedUsers,
           currentAmount: allocated,
           order: pockets.length,
           createdAt: new Date().toISOString()
@@ -183,6 +191,12 @@ export default function PocketManager({ accountId, role }) {
     setIsDebiting(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
+      const targetAccount = (accountsData || []).find(a => a.id === accountId);
+      const currentUid = user?.uid || auth.currentUser?.uid;
+      const allowedUsers = targetAccount?.allowedUsers && targetAccount.allowedUsers.length > 0 
+        ? targetAccount.allowedUsers 
+        : (currentUid ? [currentUid] : []);
+
       await db.transactions.add({
         accountId,
         pocketId: debitTargetPocket.id,
@@ -191,6 +205,9 @@ export default function PocketManager({ accountId, role }) {
         amount: amt,
         type: 'debit',
         date: todayStr,
+        userId: currentUid,
+        allowedUsers: allowedUsers,
+        projectId: targetAccount?.projectId || null,
         createdAt: new Date().toISOString()
       });
       setDebitModalOpen(false);

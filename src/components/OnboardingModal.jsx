@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db, useDb, COLOR_PALETTE, resolveColorHex } from '../db';
+import { auth } from '../firebase';
 import { Leaf, Sparkles, User, Home, Building2, FileText, Palette, Check } from 'lucide-react';
 
 export default function OnboardingModal() {
-  const { username: dbUsername } = useDb();
+  const { username: dbUsername, user } = useDb();
   const [username, setUsername] = useState('');
   const [accountName, setAccountName] = useState('Poche');
   const [bankName, setBankName] = useState('');
@@ -33,12 +34,16 @@ export default function OnboardingModal() {
       // 1. Put user metadata
       await db.user_meta.put({ key: 'username', value: username.trim() });
       
+      const currentUid = user?.uid || auth.currentUser?.uid;
+
       // 2. Add first personal account
       const newAccountId = await db.accounts.add({
         name: accountName.trim(),
         bank: bankName.trim(),
         description: description.trim() || 'Compte initial de mon île',
         color: resolveColorHex(color) || '#7FA650',
+        userId: currentUid,
+        allowedUsers: currentUid ? [currentUid] : [],
         order: 0,
         isFavorite: true,
         createdAt: new Date().toISOString()

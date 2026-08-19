@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Layers } from 'lucide-react';
 import { useDb } from '../db';
+import { auth } from '../firebase';
 
 export default function TransactionModal({ isOpen, onClose, onSave, transaction, accountId }) {
   const [name, setName] = useState('');
@@ -11,7 +12,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
   const [pocketId, setPocketId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { pockets: allPockets } = useDb();
+  const { pockets: allPockets, accountsData: accounts, user } = useDb();
 
   // Filter pockets for this account
   const pocketsList = useMemo(() => {
@@ -57,6 +58,12 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
 
     setIsSubmitting(true);
     try {
+      const targetAccount = (accounts || []).find(a => a.id === accountId);
+      const currentUid = user?.uid || auth.currentUser?.uid;
+      const allowedUsers = targetAccount?.allowedUsers && targetAccount.allowedUsers.length > 0 
+        ? targetAccount.allowedUsers 
+        : (currentUid ? [currentUid] : []);
+
       const transactionData = {
         accountId: accountId,
         name: name.trim(),
@@ -68,7 +75,10 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
         executionType: executionType || 'spontaneous',
         importBatchId: transaction?.importBatchId || null,
         importFileName: transaction?.importFileName || null,
-        pocketId: pocketId || null
+        pocketId: pocketId || null,
+        projectId: targetAccount?.projectId || null,
+        userId: transaction?.userId || currentUid,
+        allowedUsers: allowedUsers
       };
 
       await onSave(transactionData);

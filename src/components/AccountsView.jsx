@@ -279,8 +279,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         await db.accounts.update(editingAccount.id, data);
         setEditingAccount(null);
       } else {
+        const currentUid = user?.uid || auth.currentUser?.uid;
         const newId = await db.accounts.add({
           ...data,
+          userId: currentUid,
+          allowedUsers: [currentUid],
           order: personalAccounts.length,
           createdAt: new Date().toISOString()
         });
@@ -338,6 +341,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     const desc = transferDesc.trim() || 'Virement';
     const dateStr = new Date().toISOString().split('T')[0];
     const nowIso = new Date().toISOString();
+    const currentUid = user?.uid || auth.currentUser?.uid;
 
     const sourceTx = {
       accountId: transferSourceId,
@@ -346,6 +350,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       amount: amount,
       type: 'debit',
       date: dateStr,
+      userId: currentUid,
+      allowedUsers: sourceAccount.allowedUsers && sourceAccount.allowedUsers.length > 0 ? sourceAccount.allowedUsers : (currentUid ? [currentUid] : []),
+      projectId: sourceAccount.projectId || null,
       createdAt: nowIso
     };
 
@@ -356,6 +363,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       amount: amount,
       type: 'credit',
       date: dateStr,
+      userId: currentUid,
+      allowedUsers: destAccount.allowedUsers && destAccount.allowedUsers.length > 0 ? destAccount.allowedUsers : (currentUid ? [currentUid] : []),
+      projectId: destAccount.projectId || null,
       createdAt: nowIso
     };
 
@@ -420,10 +430,24 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
       alert("Action non autorisée en mode spectateur.");
       return;
     }
+
+    const targetAccount = accounts?.find(a => a.id === (txData.accountId || selectedAccountId));
+    const currentUid = user?.uid || auth.currentUser?.uid;
+    const allowed = targetAccount?.allowedUsers && targetAccount.allowedUsers.length > 0
+      ? targetAccount.allowedUsers
+      : (currentUid ? [currentUid] : []);
+
+    const enrichedTx = {
+      ...txData,
+      userId: txData.userId || currentUid,
+      allowedUsers: txData.allowedUsers || allowed,
+      projectId: txData.projectId !== undefined ? txData.projectId : (targetAccount?.projectId || null)
+    };
+
     if (editingTransaction) {
-      await db.transactions.update(editingTransaction.id, txData);
+      await db.transactions.update(editingTransaction.id, enrichedTx);
     } else {
-      await db.transactions.add(txData);
+      await db.transactions.add(enrichedTx);
     }
     setTxModalOpen(false);
     setEditingTransaction(null);
