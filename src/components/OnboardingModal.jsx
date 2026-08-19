@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db, useDb, COLOR_PALETTE } from '../db';
+import { db, useDb, COLOR_PALETTE, resolveColorHex } from '../db';
 import { Leaf, Sparkles, User, Home, Building2, FileText, Palette, Check } from 'lucide-react';
 
 export default function OnboardingModal() {
@@ -8,7 +8,7 @@ export default function OnboardingModal() {
   const [accountName, setAccountName] = useState('Poche');
   const [bankName, setBankName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState('#78B159');
+  const [color, setColor] = useState('#7FA650');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function OnboardingModal() {
         name: accountName.trim(),
         bank: bankName.trim(),
         description: description.trim() || 'Compte initial de mon île',
-        color: color || '#6CBAD8',
+        color: resolveColorHex(color) || '#7FA650',
         order: 0,
         isFavorite: true,
         createdAt: new Date().toISOString()
@@ -159,12 +159,12 @@ export default function OnboardingModal() {
                         type="button"
                         onClick={() => setColor(c.hex)}
                         className={`w-7 h-7 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
-                          color === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                          color === c.hex || color === c.id ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
                         }`}
                         style={{ backgroundColor: c.hex }}
                         title={c.label}
                       >
-                        {color === c.hex && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                        {(color === c.hex || color === c.id) && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
                       </button>
                     ))}
                   </div>

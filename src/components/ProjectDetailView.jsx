@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { db, useDb, COLOR_PALETTE, getCustomCardStyle, calculateAccountBalance, getAccountBalanceSync } from '../db';
+import { collection, doc, getDocs, query, where, writeBatch, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { db as firestoreDb } from '../firebase';
 import { 
   ArrowLeft, Users, Shield, Crown, Edit3, Trash2, Plus, 
   PiggyBank, Gift, Handshake, Landmark, LogOut, Check, X, 
@@ -13,17 +15,90 @@ export default function ProjectDetailView({ project, onBack }) {
   const { 
     user, 
     username, 
-    accounts, 
-    transactions, 
-    pockets, 
-    wishlist, 
-    projectDebts: allProjectDebts, 
     acceptedFriends, 
-    allUsersMeta 
+    allUsersMeta,
+    isAdmin 
   } = useDb();
 
   const [activeSubTab, setActiveSubTab] = useState('overview'); // 'overview' | 'accounts' | 'wishlist' | 'debts' | 'members'
   
+  // Direct project queries (guarantees 100% visibility for all project members)
+  const [liveProjectAccounts, setLiveProjectAccounts] = useState([]);
+  const [liveProjectWishes, setLiveProjectWishes] = useState([]);
+  const [liveProjectDebts, setLiveProjectDebts] = useState([]);
+  const [liveProjectTxs, setLiveProjectTxs] = useState([]);
+  const [liveProjectPockets, setLiveProjectPockets] = useState([]);
+
+  useEffect(() => {
+    if (!project?.id) return;
+    const projectId = project.id;
+    const unsubs = [];
+
+    // 1. Comptes du projet
+    const qAccounts = query(collection(firestoreDb, 'accounts'), where('projectId', '==', projectId));
+    const unsubAccounts = onSnapshot(qAccounts, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setLiveProjectAccounts(docs);
+    }, (err) => console.error("Error loading project accounts:", err));
+    unsubs.push(unsubAccounts);
+
+    // 2. Souhaits du projet
+    const qWishes = query(collection(firestoreDb, 'wishlist'), where('projectId', '==', projectId));
+    const unsubWishes = onSnapshot(qWishes, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setLiveProjectWishes(docs);
+    }, (err) => console.error("Error loading project wishlist:", err));
+    unsubs.push(unsubWishes);
+
+    // 3. Dettes collectives du projet
+    const qDebts = query(collection(firestoreDb, 'project_debts'), where('projectId', '==', projectId));
+    const unsubDebts = onSnapshot(qDebts, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setLiveProjectDebts(docs);
+    }, (err) => console.error("Error loading project debts:", err));
+    unsubs.push(unsubDebts);
+
+    // 4. Transactions du projet
+    const qTxs = query(collection(firestoreDb, 'transactions'), where('projectId', '==', projectId));
+    const unsubTxs = onSnapshot(qTxs, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setLiveProjectTxs(docs);
+    }, (err) => console.error("Error loading project transactions:", err));
+    unsubs.push(unsubTxs);
+
+    return () => {
+      unsubs.forEach(unsub => unsub());
+    };
+  }, [project?.id]);
+
+  // Live project pockets for project accounts
+  useEffect(() => {
+    if (!liveProjectAccounts || liveProjectAccounts.length === 0) {
+      setLiveProjectPockets([]);
+      return;
+    }
+    const accIds = liveProjectAccounts.map(a => a.id);
+    const unsubs = [];
+    const pocketsMap = {};
+
+    for (let i = 0; i < accIds.length; i += 30) {
+      const chunk = accIds.slice(i, i + 30);
+      const qPockets = query(collection(firestoreDb, 'pockets'), where('accountId', 'in', chunk));
+      const unsub = onSnapshot(qPockets, (snapshot) => {
+        snapshot.docs.forEach(d => {
+          pocketsMap[d.id] = { id: d.id, ...d.data() };
+        });
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'removed') delete pocketsMap[change.doc.id];
+        });
+        setLiveProjectPockets(Object.values(pocketsMap));
+      });
+      unsubs.push(unsub);
+    }
+
+    return () => unsubs.forEach(unsub => unsub());
+  }, [liveProjectAccounts]);
+
   // Selected Account for drill-down within project
   const [selectedAccId, setSelectedAccId] = useState(null);
 
@@ -76,27 +151,26 @@ export default function ProjectDetailView({ project, onBack }) {
   // Current User's Role in this project
   const myRole = useMemo(() => {
     if (!project || !user) return 'viewer';
-    if (project.ownerId === user.uid) return 'owner';
+    if (project.ownerId === user.uid || isAdmin) return 'owner';
     const memberObj = project.members?.[user.uid];
     return memberObj?.role || 'viewer';
-  }, [project, user]);
+  }, [project, user, isAdmin]);
 
-  const isOwner = myRole === 'owner';
-  const canEdit = myRole === 'owner' || myRole === 'editor';
+  const isOwner = myRole === 'owner' || project?.ownerId === user?.uid || isAdmin;
+  const canEdit = isOwner || myRole === 'editor';
 
-  // Filter project-specific accounts
+  // Live project-specific accounts
   const projectAccounts = useMemo(() => {
-    return (accounts || [])
-      .filter(a => a.projectId === project.id)
+    return (liveProjectAccounts || [])
       .map(acc => {
-        const bal = calculateAccountBalance(acc.id, transactions || []);
-        const accPockets = pockets ? pockets.filter(p => String(p.accountId) === String(acc.id)) : [];
+        const bal = calculateAccountBalance(acc.id, liveProjectTxs || []);
+        const accPockets = liveProjectPockets ? liveProjectPockets.filter(p => String(p.accountId) === String(acc.id)) : [];
         const totalAllouePoches = accPockets.reduce((sum, p) => sum + (Number(p.allocatedAmount) || 0), 0);
         const visibleBal = bal - totalAllouePoches;
         return { ...acc, balance: bal, visibleBalance: visibleBal, totalAllouePoches };
       })
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [accounts, transactions, project.id, pockets]);
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+  }, [liveProjectAccounts, liveProjectTxs, liveProjectPockets]);
 
   // Selected project account object
   const activeAccount = useMemo(() => {
@@ -106,24 +180,22 @@ export default function ProjectDetailView({ project, onBack }) {
   // Transactions of selected project account
   const activeAccountTxs = useMemo(() => {
     if (!selectedAccId) return [];
-    return (transactions || [])
+    return (liveProjectTxs || [])
       .filter(t => t.accountId === selectedAccId)
-      .sort((a, b) => b.date.localeCompare(a.date));
-  }, [transactions, selectedAccId]);
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [liveProjectTxs, selectedAccId]);
 
-  // Filter project-specific wishlist items
+  // Project wishlist items
   const projectWishes = useMemo(() => {
-    return (wishlist || [])
-      .filter(w => w.projectId === project.id)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [wishlist, project.id]);
+    return (liveProjectWishes || [])
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+  }, [liveProjectWishes]);
 
-  // Filter project-specific debts
+  // Project debts
   const projectDebts = useMemo(() => {
-    return (allProjectDebts || [])
-      .filter(d => d.projectId === project.id)
+    return (liveProjectDebts || [])
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  }, [allProjectDebts, project.id]);
+  }, [liveProjectDebts]);
 
   // Members list with metadata resolved
   const projectMemberList = useMemo(() => {
@@ -149,7 +221,7 @@ export default function ProjectDetailView({ project, onBack }) {
 
   // Summary Metrics
   const totalAccountBalance = useMemo(() => {
-    return projectAccounts.reduce((sum, a) => sum + (a.visibleBalance || 0), 0);
+    return projectAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
   }, [projectAccounts]);
 
   const activeDebtsCount = useMemo(() => {
@@ -170,16 +242,54 @@ export default function ProjectDetailView({ project, onBack }) {
   };
 
   const handleDeleteProject = async () => {
-    if (!isOwner) return;
-    const confirmName = window.prompt(`Pour supprimer définitivement le projet "${project.name}" et toutes ses données (comptes, transactions, souhaits, dettes), écris "${project.name}" ci-dessous :`);
-    if (confirmName === project.name) {
-      try {
-        await db.projects.delete(project.id);
-        onBack();
-      } catch (err) {
-        console.error(err);
-        alert("Erreur lors de la suppression du projet.");
+    if (!project?.id || !isOwner) return;
+    
+    const confirmDelete = window.confirm(
+      "Es-tu sûr de vouloir supprimer définitivement ce projet et l'ensemble de ses comptes, souhaits et dettes associées ?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const projectId = project.id;
+      const batch = writeBatch(firestoreDb);
+
+      // 1. Récupération et suppression des comptes du projet
+      const accQuery = query(collection(firestoreDb, "accounts"), where("projectId", "==", projectId));
+      const accSnap = await getDocs(accQuery);
+      const accountIds = accSnap.docs.map(d => d.id);
+      accSnap.forEach(d => batch.delete(d.ref));
+
+      // 2. Suppression des transactions liées aux comptes du projet
+      if (accountIds.length > 0) {
+        const transQuery = query(collection(firestoreDb, "transactions"), where("projectId", "==", projectId));
+        const transSnap = await getDocs(transQuery);
+        transSnap.forEach(d => batch.delete(d.ref));
       }
+
+      // 3. Suppression des souhaits du projet
+      const wishQuery = query(collection(firestoreDb, "wishlist"), where("projectId", "==", projectId));
+      const wishSnap = await getDocs(wishQuery);
+      wishSnap.forEach(d => batch.delete(d.ref));
+
+      // 4. Suppression des dettes collectives du projet
+      const debtsQuery = query(collection(firestoreDb, "project_debts"), where("projectId", "==", projectId));
+      const debtsSnap = await getDocs(debtsQuery);
+      debtsSnap.forEach(d => batch.delete(d.ref));
+
+      // 5. Suppression du document projet lui-même
+      const projectRef = doc(firestoreDb, "projects", projectId);
+      batch.delete(projectRef);
+
+      // 6. Exécution atomique
+      await batch.commit();
+
+      // 7. Redirection propre vers la liste des projets
+      if (typeof onBack === "function") {
+        onBack(null);
+      }
+    } catch (error) {
+      console.error("Détail de l'erreur suppression projet :", error);
+      alert("Erreur lors de la suppression du projet : " + error.message);
     }
   };
 
@@ -212,7 +322,7 @@ export default function ProjectDetailView({ project, onBack }) {
       return;
     }
     try {
-      await db.projects.addMember(project.id, selectedFriendUid, selectedInviteRole);
+      await db.projects.addMember(project.id, selectedFriendUid, selectedInviteRole, targetFriend);
       setSelectedFriendUid('');
       setSelectedInviteRole('editor');
       setInviteModalOpen(false);
@@ -608,7 +718,7 @@ export default function ProjectDetailView({ project, onBack }) {
             
             {isOwner ? (
               <button
-                onClick={handleDeleteProject}
+                onClick={() => handleDeleteProject()}
                 className="bg-red-950/80 hover:bg-red-900 text-red-300 hover:text-white font-extrabold text-xs px-3.5 py-2 rounded-xl border border-red-800 transition-all cursor-pointer flex items-center gap-1.5"
                 title="Supprimer le projet et toutes ses données"
               >
@@ -765,11 +875,21 @@ export default function ProjectDetailView({ project, onBack }) {
                     <span className="text-xs text-slate-400 font-bold">Compte collaboratif • Projet {project.name}</span>
                   </div>
                 </div>
-                <div className="text-left sm:text-right bg-slate-800/90 border border-slate-700 rounded-2xl px-5 py-2.5">
-                  <span className="text-[10px] font-black text-slate-400 uppercase block">Solde Disponible</span>
-                  <span className="text-2xl font-black text-ac-gold">
-                    {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                  </span>
+                <div className="flex flex-col gap-2">
+                  <div className="text-left sm:text-right bg-slate-800/90 border border-slate-700 rounded-2xl px-5 py-2.5">
+                    <span className="text-[10px] font-black text-slate-400 uppercase block">Solde Réel Principal</span>
+                    <span className="text-2xl font-black text-white">
+                      {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                    </span>
+                  </div>
+                  {activeAccount.balance !== activeAccount.visibleBalance && (
+                    <div className="text-left sm:text-right bg-slate-800/60 border border-slate-700/80 rounded-2xl px-5 py-1.5">
+                      <span className="text-[9px] font-black text-slate-400 uppercase block">Solde Disponible (indicatif)</span>
+                      <span className={`text-base font-black ${activeAccount.visibleBalance < 0 ? 'text-amber-400' : 'text-ac-gold'}`}>
+                        {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -918,11 +1038,20 @@ export default function ProjectDetailView({ project, onBack }) {
                       </div>
 
                       <div className="mt-5 pt-3 border-t border-slate-700 flex justify-between items-baseline">
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wide">Solde Disponible</span>
-                        <span className="font-black text-lg text-ac-gold">
-                          {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wide">Solde Réel</span>
+                        <span className="font-black text-lg text-white">
+                          {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                         </span>
                       </div>
+
+                      {acc.balance !== acc.visibleBalance && (
+                        <div className="text-[9px] font-extrabold flex justify-between items-center mt-1 text-slate-400">
+                          <span>Solde disponible :</span>
+                          <span className={acc.visibleBalance < 0 ? 'text-amber-400 font-black' : 'text-ac-gold font-black'}>
+                            {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

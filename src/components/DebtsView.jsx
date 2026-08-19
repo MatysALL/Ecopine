@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { db, useDb } from '../db';
+import { collection, doc, writeBatch } from 'firebase/firestore';
+import { db as firestoreDb } from '../firebase';
 import { Plus, Trash2, Handshake, X, Coins, Sparkles, Edit2, AlertCircle, CheckCircle, Users, User, Lock } from 'lucide-react';
 
 export default function DebtsView() {
@@ -41,15 +43,16 @@ export default function DebtsView() {
   const [isSettling, setIsSettling] = useState(false);
   const [activeDebtTab, setActiveDebtTab] = useState('payables'); // 'payables' or 'receivables' on mobile
 
-  // Filter active (non-settled / non-resolved) debts (Strictly exclude project debts)
+  // Filter active (non-settled / non-resolved) debts (Strictly exclude project debts and foreign mirror debts)
   const pendingDebts = useMemo(() => {
     return (debts || []).filter(d => {
       if (d.projectId) return false;
+      if (user?.uid && d.userId && d.userId !== user.uid) return false;
       if (d.status === 'resolved' || d.status === 'settled' || d.status === 'paid') return false;
       if (d.isPaid === true || d.isSettled === true) return false;
       return true;
     });
-  }, [debts]);
+  }, [debts, user]);
 
   // Split into two categories (Je dois vs On me doit) with multi-key type tolerance
   const payables = useMemo(() => {
@@ -79,7 +82,7 @@ export default function DebtsView() {
   // Form submit handler
   const handleDebtSubmit = async (e) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || !user?.uid) return;
 
     let targetEntityName = '';
     let targetFriend = null;
@@ -132,28 +135,34 @@ export default function DebtsView() {
           date: editingDebt.date || todayStr,
           createdAt: editingDebt.createdAt || createdAt,
           associatedFriendId: targetFriend ? targetFriend.uid : (editingDebt.associatedFriendId || null),
-          associatedFriendName: targetFriend ? targetFriend.name : (editingDebt.associatedFriendName || null)
+          associatedFriendName: targetFriend ? targetFriend.name : (editingDebt.associatedFriendName || null),
+          userId: user.uid,
+          allowedUsers: [user.uid]
         });
         setToast({ type: 'success', message: "Dette modifiée avec succès ! 🍃" });
       } else {
+        const batch = writeBatch(firestoreDb);
+
         if (targetFriend) {
-          // CAS 2 : Sélection d'un ami (création autorisée)
-          // 1. Dette pour User A (utilisateur connecté)
-          await db.debts.add({
-            userId: user?.uid,
-            entityName: targetFriend.name,
+          // CAS 2 : Sélection d'un ami (création autorisée de 2 documents indépendants)
+          // 1. Document du créateur (Utilisateur A)
+          const myDebtRef = doc(collection(firestoreDb, "debts"));
+          batch.set(myDebtRef, {
+            userId: user.uid,
+            entityName: targetFriend.name || targetFriend.username || "Ami",
+            associatedFriendId: targetFriend.uid || targetFriend.id,
+            associatedFriendName: targetFriend.name || targetFriend.username,
             amount: amt,
             type: debtType,
-            description: debtDescription.trim(),
-            status: 'pending',
+            description: debtDescription.trim() || "",
             date: todayStr,
             createdAt: createdAt,
-            associatedFriendId: targetFriend.uid,
-            associatedFriendName: targetFriend.name
+            status: "pending",
+            allowedUsers: [user.uid]
           });
 
-          // 2. Dette miroir automatique pour User B (l'ami sélectionné)
-          // Type inversé : "to_pay" ("je_dois") <-> "to_collect" ("on_me_doit")
+          // 2. Document miroir de l'ami (Utilisateur B)
+          const mirrorDebtRef = doc(collection(firestoreDb, "debts"));
           let mirrorType = 'to_pay';
           if (debtType === 'to_pay' || debtType === 'je_dois' || debtType === 'i_owe' || debtType === 'debt') {
             mirrorType = 'to_collect';
@@ -161,18 +170,21 @@ export default function DebtsView() {
             mirrorType = 'to_pay';
           }
 
-          await db.debts.add({
-            userId: targetFriend.uid,
+          batch.set(mirrorDebtRef, {
+            userId: targetFriend.uid || targetFriend.id,
             entityName: currentUserPseudo,
+            associatedFriendId: user.uid,
+            associatedFriendName: currentUserPseudo,
             amount: amt,
-            type: mirrorType,
-            description: debtDescription.trim(),
-            status: 'pending',
+            type: mirrorType, // Type inversé automatiquement
+            description: debtDescription.trim() ? `[Miroir] ${debtDescription.trim()}` : "",
             date: todayStr,
             createdAt: createdAt,
-            associatedFriendId: user?.uid || null,
-            associatedFriendName: currentUserPseudo
+            status: "pending",
+            allowedUsers: [targetFriend.uid || targetFriend.id]
           });
+
+          await batch.commit();
 
           setToast({ 
             type: 'success', 
@@ -180,18 +192,22 @@ export default function DebtsView() {
           });
         } else {
           // CAS 1 : Saisie manuelle classique
-          await db.debts.add({
-            userId: user?.uid,
+          const myDebtRef = doc(collection(firestoreDb, "debts"));
+          batch.set(myDebtRef, {
+            userId: user.uid,
             entityName: targetEntityName,
             amount: amt,
             type: debtType,
-            description: debtDescription.trim(),
-            status: 'pending',
+            description: debtDescription.trim() || "",
             date: todayStr,
             createdAt: createdAt,
+            status: "pending",
             associatedFriendId: null,
-            associatedFriendName: null
+            associatedFriendName: null,
+            allowedUsers: [user.uid]
           });
+
+          await batch.commit();
 
           setToast({ type: 'success', message: "Dette enregistrée avec succès ! 🍃" });
         }

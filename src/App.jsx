@@ -162,7 +162,15 @@ export default function App() {
       case 'admin':
         return <AdminView />;
       default:
-        return <Dashboard onViewAccountDetails={handleViewAccountDetails} username={username} />;
+        return (
+          <Dashboard 
+            onViewAccountDetails={handleViewAccountDetails} 
+            username={username} 
+            setActiveTab={setActiveTab}
+            setCurrentView={setActiveTab}
+            onNavigate={setActiveTab}
+          />
+        );
     }
   };
 

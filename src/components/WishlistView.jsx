@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { db, useDb } from '../db';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
@@ -26,8 +26,7 @@ export default function WishlistView() {
   const [isBuying, setIsBuying] = useState(false);
 
   // Drag & Drop state for Wishes
-  const [draggableWishId, setDraggableWishId] = useState(null);
-  const longPressTimer = useRef(null);
+  const [draggedItemIndex, setDraggedItemIndex] = useState(null);
 
   const sortedWishes = useMemo(() => {
     if (!wishes) return [];
@@ -38,52 +37,52 @@ export default function WishlistView() {
         const proj = projects?.find(p => p.id === w.projectId);
         return Boolean(proj && (proj.ownerId === user?.uid || proj.memberUids?.includes(user?.uid)));
       })
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
   }, [wishes, user, projects]);
+
+  const [localWishes, setLocalWishes] = useState([]);
+
+  useEffect(() => {
+    setLocalWishes(sortedWishes);
+  }, [sortedWishes]);
+
+  const saveNewOrder = async (reorderedItems, collectionName) => {
+    try {
+      const batch = writeBatch(firestoreDb);
+      reorderedItems.forEach((item, index) => {
+        const itemRef = doc(firestoreDb, collectionName, item.id);
+        batch.update(itemRef, { order: index });
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error(`Erreur lors de la réorganisation de ${collectionName} :`, error);
+    }
+  };
 
   // Drag & Drop handlers for Wishes
   const handleDragStart = (e, index) => {
-    e.dataTransfer.setData('text/plain', index);
+    setDraggedItemIndex(index);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragEnter = (e, targetIndex) => {
+    if (draggedItemIndex === null || draggedItemIndex === targetIndex) return;
+    const reordered = [...localWishes];
+    const [dragged] = reordered.splice(draggedItemIndex, 1);
+    reordered.splice(targetIndex, 0, dragged);
+    setDraggedItemIndex(targetIndex);
+    setLocalWishes(reordered);
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
   };
 
-  const handleDrop = async (e, hoverIndex) => {
-    e.preventDefault();
-    const dragIndex = Number(e.dataTransfer.getData('text/plain'));
-    if (dragIndex === hoverIndex || isNaN(dragIndex)) return;
-
-    const reordered = [...sortedWishes];
-    const [dragged] = reordered.splice(dragIndex, 1);
-    reordered.splice(hoverIndex, 0, dragged);
-
-    // Save order sequence in Firestore
-    const batch = writeBatch(firestoreDb);
-    reordered.forEach((wish, idx) => {
-      const ref = doc(firestoreDb, 'wishlist', wish.id);
-      batch.update(ref, { order: idx });
-    });
-    
-    await batch.commit();
-    setDraggableWishId(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggableWishId(null);
-  };
-
-  const handleStartLongPress = (id) => {
-    longPressTimer.current = setTimeout(() => {
-      setDraggableWishId(id);
-    }, 850);
-  };
-
-  const handleCancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
+  const handleDragEnd = async () => {
+    if (draggedItemIndex !== null) {
+      setDraggedItemIndex(null);
+      await saveNewOrder(localWishes, 'wishlist');
     }
   };
 
@@ -317,7 +316,7 @@ export default function WishlistView() {
       )}
 
       {/* Wish Catalogue Grid */}
-      {wishes.length === 0 ? (
+      {localWishes.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-3xl border-3 border-ac-brown text-ac-brown-light space-y-4">
           <Gift className="w-12 h-12 text-ac-brown-light/45 mx-auto" />
           <p className="font-extrabold text-sm">Ton catalogue de souhaits est vide.</p>
@@ -325,40 +324,35 @@ export default function WishlistView() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sortedWishes.map((wish, index) => {
-            const isDragging = draggableWishId === wish.id;
+          {localWishes.map((wish, index) => {
+            const isDragging = draggedItemIndex === index;
             const isProjectWish = Boolean(wish.projectId);
-            
-            // 1. Calcul du titre garanti sans valeur vide
             const wishName = wish.name || wish.title || (isProjectWish ? "Souhait Projet" : "Souhait");
             const projectName = wish.projectName || (projects?.find(p => p.id === wish.projectId)?.name) || "";
+            const canEdit = canUserEditWish(wish);
 
             return (
               <div 
                 key={wish.id} 
-                draggable={isDragging}
+                draggable={canEdit}
                 onDragStart={(e) => handleDragStart(e, index)}
+                onDragEnter={(e) => handleDragEnter(e, index)}
                 onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
                 style={isProjectWish ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : undefined}
                 className={`ac-card wish-card p-5 flex flex-col justify-between group select-none relative transition-all overflow-visible ${
+                  canEdit ? 'cursor-grab active:cursor-grabbing' : ''
+                } ${
                   isProjectWish 
                     ? 'project-wish-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
                     : 'bg-[#FFFDF9] border-ac-brown'
                 } ${
-                  isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
+                  isDragging ? 'opacity-50 scale-[0.98] ring-2 ring-ac-green' : ''
                 }`}
               >
-                {/* Gift tag ornament (Drag handle via long press) */}
+                {/* Decorative gift tag */}
                 <div 
-                  onMouseDown={() => handleStartLongPress(wish.id)}
-                  onTouchStart={() => handleStartLongPress(wish.id)}
-                  onMouseUp={handleCancelLongPress}
-                  onTouchEnd={handleCancelLongPress}
-                  onMouseLeave={handleCancelLongPress}
-                  className="absolute top-0 right-4 bg-ac-red border-l-2 border-r-2 border-b-2 border-ac-brown rounded-b-lg px-2 py-1.5 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-ac-red-light transition-colors z-10 select-none"
-                  title="Glisser-déposer (clic long sur le cadeau)"
+                  className="absolute top-0 right-4 bg-ac-red border-l-2 border-r-2 border-b-2 border-ac-brown rounded-b-lg px-2 py-1.5 flex items-center justify-center pointer-events-none z-10 select-none"
                 >
                   <Gift className="w-3.5 h-3.5 text-white" />
                 </div>
@@ -388,12 +382,13 @@ export default function WishlistView() {
 
                 {/* Action Buttons Group */}
                 <div className={`mt-6 pt-4 border-t flex items-center justify-between ${isProjectWish ? 'border-slate-700' : 'border-ac-brown/10'}`}>
-                  {canUserEditWish(wish) ? (
+                  {canEdit ? (
                     <>
                       {/* Edit & Delete */}
                       <div className="flex gap-1.5">
                         <button
-                          onClick={() => handleEditWish(wish)}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); handleEditWish(wish); }}
                           className={`p-2 rounded-xl border cursor-pointer transition-colors ${
                             isProjectWish 
                               ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
@@ -404,7 +399,8 @@ export default function WishlistView() {
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDeleteWish(wish.id)}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); handleDeleteWish(wish.id); }}
                           className={`p-2 rounded-xl border cursor-pointer transition-colors ${
                             isProjectWish 
                               ? 'bg-slate-800 hover:bg-red-900/40 text-red-400 border-slate-700' 
@@ -418,7 +414,8 @@ export default function WishlistView() {
 
                       {/* Purchase Button */}
                       <button
-                        onClick={() => openPurchaseModal(wish)}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); openPurchaseModal(wish); }}
                         className="bg-ac-green text-white font-extrabold text-xs px-4 py-2 rounded-xl border-2 border-ac-brown shadow-ac-xs hover:translate-y-[1px] cursor-pointer flex items-center gap-1.5"
                       >
                         <Sparkles className="w-3.5 h-3.5 fill-white" /> Solder le souhait

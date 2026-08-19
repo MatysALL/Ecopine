@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useDb, COLOR_PALETTE, getCustomCardStyle, adminResetUser, adminDeleteUser, runFirestoreMigration } from '../db';
+import { useDb, COLOR_PALETTE, getCustomCardStyle, adminResetUser, adminDeleteUser, runFirestoreMigration, getExecutionBadgeInfo, calculateAccountBalance as calcAccBalance } from '../db';
 import { db as firestoreDb } from '../firebase';
 import { 
   collection, 
@@ -54,16 +54,7 @@ const COLLECTIONS = [
 // Helper for dynamic account balance calculation
 export function calculateAccountBalance(account, transactions = []) {
   if (!account) return 0;
-  const accountTransactions = (transactions || []).filter(t => t.accountId === account.id);
-  
-  const totalBalance = accountTransactions.reduce((acc, t) => {
-    const amount = Math.abs(parseFloat(t.amount) || 0);
-    // Détecte si la transaction est un crédit/revenu ou un débit/dépense
-    const isCredit = t.type === 'income' || t.type === 'credit' || t.isIncome === true;
-    return isCredit ? acc + amount : acc - amount;
-  }, 0);
-
-  return totalBalance;
+  return calcAccBalance(account.id, transactions);
 }
 
 export default function AdminView() {
@@ -963,11 +954,22 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
             {isCredit ? '+' : '-'}{(row.amount ?? 0).toLocaleString('fr-FR')} 🔔
           </td>
           <td className="p-3.5 font-bold">
-            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-              isCredit ? 'bg-ac-green-light text-ac-green border border-ac-green/30' : 'bg-ac-cream text-ac-brown border border-ac-brown/20'
-            }`}>
-              {row.type || 'debit'}
-            </span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                isCredit ? 'bg-ac-green-light text-ac-green border border-ac-green/30' : 'bg-ac-cream text-ac-brown border border-ac-brown/20'
+              }`}>
+                {row.type || 'debit'}
+              </span>
+              {(() => {
+                const badge = getExecutionBadgeInfo(row);
+                return (
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border inline-flex items-center gap-0.5 ${badge.className}`}>
+                    {badge.icon && <span>{badge.icon}</span>}
+                    <span>{badge.label}</span>
+                  </span>
+                );
+              })()}
+            </div>
           </td>
           <td className="p-3.5 font-bold text-ac-brown-light text-[11px]">{formattedDate}</td>
           <td className="p-3.5">{renderOwnerBadge(row.userId || row.creatorId)}</td>
@@ -1160,12 +1162,12 @@ function renderEditFormFields(tableId, data, setData) {
                   type="button"
                   onClick={() => handleChange('color', c.hex)}
                   className={`w-7 h-7 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
-                    data.color === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                    data.color === c.hex || data.color === c.id ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
                   }`}
                   style={{ backgroundColor: c.hex }}
                   title={c.label}
                 >
-                  {data.color === c.hex && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                  {(data.color === c.hex || data.color === c.id) && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
                 </button>
               ))}
             </div>
@@ -1251,12 +1253,12 @@ function renderEditFormFields(tableId, data, setData) {
                   type="button"
                   onClick={() => handleChange('color', c.hex)}
                   className={`w-7 h-7 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
-                    data.color === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                    data.color === c.hex || data.color === c.id ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
                   }`}
                   style={{ backgroundColor: c.hex }}
                   title={c.label}
                 >
-                  {data.color === c.hex && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                  {(data.color === c.hex || data.color === c.id) && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
                 </button>
               ))}
             </div>
@@ -1303,14 +1305,29 @@ function renderEditFormFields(tableId, data, setData) {
               </select>
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Date</label>
-            <input
-              type="date"
-              value={data.date || ''}
-              onChange={(e) => handleChange('date', e.target.value)}
-              className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Date</label>
+              <input
+                type="date"
+                value={data.date || ''}
+                onChange={(e) => handleChange('date', e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Statut d'exécution</label>
+              <select
+                value={data.executionType || 'spontaneous'}
+                onChange={(e) => handleChange('executionType', e.target.value)}
+                className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-3 py-2 text-xs font-bold text-ac-brown focus:outline-none focus:bg-white cursor-pointer"
+              >
+                <option value="spontaneous">🟢 Spontanée (Impact immédiat)</option>
+                <option value="already_executed">⚪ Déjà exécutée (Neutre)</option>
+                <option value="forecast">⏳ Prévision (Dès la date)</option>
+                <option value="import">📁 Importée</option>
+              </select>
+            </div>
           </div>
         </>
       );

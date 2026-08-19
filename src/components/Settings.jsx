@@ -5,21 +5,21 @@ import {
   User, Palette, RotateCcw, AlertTriangle, X
 } from 'lucide-react';
 
+export const AVAILABLE_AVATARS = [
+  { id: 'default', src: '/pfp-ac.jpg', label: 'Feuille classique' },
+  { id: 'tom_nook', src: '/pfp-tom-nook.jpg', label: 'Tom Nook' },
+  { id: 'marie', src: '/pfp-marie.jpg', label: 'Marie' },
+  { id: 'thibou', src: '/pfp-thibou.jpg', label: 'Thibou' },
+  { id: 'ankha', src: '/pfp-ankha.jpg', label: 'Ankha' },
+  { id: 'clochette', src: '/pfp-clochette.jpg', label: 'Sac de Clochettes' }
+];
+
 export default function Settings() {
   // Profile states
   const [username, setUsername] = useState('');
   const [photoURL, setPhotoURL] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [themePreference, setThemePreference] = useState('default');
-
-  const predefinedAvatars = [
-    '/pfp-ac.jpg',
-    '/pfp-ankha.jpg',
-    '/pfp-clochette.jpg',
-    '/pfp-marie.jpg',
-    '/pfp-thibou.jpg',
-    '/pfp-tom-nook.jpg'
-  ];
 
   const { 
     userMeta, 
@@ -53,6 +53,19 @@ export default function Settings() {
       setThemePreference(themeMeta?.value || 'default');
     }
   }, [userMeta, user]);
+
+  const handleSelectAvatar = async (avatarSrc) => {
+    if (!user?.uid || photoURL === avatarSrc) return;
+
+    // Mise à jour optimiste du state local
+    setPhotoURL(avatarSrc);
+
+    try {
+      await db.user_meta.put({ key: 'photoURL', value: avatarSrc });
+    } catch (error) {
+      console.error("Erreur lors du changement d'avatar :", error);
+    }
+  };
 
   const handleThemeChange = async (theme) => {
     setThemePreference(theme);
@@ -203,24 +216,42 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-2">Choisis ton Avatar d'Habitant</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-black uppercase text-ac-brown-light">
+                    Photo de profil / Avatar
+                  </label>
+                  <span className="text-[10px] font-bold text-ac-green flex items-center gap-1">
+                    ⚡ Clic = Sauvegarde instantanée
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                  {predefinedAvatars.map(pfp => {
-                    const isSelected = photoURL === pfp || (!photoURL && pfp === '/pfp-ac.jpg');
+                  {AVAILABLE_AVATARS.map(avatar => {
+                    const isSelected = photoURL === avatar.src || (!photoURL && avatar.src === '/pfp-ac.jpg');
                     return (
                       <button
-                        key={pfp}
+                        key={avatar.id}
                         type="button"
-                        onClick={() => setPhotoURL(pfp)}
-                        className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#5C3A41] shrink-0 bg-white transition-all cursor-pointer ${
-                          isSelected ? 'ring-4 ring-[#7C9E59] scale-105' : 'hover:scale-105 opacity-85 hover:opacity-100'
+                        onClick={() => handleSelectAvatar(avatar.src)}
+                        title={avatar.label}
+                        className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden flex items-center justify-center shrink-0 bg-white transition-all duration-200 cursor-pointer ${
+                          isSelected 
+                            ? 'border-4 border-green-500 ring-4 ring-ac-green/30 scale-105 shadow-md' 
+                            : 'border-2 border-ac-brown/30 hover:border-ac-brown opacity-85 hover:opacity-100 hover:scale-105'
                         }`}
                       >
                         <img 
-                          src={pfp} 
-                          alt="Avatar Option" 
+                          src={avatar.src} 
+                          alt={avatar.label} 
                           className="w-full h-full object-cover object-center block" 
                         />
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-green-950/20 flex items-center justify-center backdrop-blur-[0.5px]">
+                            <div className="w-5 h-5 bg-ac-green rounded-full flex items-center justify-center text-white text-[11px] font-black shadow-sm">
+                              ✓
+                            </div>
+                          </div>
+                        )}
                       </button>
                     );
                   })}

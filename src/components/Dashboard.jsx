@@ -1,11 +1,23 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { useDb, getCustomCardStyle } from '../db';
+import { useDb, getCustomCardStyle, resolveColorHex, getExecutionBadgeInfo, getActiveOrFavoriteAccount } from '../db';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
   ChevronRight, Gift, Activity, Smile, Handshake
 } from 'lucide-react';
 
-export default function Dashboard({ onViewAccountDetails, username }) {
+export default function Dashboard({ 
+  onViewAccountDetails, 
+  username, 
+  setActiveTab, 
+  setCurrentView, 
+  onNavigate 
+}) {
+  const handleNavigate = (view) => {
+    if (typeof onNavigate === 'function') onNavigate(view);
+    else if (typeof setActiveTab === 'function') setActiveTab(view);
+    else if (typeof setCurrentView === 'function') setCurrentView(view);
+  };
+
   const { 
     userMeta, accountsData, favoriteAccountDetails, globalLatestTransactions, 
     wishlist, pockets, debts, user 
@@ -84,13 +96,10 @@ export default function Dashboard({ onViewAccountDetails, username }) {
     );
   }
 
-  // Split favorite vs others
+  // Split favorite vs others using standardized resolution
   const favMeta = userMeta?.find(m => m.key === 'favorite_account_id');
-  let favoriteId = favMeta ? favMeta.value : null;
-  if (!favoriteId && accountsData.length > 0) {
-    const courant = accountsData.find(a => a.type === 'Courant');
-    favoriteId = courant ? courant.id : accountsData[0].id;
-  }
+  const resolvedFavoriteAccount = getActiveOrFavoriteAccount(accountsData, favMeta?.value);
+  const favoriteId = resolvedFavoriteAccount?.id || null;
 
   // Limit other accounts to a maximum of 4
   const otherAccounts = accountsData.filter(a => a.id !== favoriteId).slice(0, 4);
@@ -236,16 +245,16 @@ export default function Dashboard({ onViewAccountDetails, username }) {
             return (
             <div 
               onClick={() => onViewAccountDetails(favoriteAccountDetails.account.id)}
-              style={isFavProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : getCustomCardStyle(favoriteAccountDetails.account.color)}
-              className={`ac-card account-card p-8 cursor-pointer relative overflow-visible group select-none hover:scale-[1.01] transition-all ${
-                isFavProj ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440]' : 'border-ac-brown'
+              style={isFavProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(favoriteAccountDetails.account.color), color: '#ffffff', borderColor: '#4A3E3D' }}
+              className={`ac-card account-card p-8 cursor-pointer relative overflow-visible group select-none hover:scale-[1.01] transition-all text-white ${
+                isFavProj ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440]' : 'border-3 border-ac-brown'
               }`}
             >
               <div className="flex justify-between items-start">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-ac-sm border ${
-                      isFavProj ? 'bg-slate-800 border-slate-700 text-ac-gold' : 'text-ac-gold-dark bg-white border-ac-gold'
+                      isFavProj ? 'bg-slate-800 border-slate-700 text-ac-gold' : 'text-white bg-white/20 border-white/30'
                     }`}>
                       ⭐ Compte Favori - {favoriteAccountDetails.account.name || favoriteAccountDetails.account.title || "Compte"}
                     </span>
@@ -255,8 +264,8 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                       </span>
                     )}
                   </div>
-                  <h3 className={`text-base font-black mt-4 ${isFavProj ? 'text-white' : 'text-ac-brown'}`}>
-                    Solde Disponible
+                  <h3 className="text-base font-black mt-4 text-white">
+                    Solde Réel Principal
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
@@ -267,10 +276,10 @@ export default function Dashboard({ onViewAccountDetails, username }) {
               </div>
 
               <div className="mt-4 flex items-baseline gap-2">
-                <span className={`text-4xl font-black tracking-tight ${isFavProj ? 'text-white' : 'text-ac-brown'}`}>
-                  {(favoriteAccountDetails.account.visibleBalance ?? favoriteAccountDetails.account.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                <span className="text-4xl font-black tracking-tight text-white">
+                  {(favoriteAccountDetails.account.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                 </span>
-                <span className={`text-lg font-black ${isFavProj ? 'text-ac-gold' : 'text-ac-brown-light'}`}>🔔</span>
+                <span className="text-lg font-black text-white/90">🔔</span>
 
                 {/* 30 day variation badge */}
                 <span className={`ml-4 text-xs font-black px-2 py-1 rounded-lg border flex items-center gap-0.5 ${
@@ -283,12 +292,17 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                 </span>
               </div>
 
-              {/* Internal objective blocked warning */}
+              {/* Indicative available balance if pockets exist */}
               {favoriteAccountDetails.account.balance !== favoriteAccountDetails.account.visibleBalance && (
-                <div className="mt-4 flex items-center gap-2 bg-white/85 border border-ac-gold rounded-xl px-3 py-2 text-[10px] font-bold text-ac-gold-dark">
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>
-                    Solde réel : <strong>{(favoriteAccountDetails.account.balance ?? 0).toLocaleString('fr-FR')} 🔔</strong> (dont <strong>{((favoriteAccountDetails.account.balance ?? 0) - (favoriteAccountDetails.account.visibleBalance ?? 0)).toLocaleString('fr-FR')} 🔔</strong> bloqués dans des objectifs).
+                <div className="mt-4 flex items-center justify-between gap-2 bg-white/90 border border-ac-gold rounded-xl px-3.5 py-2 text-[10px] font-bold text-ac-brown shadow-xs">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Sparkles className="w-3.5 h-3.5 text-ac-gold shrink-0 fill-ac-gold" />
+                    <span className="truncate">
+                      Solde disponible (indicatif) : <strong className={favoriteAccountDetails.account.visibleBalance < 0 ? 'text-ac-red' : 'text-ac-green'}>{(favoriteAccountDetails.account.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔</strong>
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-extrabold text-ac-brown-light shrink-0">
+                    ({((favoriteAccountDetails.account.balance ?? 0) - (favoriteAccountDetails.account.visibleBalance ?? 0)).toLocaleString('fr-FR')} 🔔 en poches)
                   </span>
                 </div>
               )}
@@ -312,22 +326,22 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                       return (
                         <div 
                           key={pocket.id} 
-                          style={getCustomCardStyle(pocket.color)}
-                          className="border-2 border-ac-brown/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-ac-xs"
+                          style={{ backgroundColor: resolveColorHex(pocket.color), color: '#FFFFFF' }}
+                          className="border-2 border-ac-brown/40 rounded-2xl p-3 flex flex-col justify-between space-y-2 shadow-ac-xs text-white"
                         >
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="text-xs shrink-0">🍃</span>
-                              <span className="font-extrabold text-[10px] text-ac-brown leading-tight truncate" title={pocket.name}>
+                              <span className="font-extrabold text-[10px] text-white leading-tight truncate" title={pocket.name}>
                                 {pocket.name}
                               </span>
                             </div>
-                            <span className="text-[9px] font-black text-ac-brown-light/75 whitespace-nowrap">
+                            <span className="text-[9px] font-black text-white/85 whitespace-nowrap">
                               {(Math.round(current) ?? 0).toLocaleString('fr-FR')} / {(allocated ?? 0).toLocaleString('fr-FR')} 🔔
                             </span>
                           </div>
 
-                          <div className="w-full h-2.5 bg-ac-cream border border-ac-brown/30 rounded-full overflow-hidden p-[1px]">
+                          <div className="w-full h-2.5 bg-black/20 border border-white/30 rounded-full overflow-hidden p-[1px]">
                             <div 
                               className={`h-full ${progressBg} rounded-full transition-all duration-500`}
                               style={{ width: `${percentage}%` }}
@@ -368,15 +382,16 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                 )}
               </div>
 
-              <div className="mt-4 flex items-center text-[10px] font-black text-ac-brown-light group-hover:text-ac-brown transition-colors">
+              <div className="mt-4 flex items-center text-[10px] font-black text-white/80 group-hover:text-white transition-colors">
                 Voir le détail des transactions <ChevronRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
             );
           })() : (
             <div className="ac-card bg-white p-6 border-ac-brown text-center py-12">
-              <span className="text-xl">⭐</span>
-              <p className="font-extrabold text-ac-brown mt-2">Aucun compte favori configuré.</p>
+              <span className="text-2xl">⭐</span>
+              <p className="font-extrabold text-ac-brown mt-2">Aucun compte bancaire enregistré.</p>
+              <p className="text-xs text-ac-brown-light mt-1">Crée ton premier compte dans l'onglet Comptes pour commencer à suivre tes clochettes ! 🍃</p>
             </div>
           )}
 
@@ -397,14 +412,14 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                     <div 
                       key={acc.id}
                       onClick={() => onViewAccountDetails(acc.id)}
-                      style={isProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : getCustomCardStyle(acc.color)}
-                      className={`p-4 hover:brightness-95 transition-all border-2 rounded-2xl cursor-pointer flex justify-between items-center group relative shadow-xs ${
+                      style={isProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(acc.color), color: '#ffffff' }}
+                      className={`p-4 hover:brightness-95 transition-all border-2 rounded-2xl cursor-pointer flex justify-between items-center group relative shadow-xs text-white ${
                         isProj ? 'project-account-card bg-[#1E232A] text-white border-[#2E3440]' : 'border-ac-brown'
                       }`}
                     >
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className={`font-extrabold text-xs ${isProj ? 'text-white' : 'text-ac-brown'}`}>{acc.name || acc.title || (isProj ? "Compte Projet" : "Compte")}</h4>
+                          <h4 className={`font-extrabold text-xs ${isProj ? 'text-white' : 'text-white'}`}>{acc.name || acc.title || (isProj ? "Compte Projet" : "Compte")}</h4>
                           {isProj && (
                             <span className="text-[7px] font-black uppercase px-1.5 py-0.2 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
                               📁 Projet
@@ -412,15 +427,20 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                           )}
                         </div>
                         <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border mt-1 inline-block ${
-                          isProj ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-ac-brown/20 text-ac-brown-light'
+                          isProj ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white/20 border-white/30 text-white/90'
                         }`}>
                           🏦 {acc.bank || acc.bankName || '—'}
                         </span>
                       </div>
-                      <div className="text-right flex items-center gap-2">
-                        <span className={`font-black text-sm block ${isProj ? 'text-ac-gold' : 'text-ac-brown'}`}>
-                          {(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
+                      <div className="text-right flex flex-col items-end">
+                        <span className={`font-black text-sm block ${isProj ? 'text-white' : 'text-white'}`}>
+                          {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
                         </span>
+                        {acc.balance !== acc.visibleBalance && (
+                          <span className={`text-[8px] font-extrabold block ${acc.visibleBalance < 0 ? 'text-amber-300' : (isProj ? 'text-slate-400' : 'text-white/75')}`}>
+                            Dispo : {(acc.visibleBalance ?? 0).toLocaleString('fr-FR')} 🔔
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -432,76 +452,110 @@ export default function Dashboard({ onViewAccountDetails, username }) {
           {/* Sub-grid for Wishes & Debts */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Wishlist Card */}
-            <div className="ac-card p-6 bg-white border-ac-brown">
-              <h3 className="text-base font-black text-ac-brown mb-4 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
-                <Gift className="w-5 h-5 text-ac-red fill-ac-red/20" /> Mes Souhaits ({wishlist ? wishlist.length : 0})
-              </h3>
-              {!wishlist || wishlist.length === 0 ? (
-                <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
-                  Aucun souhait en cours. 🍃
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {wishlist.slice(0, 2).map((wish) => (
-                    <div key={wish.id} className="p-3 bg-ac-cream rounded-2xl border-2 border-ac-brown flex justify-between items-center">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-extrabold text-xs text-ac-brown truncate">{wish.name}</h4>
-                        {wish.description && (
-                          <p className="text-[10px] text-ac-brown-light truncate">{wish.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+            <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
+              <div>
+                <div 
+                  onClick={() => handleNavigate('wishlist')} 
+                  className="flex items-center justify-between mb-4 border-b border-ac-brown/10 pb-3 cursor-pointer group select-none"
+                  title="Accéder à mes souhaits"
+                >
+                  <h3 className="text-base font-black text-ac-brown flex items-center gap-2 group-hover:text-ac-green transition-colors">
+                    <Gift className="w-5 h-5 text-ac-red fill-ac-red/20 group-hover:scale-110 transition-transform" /> Mes Souhaits ({wishlist ? wishlist.length : 0})
+                  </h3>
+                  <ChevronRight className="w-4 h-4 text-ac-brown-light group-hover:translate-x-1 group-hover:text-ac-green transition-all" />
                 </div>
-              )}
+
+                {!wishlist || wishlist.length === 0 ? (
+                  <div 
+                    onClick={() => handleNavigate('wishlist')}
+                    className="cursor-pointer text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream hover:bg-ac-cream-dark/30 rounded-2xl border border-dashed border-ac-brown/20 transition-all hover:scale-[1.01]"
+                  >
+                    <p>Aucun souhait en cours. 🍃</p>
+                    <span className="text-[10px] font-bold text-ac-green underline mt-0.5 inline-block">Voir tous les souhaits</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {wishlist.slice(0, 2).map((wish) => (
+                      <div 
+                        key={wish.id} 
+                        onClick={() => handleNavigate('wishlist')}
+                        className="p-3 bg-ac-cream hover:bg-ac-cream-dark/40 rounded-2xl border-2 border-ac-brown flex justify-between items-center cursor-pointer transition-all hover:scale-[1.02] active:scale-95 shadow-xs hover:shadow-ac-xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-extrabold text-xs text-ac-brown truncate">{wish.name}</h4>
+                          {wish.description && (
+                            <p className="text-[10px] text-ac-brown-light truncate">{wish.description}</p>
+                          )}
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-ac-brown-light/60 shrink-0 ml-2" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Debts Card */}
-            <div className="ac-card p-6 bg-white border-ac-brown">
-              <h3 className="text-base font-black text-ac-brown mb-4 flex items-center gap-2 border-b border-ac-brown/10 pb-4">
-                <Handshake className="w-5 h-5 text-ac-orange" /> Mes Dettes ({activeDebts.length})
-              </h3>
-              {activeDebts.length === 0 ? (
-                <p className="text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream rounded-2xl border border-dashed border-ac-brown/20">
-                  Aucune dette en cours. Super ! 🍃
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {activeDebts.slice(0, 2).map((debt) => {
-                    const rawType = (debt.type || '').toLowerCase().trim();
-                    const isToPay = ['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(rawType) || (typeof debt.amount === 'number' && debt.amount < 0);
-                    const personName = debt.person || debt.name || debt.associatedFriendName || 'Dette';
-                    const amountVal = Math.abs(debt.amount ?? 0);
-                    return (
-                      <div 
-                        key={debt.id} 
-                        className={`p-3 rounded-2xl border-2 border-ac-brown flex justify-between items-center ${
-                          isToPay ? 'bg-ac-red-light/10' : 'bg-ac-green-light/20'
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${
-                              isToPay ? 'bg-ac-red text-white border-ac-brown' : 'bg-ac-green text-white border-ac-brown'
-                            }`}>
-                              {isToPay ? 'Je dois' : 'On me doit'}
-                            </span>
-                            <h4 className="font-extrabold text-xs text-ac-brown truncate">{personName}</h4>
-                          </div>
-                          {debt.description && (
-                            <p className="text-[10px] text-ac-brown-light truncate mt-0.5">{debt.description}</p>
-                          )}
-                        </div>
-                        <div className="text-right ml-3 shrink-0">
-                          <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs font-black">
-                            {(amountVal ?? 0).toLocaleString('fr-FR')} 🔔
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+            <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
+              <div>
+                <div 
+                  onClick={() => handleNavigate('debts')} 
+                  className="flex items-center justify-between mb-4 border-b border-ac-brown/10 pb-3 cursor-pointer group select-none"
+                  title="Accéder à mes dettes"
+                >
+                  <h3 className="text-base font-black text-ac-brown flex items-center gap-2 group-hover:text-ac-orange transition-colors">
+                    <Handshake className="w-5 h-5 text-ac-orange group-hover:scale-110 transition-transform" /> Mes Dettes ({activeDebts.length})
+                  </h3>
+                  <ChevronRight className="w-4 h-4 text-ac-brown-light group-hover:translate-x-1 group-hover:text-ac-orange transition-all" />
                 </div>
-              )}
+
+                {activeDebts.length === 0 ? (
+                  <div 
+                    onClick={() => handleNavigate('debts')}
+                    className="cursor-pointer text-xs font-semibold text-ac-brown-light text-center py-4 bg-ac-cream hover:bg-ac-cream-dark/30 rounded-2xl border border-dashed border-ac-brown/20 transition-all hover:scale-[1.01]"
+                  >
+                    <p>Aucune dette en cours. Super ! 🍃</p>
+                    <span className="text-[10px] font-bold text-ac-orange underline mt-0.5 inline-block">Voir le registre des dettes</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {activeDebts.slice(0, 2).map((debt) => {
+                      const rawType = (debt.type || '').toLowerCase().trim();
+                      const isToPay = ['i_owe', 'debt', 'je_dois', 'to_pay', 'dette'].includes(rawType) || (typeof debt.amount === 'number' && debt.amount < 0);
+                      const personName = debt.person || debt.name || debt.associatedFriendName || 'Dette';
+                      const amountVal = Math.abs(debt.amount ?? 0);
+                      return (
+                        <div 
+                          key={debt.id} 
+                          onClick={() => handleNavigate('debts')}
+                          className={`p-3 rounded-2xl border-2 border-ac-brown flex justify-between items-center cursor-pointer transition-all hover:scale-[1.02] active:scale-95 shadow-xs hover:shadow-ac-xs ${
+                            isToPay ? 'bg-ac-red-light/10 hover:bg-ac-red-light/20' : 'bg-ac-green-light/20 hover:bg-ac-green-light/30'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                isToPay ? 'bg-ac-red text-white border-ac-brown' : 'bg-ac-green text-white border-ac-brown'
+                              }`}>
+                                {isToPay ? 'Je dois' : 'On me doit'}
+                              </span>
+                              <h4 className="font-extrabold text-xs text-ac-brown truncate">{personName}</h4>
+                            </div>
+                            {debt.description && (
+                              <p className="text-[10px] text-ac-brown-light truncate mt-0.5">{debt.description}</p>
+                            )}
+                          </div>
+                          <div className="text-right ml-3 shrink-0">
+                            <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs">
+                              {(amountVal ?? 0).toLocaleString('fr-FR')} 🔔
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -545,18 +599,16 @@ export default function Dashboard({ onViewAccountDetails, username }) {
                           </div>
                           
                           {/* Badges for Execution Types */}
-                          <div className="mt-1 flex gap-1">
-                            {(tx.executionType === 'import' || tx.importBatchId != null) ? (
-                              <span className="text-[7px] font-black uppercase px-1 rounded border bg-slate-100 border-slate-300 text-slate-600">
-                                Importée
-                              </span>
-                            ) : (tx.executionType && tx.executionType !== 'spontaneous') ? (
-                              <span className={`text-[7px] font-black uppercase px-1 rounded border ${
-                                tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' : 'bg-ac-cream-dark/50 border-ac-brown/15 text-ac-brown-light'
-                              }`}>
-                                {tx.executionType === 'planned' ? 'Planifiée' : 'Passée'}
-                              </span>
-                            ) : null}
+                          <div className="mt-1 flex gap-1 items-center">
+                            {(() => {
+                              const badge = getExecutionBadgeInfo(tx);
+                              return (
+                                <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded border inline-flex items-center gap-1 ${badge.className}`}>
+                                  {badge.icon && <span>{badge.icon}</span>}
+                                  <span>{badge.label}</span>
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
 

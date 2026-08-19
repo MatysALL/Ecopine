@@ -365,14 +365,77 @@ export function calculateBudgetsState(budgets, transactions, todayStr) {
  */
 export const calculateAccountBalance = (accountId, transactionsList) => {
   if (!transactionsList || !Array.isArray(transactionsList)) return 0;
-  
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
   return transactionsList
     .filter(t => String(t.accountId) === String(accountId))
+    .filter(t => {
+      // 1. Déjà exécutée : neutralisée (n'impacte jamais le solde)
+      if (t.executionType === 'already_executed' || t.executionType === 'past') return false;
+
+      // 2. Prévision : impacte le solde UNIQUEMENT si la date est atteinte ou passée
+      if (t.executionType === 'forecast' || t.executionType === 'planned') {
+        const txDate = t.date ? (t.date?.toDate ? t.date.toDate().toISOString().split('T')[0] : String(t.date).split('T')[0]) : '';
+        return txDate <= todayStr;
+      }
+
+      // 3. Spontanée / Import / Autre : impacte immédiatement
+      return true;
+    })
     .reduce((total, t) => {
       const amount = Number(t.amount) || 0;
       const isCredit = t.type === 'credit' || t.type === 'income';
       return isCredit ? total + amount : total - amount;
     }, 0);
+};
+
+/**
+ * Helper to get badge info for execution type
+ */
+export const getExecutionBadgeInfo = (tx) => {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const txDate = tx?.date ? (tx.date?.toDate ? tx.date.toDate().toISOString().split('T')[0] : String(tx.date).split('T')[0]) : '';
+  const isImport = tx?.executionType === 'import' || tx?.importBatchId != null;
+
+  if (isImport) {
+    return {
+      label: 'Importée',
+      className: 'bg-slate-100 border-slate-300 text-slate-600',
+      icon: null
+    };
+  }
+
+  if (tx?.executionType === 'already_executed' || tx?.executionType === 'past') {
+    return {
+      label: 'Déjà exécutée',
+      className: 'bg-slate-200/80 border-slate-400/40 text-slate-700',
+      icon: '⚪'
+    };
+  }
+
+  if (tx?.executionType === 'forecast' || tx?.executionType === 'planned') {
+    if (txDate > todayStr) {
+      return {
+        label: 'Prévision (En attente)',
+        className: 'bg-amber-100 border-amber-300 text-amber-800',
+        icon: '⏳'
+      };
+    } else {
+      return {
+        label: 'Prévision (Active)',
+        className: 'bg-sky-100 border-sky-300 text-sky-800',
+        icon: '⏳'
+      };
+    }
+  }
+
+  // Default: spontaneous
+  return {
+    label: 'Spontanée',
+    className: 'bg-ac-green-light border-ac-green/30 text-ac-green',
+    icon: '🟢'
+  };
 };
 
 /**
@@ -393,9 +456,18 @@ export function getAccountBalanceSync(account, transactions, targetDateStr = nul
   const accTxs = transactions.filter(t => String(t.accountId) === String(accId));
 
   const validTxs = accTxs.filter(t => {
-    const exeType = t.executionType || 'spontaneous';
-    const isEffective = exeType === 'spontaneous' || exeType === 'import' || (exeType === 'planned' && t.date <= todayStr) || (exeType === 'past');
-    return isEffective && t.date <= target;
+    // 1. Déjà exécutée : neutralisée (n'impacte jamais le solde)
+    if (t.executionType === 'already_executed' || t.executionType === 'past') return false;
+
+    const txDate = t.date ? (t.date?.toDate ? t.date.toDate().toISOString().split('T')[0] : String(t.date).split('T')[0]) : '';
+
+    // 2. Prévision : impacte le solde UNIQUEMENT si la date est atteinte ou passée
+    if (t.executionType === 'forecast' || t.executionType === 'planned') {
+      return txDate <= target && txDate <= todayStr;
+    }
+
+    // 3. Spontanée / Import / Autre : impacte immédiatement
+    return txDate <= target;
   });
 
   return validTxs.reduce((sum, t) => {
@@ -404,6 +476,26 @@ export function getAccountBalanceSync(account, transactions, targetDateStr = nul
     return isIncome ? sum + amt : sum - amt;
   }, 0);
 }
+
+/**
+ * Standardized resolution of the active or favorite account with default fallback to index 0
+ */
+export const getActiveOrFavoriteAccount = (accountsList, favoriteAccountId) => {
+  if (!accountsList || accountsList.length === 0) return null;
+
+  // 1. Trie les comptes personnels par leur ordre d'affichage
+  const sortedAccounts = [...accountsList]
+    .filter(acc => !acc.projectId) // Comptes personnels uniquement
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+  if (sortedAccounts.length === 0) return accountsList[0] || null;
+
+  // 2. Recherche le compte favori explicite
+  const favoriteAccount = sortedAccounts.find(acc => acc.id === favoriteAccountId);
+
+  // 3. Retourne le favori s'il existe, sinon prend strictement le premier de la liste (index 0)
+  return favoriteAccount || sortedAccounts[0];
+};
 
 /**
  * Calculates the VISIBLE balance (Real Balance - Blocked Objective funds)
@@ -1657,23 +1749,44 @@ export const db = {
         }
       }
     },
-    addMember: async (projectId, friendUid, role = 'editor') => {
+    addMember: async (projectId, friendUid, role = 'editor', friendData = null) => {
       if (!auth.currentUser) throw new Error("Non connecté");
-      const friendMetaDoc = await getDoc(doc(firestoreDb, 'users_meta', friendUid));
-      const friendName = friendMetaDoc.exists() ? (friendMetaDoc.data().username || 'Habitant') : 'Habitant';
-      const friendPhoto = friendMetaDoc.exists() ? (friendMetaDoc.data().photoURL || '/pfp-ac.jpg') : '/pfp-ac.jpg';
+      
+      let friendName = friendData?.name || friendData?.username || friendData?.receiverName || '';
+      let friendPhoto = friendData?.photoURL || '';
 
-      // Check friendship permission allowProjects
-      const qFriend1 = query(collection(firestoreDb, 'friendships'), where('senderId', '==', auth.currentUser.uid), where('receiverId', '==', friendUid));
-      const qFriend2 = query(collection(firestoreDb, 'friendships'), where('senderId', '==', friendUid), where('receiverId', '==', auth.currentUser.uid));
-      const [snap1, snap2] = await Promise.all([getDocs(qFriend1), getDocs(qFriend2)]);
-      const friendDoc = snap1.docs[0] || snap2.docs[0];
-      if (friendDoc) {
-        const fData = friendDoc.data();
-        const friendPerms = fData.permissions?.[friendUid] || {};
-        if (friendPerms.allowProjects === false) {
-          throw new Error(`${friendName} ne souhaite pas être ajouté à des projets.`);
+      if (!friendName || !friendPhoto) {
+        try {
+          const friendMetaDoc = await getDoc(doc(firestoreDb, 'users_meta', friendUid));
+          if (friendMetaDoc.exists()) {
+            const data = friendMetaDoc.data();
+            friendName = friendName || data.username || 'Habitant';
+            friendPhoto = friendPhoto || data.photoURL || '/pfp-ac.jpg';
+          }
+        } catch (e) {
+          friendName = friendName || 'Habitant';
+          friendPhoto = friendPhoto || '/pfp-ac.jpg';
         }
+      }
+
+      friendName = friendName || 'Habitant';
+      friendPhoto = friendPhoto || '/pfp-ac.jpg';
+
+      // Check friendship permission allowProjects if available
+      try {
+        const qFriend1 = query(collection(firestoreDb, 'friendships'), where('senderId', '==', auth.currentUser.uid), where('receiverId', '==', friendUid));
+        const qFriend2 = query(collection(firestoreDb, 'friendships'), where('senderId', '==', friendUid), where('receiverId', '==', auth.currentUser.uid));
+        const [snap1, snap2] = await Promise.all([getDocs(qFriend1), getDocs(qFriend2)]);
+        const friendDoc = snap1.docs[0] || snap2.docs[0];
+        if (friendDoc) {
+          const fData = friendDoc.data();
+          const friendPerms = fData.permissions?.[friendUid] || {};
+          if (friendPerms.allowProjects === false) {
+            throw new Error(`${friendName} ne souhaite pas être ajouté à des projets.`);
+          }
+        }
+      } catch (err) {
+        if (err.message && err.message.includes("ne souhaite pas")) throw err;
       }
 
       const ref = doc(firestoreDb, 'projects', projectId);
@@ -1686,22 +1799,28 @@ export const db = {
         }
       });
 
-      // Update allowedUsers on all project accounts, wishlist, debts, project_debts, pockets, transactions
-      const projSnap = await getDoc(ref);
-      if (projSnap.exists()) {
-        const updatedMemberUids = projSnap.data().memberUids || [];
-        const collectionsToUpdate = ['accounts', 'wishlist', 'debts', 'project_debts', 'pockets', 'transactions'];
-        for (const col of collectionsToUpdate) {
+      // Synchronize allowedUsers on all project items (accounts, wishlist, project_debts, transactions)
+      try {
+        const collectionsToSync = ['accounts', 'wishlist', 'project_debts', 'transactions'];
+        const batch = writeBatch(firestoreDb);
+        let count = 0;
+
+        for (const col of collectionsToSync) {
           const qCol = query(collection(firestoreDb, col), where('projectId', '==', projectId));
           const snap = await getDocs(qCol);
-          if (!snap.empty) {
-            const batch = writeBatch(firestoreDb);
-            snap.docs.forEach(d => {
-              batch.update(d.ref, { allowedUsers: updatedMemberUids });
+          snap.docs.forEach(d => {
+            batch.update(d.ref, {
+              allowedUsers: arrayUnion(friendUid)
             });
-            await batch.commit();
-          }
+            count++;
+          });
         }
+
+        if (count > 0) {
+          await batch.commit();
+        }
+      } catch (err) {
+        console.warn("Could not sync project items allowedUsers:", err);
       }
     },
     removeMember: async (projectId, memberUid) => {
@@ -1711,6 +1830,30 @@ export const db = {
         memberUids: arrayRemove(memberUid),
         [`members.${memberUid}`]: deleteField()
       });
+
+      // Synchronize allowedUsers on all project items on remove
+      try {
+        const collectionsToSync = ['accounts', 'wishlist', 'project_debts', 'transactions'];
+        const batch = writeBatch(firestoreDb);
+        let count = 0;
+
+        for (const col of collectionsToSync) {
+          const qCol = query(collection(firestoreDb, col), where('projectId', '==', projectId));
+          const snap = await getDocs(qCol);
+          snap.docs.forEach(d => {
+            batch.update(d.ref, {
+              allowedUsers: arrayRemove(memberUid)
+            });
+            count++;
+          });
+        }
+
+        if (count > 0) {
+          await batch.commit();
+        }
+      } catch (err) {
+        console.warn("Could not sync project items allowedUsers on remove:", err);
+      }
     },
     removeMemberFromProject: async (projectId, memberUid) => {
       return db.projects.removeMember(projectId, memberUid);
@@ -1731,42 +1874,37 @@ export const db = {
     },
     delete: async (projectId) => {
       if (!auth.currentUser) return;
-      
-      // 1. Purge all accounts and their transactions and pockets
-      const accQuery = query(collection(firestoreDb, 'accounts'), where('projectId', '==', projectId));
+      const batch = writeBatch(firestoreDb);
+
+      // 1. Récupération et suppression des comptes du projet
+      const accQuery = query(collection(firestoreDb, "accounts"), where("projectId", "==", projectId));
       const accSnap = await getDocs(accQuery);
-      for (const accDoc of accSnap.docs) {
-        await db.accounts.delete(accDoc.id);
+      const accountIds = accSnap.docs.map(d => d.id);
+      accSnap.forEach(d => batch.delete(d.ref));
+
+      // 2. Suppression des transactions liées aux comptes du projet
+      if (accountIds.length > 0) {
+        const transQuery = query(collection(firestoreDb, "transactions"), where("projectId", "==", projectId));
+        const transSnap = await getDocs(transQuery);
+        transSnap.forEach(d => batch.delete(d.ref));
       }
 
-      // 2. Purge all wishlist items
-      const wishQuery = query(collection(firestoreDb, 'wishlist'), where('projectId', '==', projectId));
+      // 3. Suppression des souhaits du projet
+      const wishQuery = query(collection(firestoreDb, "wishlist"), where("projectId", "==", projectId));
       const wishSnap = await getDocs(wishQuery);
-      if (!wishSnap.empty) {
-        const batch1 = writeBatch(firestoreDb);
-        wishSnap.docs.forEach(d => batch1.delete(d.ref));
-        await batch1.commit();
-      }
+      wishSnap.forEach(d => batch.delete(d.ref));
 
-      // 3. Purge all debts & project_debts
-      const debtsQuery = query(collection(firestoreDb, 'debts'), where('projectId', '==', projectId));
+      // 4. Suppression des dettes collectives du projet
+      const debtsQuery = query(collection(firestoreDb, "project_debts"), where("projectId", "==", projectId));
       const debtsSnap = await getDocs(debtsQuery);
-      if (!debtsSnap.empty) {
-        const batch2 = writeBatch(firestoreDb);
-        debtsSnap.docs.forEach(d => batch2.delete(d.ref));
-        await batch2.commit();
-      }
+      debtsSnap.forEach(d => batch.delete(d.ref));
 
-      const projDebtsQuery = query(collection(firestoreDb, 'project_debts'), where('projectId', '==', projectId));
-      const projDebtsSnap = await getDocs(projDebtsQuery);
-      if (!projDebtsSnap.empty) {
-        const batch3 = writeBatch(firestoreDb);
-        projDebtsSnap.docs.forEach(d => batch3.delete(d.ref));
-        await batch3.commit();
-      }
+      // 5. Suppression du document projet lui-même
+      const projectRef = doc(firestoreDb, "projects", projectId);
+      batch.delete(projectRef);
 
-      // 4. Delete project document
-      await deleteDoc(doc(firestoreDb, 'projects', projectId));
+      // 6. Exécution atomique
+      await batch.commit();
     }
   },
   transaction: async (...args) => {
@@ -2512,11 +2650,11 @@ export const DbProvider = ({ children }) => {
     return wishlist.filter(isResourceAccessible);
   }, [wishlist, isResourceAccessible]);
 
-  // Filtered personal debts (exclude project debts)
+  // Filtered personal debts (exclude project debts and strictly owned by currentUser)
   const filteredDebts = useMemo(() => {
-    if (!debts) return [];
-    return debts.filter(d => !d.projectId);
-  }, [debts]);
+    if (!debts || !currentUser) return [];
+    return debts.filter(d => !d.projectId && (d.userId === currentUser.uid || d.creatorId === currentUser.uid));
+  }, [debts, currentUser]);
 
   // Filtered project debts
   const filteredProjectDebts = useMemo(() => {
@@ -2526,14 +2664,10 @@ export const DbProvider = ({ children }) => {
 
   // Derived state: favoriteAccountDetails
   const favoriteAccountDetails = useMemo(() => {
-    if (accountsData.length === 0) return null;
+    if (!accountsData || accountsData.length === 0) return null;
     
-    let favId = usersMetaDoc?.favoriteAccountId;
-    if (!favId || !accountsData.some(a => a.id === favId)) {
-      favId = accountsData[0].id;
-    }
-
-    const favAccount = accountsData.find(a => a.id === favId);
+    const favId = usersMetaDoc?.favoriteAccountId;
+    const favAccount = getActiveOrFavoriteAccount(accountsData, favId);
     if (!favAccount) return null;
 
     const todayStr = new Date().toISOString().split('T')[0];
@@ -2552,10 +2686,10 @@ export const DbProvider = ({ children }) => {
     }
 
     // Latest 5 transactions for favorite account
-    const favTxs = transactions
-      .filter(t => t.accountId === favId)
+    const favTxs = (transactions || [])
+      .filter(t => t.accountId === favAccount.id)
       .slice()
-      .sort((a, b) => b.date.localeCompare(a.date))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
       .slice(0, 5);
 
     return {
@@ -2666,21 +2800,27 @@ export const DbProvider = ({ children }) => {
 };
 
 export const COLOR_PALETTE = [
-  { id: 'green', hex: '#78B159', bg: '#F3F9EE', border: '#78B159', label: 'Vert' },
-  { id: 'blue', hex: '#6CBAD8', bg: '#EEF8FC', border: '#6CBAD8', label: 'Bleu' },
-  { id: 'red', hex: '#D9534F', bg: '#FCF0F0', border: '#D9534F', label: 'Rouge' },
-  { id: 'yellow', hex: '#F1B24A', bg: '#FEF9ED', border: '#F1B24A', label: 'Jaune' },
-  { id: 'purple', hex: '#9B59B6', bg: '#F8F1FC', border: '#9B59B6', label: 'Violet' },
-  { id: 'orange', hex: '#E67E22', bg: '#FDF4EB', border: '#E67E22', label: 'Orange' },
-  { id: 'neutral', hex: '#8C6D58', bg: '#FFFDF9', border: '#8C6D58', label: 'Beige / Neutre' },
+  { id: 'green',  hex: '#7FA650', label: 'Vert' },
+  { id: 'blue',   hex: '#6CBAD8', label: 'Bleu' },
+  { id: 'red',    hex: '#D9534F', label: 'Rouge' },
+  { id: 'yellow', hex: '#E0A838', label: 'Jaune' },
+  { id: 'purple', hex: '#9B59B6', label: 'Violet' },
+  { id: 'orange', hex: '#E67E22', label: 'Orange' },
+  { id: 'brown',  hex: '#8D6E63', label: 'Marron' }
 ];
 
-export const getCustomCardStyle = (color) => {
-  if (!color) return { backgroundColor: '#FFFDF9' };
-  const found = COLOR_PALETTE.find(c => (c.hex && c.hex.toLowerCase() === color.toLowerCase()) || c.id === color);
-  if (found) {
-    return { backgroundColor: found.bg };
-  }
-  return { backgroundColor: color };
+export const resolveColorHex = (color) => {
+  if (!color) return '#6CBAD8';
+  if (color === 'neutral') return '#8D6E63';
+  const found = COLOR_PALETTE.find(c => c.id === color || (c.hex && c.hex.toLowerCase() === color.toLowerCase()));
+  return found ? found.hex : color;
 };
+
+export const getCustomCardStyle = (color, isProject = false) => {
+  if (isProject) {
+    return { backgroundColor: '#1E232A', color: '#FFFFFF', borderColor: '#2E3440' };
+  }
+  return { backgroundColor: resolveColorHex(color), color: '#FFFFFF' };
+};
+
 

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { db, useDb, getNextRenewalDate, COLOR_PALETTE, getCustomCardStyle } from '../db';
+import React, { useState, useMemo, useEffect } from 'react';
+import { db, useDb, getNextRenewalDate, COLOR_PALETTE, getCustomCardStyle, resolveColorHex } from '../db';
 import { doc, writeBatch, collection } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 import { 
@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export default function PocketManager({ accountId, role }) {
-  const { pockets: allPockets } = useDb();
+  const { pockets: allPockets, accountsData } = useDb();
   
   // UI states
   const [formOpen, setFormOpen] = useState(false);
@@ -21,7 +21,7 @@ export default function PocketManager({ accountId, role }) {
   const [renewalFrequency, setRenewalFrequency] = useState('monthly'); // 'weekly', 'monthly', 'none'
   const [renewalDay, setRenewalDay] = useState(''); // 1-7 for weekly, 1-31 for monthly
   const [accumulate, setAccumulate] = useState(false);
-  const [color, setColor] = useState('#78B159');
+  const [color, setColor] = useState('#7FA650');
 
   // Quick Debit Pop-in state
   const [debitModalOpen, setDebitModalOpen] = useState(false);
@@ -30,16 +30,21 @@ export default function PocketManager({ accountId, role }) {
   const [isDebiting, setIsDebiting] = useState(false);
 
   // Drag & Drop state
-  const [draggablePocketId, setDraggablePocketId] = useState(null);
-  let longPressTimer = null;
+  const [draggedItemIndex, setDraggedItemIndex] = useState(null);
 
   // Filter pockets for the current account and pre-sort by order key
-  const pockets = useMemo(() => {
+  const sortedPockets = useMemo(() => {
     if (!allPockets || !accountId) return [];
     return allPockets
       .filter(p => p.accountId === accountId)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
   }, [allPockets, accountId]);
+
+  const [pockets, setPockets] = useState([]);
+
+  useEffect(() => {
+    setPockets(sortedPockets);
+  }, [sortedPockets]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -71,7 +76,7 @@ export default function PocketManager({ accountId, role }) {
         nextRenewalDate: nextDate,
         renewalDay: rDay,
         accumulate: renewalFrequency !== 'none' ? accumulate : false,
-        color: color || '#78B159'
+        color: resolveColorHex(color) || '#7FA650'
       };
 
       if (editingPocket) {
@@ -135,7 +140,7 @@ export default function PocketManager({ accountId, role }) {
     setRenewalFrequency(pocket.renewalFrequency || 'none');
     setRenewalDay(pocket.renewalDay !== undefined && pocket.renewalDay !== null ? pocket.renewalDay.toString() : '');
     setAccumulate(pocket.accumulate || false);
-    setColor(pocket.color || '#78B159');
+    setColor(pocket.color ? resolveColorHex(pocket.color) : '#7FA650');
     setFormOpen(true);
   };
 
@@ -210,65 +215,84 @@ export default function PocketManager({ accountId, role }) {
     setFormOpen(false);
   };
 
+  const saveNewOrder = async (reorderedItems, collectionName) => {
+    try {
+      const batch = writeBatch(firestoreDb);
+      reorderedItems.forEach((item, index) => {
+        const itemRef = doc(firestoreDb, collectionName, item.id);
+        batch.update(itemRef, { order: index });
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error(`Erreur lors de la réorganisation de ${collectionName} :`, error);
+    }
+  };
+
   // Drag & Drop handlers
   const handleDragStart = (e, index) => {
-    e.dataTransfer.setData('text/plain', index);
+    if (role === 'viewer') return;
+    setDraggedItemIndex(index);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragEnter = (e, targetIndex) => {
+    if (draggedItemIndex === null || draggedItemIndex === targetIndex) return;
+    const reordered = [...pockets];
+    const [dragged] = reordered.splice(draggedItemIndex, 1);
+    reordered.splice(targetIndex, 0, dragged);
+    setDraggedItemIndex(targetIndex);
+    setPockets(reordered);
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
   };
 
-  const handleDrop = async (e, hoverIndex) => {
-    e.preventDefault();
-    const dragIndex = Number(e.dataTransfer.getData('text/plain'));
-    if (dragIndex === hoverIndex || isNaN(dragIndex)) return;
-
-    const reordered = [...pockets];
-    const [dragged] = reordered.splice(dragIndex, 1);
-    reordered.splice(hoverIndex, 0, dragged);
-
-    // Save order sequence in Firestore
-    const batch = writeBatch(firestoreDb);
-    reordered.forEach((p, idx) => {
-      const ref = doc(firestoreDb, 'pockets', p.id);
-      batch.update(ref, { order: idx });
-    });
-    
-    await batch.commit();
-    setDraggablePocketId(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggablePocketId(null);
-  };
-
-  const handleStartLongPress = (id) => {
-    longPressTimer = setTimeout(() => {
-      setDraggablePocketId(id);
-    }, 850);
-  };
-
-  const handleCancelLongPress = () => {
-    clearTimeout(longPressTimer);
+  const handleDragEnd = async () => {
+    if (draggedItemIndex !== null) {
+      setDraggedItemIndex(null);
+      await saveNewOrder(pockets, 'pockets');
+    }
   };
 
   // Calculations for summary card
+  const currentAccount = useMemo(() => {
+    return accountsData?.find(a => String(a.id) === String(accountId)) || null;
+  }, [accountsData, accountId]);
+
   const totalAllocated = pockets.reduce((sum, p) => sum + (Number(p.allocatedAmount) || 0), 0);
   const totalCurrent = pockets.reduce((sum, p) => sum + (Number(p.currentAmount) || 0), 0);
+  const realBalance = currentAccount?.balance ?? 0;
+  const availableBalance = realBalance - totalAllocated;
 
   return (
     <div className="space-y-6">
       {/* Summary and Actions Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-ac-green-light/20 p-5 rounded-3xl border-2 border-ac-brown">
-        <div className="space-y-1">
-          <h3 className="text-sm font-black text-ac-brown flex items-center gap-1.5">
-            <Coins className="w-4 h-4 text-ac-gold fill-ac-gold" /> Pochettes virtuelles de l'habitant
-          </h3>
-          <p className="text-[11px] font-bold text-ac-brown-light leading-relaxed">
-            Alloué : <strong>{(totalAllocated ?? 0).toLocaleString('fr-FR')} 🔔</strong> | Restant : <strong>{(totalCurrent ?? 0).toLocaleString('fr-FR')} 🔔</strong>
-          </p>
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-sm font-black text-ac-brown flex items-center gap-1.5">
+              <Coins className="w-4 h-4 text-ac-gold fill-ac-gold" /> Pochettes virtuelles de l'habitant
+            </h3>
+            <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-white border border-ac-brown/30 text-ac-brown">
+              Solde Réel : <strong>{(realBalance ?? 0).toLocaleString('fr-FR')} 🔔</strong>
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-2 flex-wrap text-[11px] font-bold text-ac-brown-light leading-relaxed">
+            <span className={`px-2 py-0.5 rounded-md border font-extrabold ${
+              availableBalance < 0 
+                ? 'bg-amber-100 border-amber-300 text-amber-800' 
+                : 'bg-white/80 border-ac-brown/20 text-ac-green'
+            }`}>
+              Solde disponible : <strong>{(availableBalance ?? 0).toLocaleString('fr-FR')} 🔔</strong>
+            </span>
+            <span className="text-ac-brown-light">•</span>
+            <span>Alloué aux poches : <strong>{(totalAllocated ?? 0).toLocaleString('fr-FR')} 🔔</strong></span>
+            <span className="text-ac-brown-light">•</span>
+            <span>Restant : <strong>{(totalCurrent ?? 0).toLocaleString('fr-FR')} 🔔</strong></span>
+          </div>
         </div>
         {role !== 'viewer' && (
           <button
@@ -408,12 +432,12 @@ export default function PocketManager({ accountId, role }) {
                       type="button"
                       onClick={() => setColor(c.hex)}
                       className={`w-7 h-7 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
-                        color === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                        color === c.hex || color === c.id ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
                       }`}
                       style={{ backgroundColor: c.hex }}
                       title={c.label}
                     >
-                      {color === c.hex && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                      {(color === c.hex || color === c.id) && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
                     </button>
                   ))}
                 </div>
@@ -454,6 +478,7 @@ export default function PocketManager({ accountId, role }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {pockets.map((pocket, index) => {
+            const isDragging = draggedItemIndex === index;
             const current = pocket.currentAmount !== undefined ? Number(pocket.currentAmount) : Number(pocket.allocatedAmount);
             const allocated = Number(pocket.allocatedAmount) || 1;
             const percentage = Math.min(100, Math.max(0, (current / allocated) * 100));
@@ -463,54 +488,46 @@ export default function PocketManager({ accountId, role }) {
             if (percentage < 25) progressBg = 'bg-ac-red';
             else if (percentage < 60) progressBg = 'bg-ac-gold';
 
-            const isDragging = draggablePocketId === pocket.id;
-
             return (
               <div 
                 key={pocket.id} 
-                draggable={role !== 'viewer' && isDragging}
+                draggable={role !== 'viewer'}
                 onDragStart={(e) => handleDragStart(e, index)}
+                onDragEnter={(e) => handleDragEnter(e, index)}
                 onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                style={getCustomCardStyle(pocket.color)}
-                className={`border-3 rounded-3xl p-5 shadow-ac-sm transition-all flex flex-col justify-between space-y-4 border-ac-brown ${
-                  isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
+                style={{ backgroundColor: resolveColorHex(pocket.color), color: '#FFFFFF' }}
+                className={`border-3 rounded-3xl p-5 shadow-ac-sm transition-all flex flex-col justify-between space-y-4 border-ac-brown text-white select-none ${
+                  role !== 'viewer' ? 'cursor-grab active:cursor-grabbing' : ''
+                } ${
+                  isDragging ? 'opacity-50 scale-[0.98] ring-2 ring-ac-green' : ''
                 }`}
               >
                 {/* Header info */}
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex items-center gap-3">
-                    {/* Draggable Icon handle */}
+                    {/* Decorative leaf icon */}
                     <div 
-                      onMouseDown={role !== 'viewer' ? () => handleStartLongPress(pocket.id) : undefined}
-                      onTouchStart={role !== 'viewer' ? () => handleStartLongPress(pocket.id) : undefined}
-                      onMouseUp={handleCancelLongPress}
-                      onTouchEnd={handleCancelLongPress}
-                      onMouseLeave={handleCancelLongPress}
-                      className={`w-10 h-10 bg-white/80 rounded-full border border-ac-brown/15 flex items-center justify-center shrink-0 select-none shadow-ac-xs transition-colors ${
-                        role !== 'viewer' ? 'cursor-grab active:cursor-grabbing hover:bg-ac-cream' : ''
-                      }`}
-                      title={role !== 'viewer' ? "Glisser-déposer (clic long)" : undefined}
+                      className="w-10 h-10 bg-white/90 rounded-full border border-white/30 flex items-center justify-center shrink-0 select-none shadow-ac-xs"
                     >
                       <span className="text-lg">🍃</span>
                     </div>
 
                     <div>
-                      <h4 className="font-black text-sm text-ac-brown flex items-center gap-1.5">
+                      <h4 className="font-black text-sm text-white flex items-center gap-1.5">
                         {pocket.name}
                       </h4>
                       
                       {pocket.renewalFrequency && pocket.renewalFrequency !== 'none' && pocket.nextRenewalDate ? (
-                        <span className="text-[9px] font-black text-ac-brown-light/75 flex items-center gap-1 mt-0.5">
+                        <span className="text-[9px] font-black text-white/85 flex items-center gap-1 mt-0.5">
                           <Clock className="w-3 h-3" />
                           Renouvellement automatique le {(pocket.nextRenewalDate?.toDate ? pocket.nextRenewalDate.toDate() : new Date(pocket.nextRenewalDate)).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} ({
                             pocket.renewalFrequency === 'weekly' ? `hebdomadaire${pocket.renewalDay ? `, jour ${pocket.renewalDay}` : ''}` : `mensuel${pocket.renewalDay ? `, jour ${pocket.renewalDay}` : ''}`
                           })
-                          {pocket.accumulate && <span className="text-[8px] text-ac-green font-black"> [Accumulée]</span>}
+                          {pocket.accumulate && <span className="text-[8px] text-emerald-300 font-black"> [Accumulée]</span>}
                         </span>
                       ) : (
-                        <span className="text-[9px] font-bold text-ac-brown-light/50 block mt-0.5">
+                        <span className="text-[9px] font-bold text-white/70 block mt-0.5">
                           Pas de renouvellement automatique
                         </span>
                       )}
@@ -522,22 +539,25 @@ export default function PocketManager({ accountId, role }) {
                     <div className="flex gap-1 shrink-0 items-center">
                       {/* Quick Debit Button */}
                       <button
-                        onClick={() => openDebitModal(pocket)}
-                        className="p-1.5 bg-ac-red/10 hover:bg-ac-red/20 rounded-xl text-ac-red border border-ac-red/20 cursor-pointer font-black text-xs h-7 w-7 flex items-center justify-center transition-all"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); openDebitModal(pocket); }}
+                        className="p-1.5 bg-white/20 hover:bg-white/30 rounded-xl text-white border border-white/30 cursor-pointer font-black text-xs h-7 w-7 flex items-center justify-center transition-all"
                         title="Déduire de l'argent de la poche"
                       >
                         -
                       </button>
                       <button
-                        onClick={() => handleEdit(pocket)}
-                        className="p-1.5 hover:bg-ac-cream rounded-lg text-ac-brown-light hover:text-ac-brown border border-transparent hover:border-ac-brown/15 cursor-pointer"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); handleEdit(pocket); }}
+                        className="p-1.5 hover:bg-white/20 rounded-lg text-white/80 hover:text-white border border-transparent hover:border-white/20 cursor-pointer"
                         title="Modifier la poche"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(pocket.id)}
-                        className="p-1.5 hover:bg-ac-red-light rounded-lg text-ac-brown-light hover:text-ac-red border border-transparent hover:border-ac-red/15 cursor-pointer"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(pocket.id); }}
+                        className="p-1.5 hover:bg-white/20 rounded-lg text-white/80 hover:text-white border border-transparent hover:border-white/20 cursor-pointer"
                         title="Supprimer la poche"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -549,22 +569,22 @@ export default function PocketManager({ accountId, role }) {
                 {/* Progress bar and numeric indicators */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-baseline text-xs font-black">
-                    <span className="text-ac-brown text-base">
+                    <span className="text-white text-base">
                       {(Math.round(current) ?? 0).toLocaleString('fr-FR')} 🔔
                     </span>
-                    <span className="text-ac-brown-light text-[10px]">
+                    <span className="text-white/80 text-[10px]">
                       sur {(allocated ?? 0).toLocaleString('fr-FR')} 🔔
                     </span>
                   </div>
 
-                  <div className="w-full h-4 bg-ac-cream border-2 border-ac-brown rounded-full overflow-hidden p-[2px]">
+                  <div className="w-full h-4 bg-black/20 border-2 border-white/30 rounded-full overflow-hidden p-[2px]">
                     <div 
-                      className={`h-full ${progressBg} border border-ac-brown/20 rounded-full transition-all duration-500`}
+                      className={`h-full ${progressBg} border border-black/20 rounded-full transition-all duration-500`}
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
                   
-                  <div className="text-right text-[8px] font-bold text-ac-brown-light/60">
+                  <div className="text-right text-[8px] font-bold text-white/80">
                     {percentage.toFixed(0)}% restant
                   </div>
                 </div>

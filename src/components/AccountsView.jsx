@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { db, useDb, COLOR_PALETTE, getCustomCardStyle } from '../db';
+import { db, useDb, COLOR_PALETTE, getCustomCardStyle, resolveColorHex, getExecutionBadgeInfo, getActiveOrFavoriteAccount } from '../db';
 import { 
   collection, doc, setDoc, deleteDoc, query, where, onSnapshot, getDocs, writeBatch 
 } from 'firebase/firestore';
@@ -20,7 +20,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [accName, setAccName] = useState('');
   const [accBankName, setAccBankName] = useState('');
   const [accDescription, setAccDescription] = useState('');
-  const [accColor, setAccColor] = useState('#78B159');
+  const [accColor, setAccColor] = useState('#6CBAD8');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Transaction Modal state
@@ -47,9 +47,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const { accountsData: accounts, transactions: allTransactions, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
 
   // Favorite account calculation
-  const currentFavoriteId = useMemo(() => {
+  const storedFavoriteId = useMemo(() => {
     return usersMetaDoc?.favoriteAccountId || userMeta?.find(m => m.key === 'favorite_account_id')?.value || null;
   }, [usersMetaDoc, userMeta]);
+
+  const activeFavoriteAccount = useMemo(() => {
+    return getActiveOrFavoriteAccount(accounts, storedFavoriteId);
+  }, [accounts, storedFavoriteId]);
 
   const handleToggleFavorite = async (e, accId) => {
     e.stopPropagation();
@@ -73,7 +77,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         const proj = projects?.find(p => p.id === acc.projectId);
         return Boolean(proj && (proj.ownerId === user?.uid || proj.memberUids?.includes(user?.uid)));
       })
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
   }, [accounts, user, projects]);
 
   const reorderAccounts = async (dragIndex, hoverIndex) => {
@@ -200,7 +204,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         name: accName.trim(),
         bank: accBankName.trim(),
         description: accDescription.trim(),
-        color: editingAccount?.projectId ? '#1E232A' : (accColor || '#6CBAD8'),
+        color: editingAccount?.projectId ? '#1E232A' : (resolveColorHex(accColor) || '#6CBAD8'),
       };
 
       if (editingAccount) {
@@ -312,7 +316,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     setAccName(acc.name || '');
     setAccBankName(acc.bank || acc.bankName || '');
     setAccDescription(acc.description || '');
-    setAccColor(acc.projectId ? '#1E232A' : (acc.color || '#6CBAD8'));
+    setAccColor(acc.projectId ? '#1E232A' : (resolveColorHex(acc.color) || '#6CBAD8'));
     setAccountFormOpen(true);
   };
 
@@ -747,11 +751,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
         <div className="space-y-8 animate-fade-in">
           {/* Header & Account info banner */}
           <div 
-            style={activeAccount.projectId ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : getCustomCardStyle(activeAccount.color)}
+            style={activeAccount.projectId ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(activeAccount.color), color: '#ffffff', borderColor: '#4A3E3D' }}
             className={`flex flex-col md:flex-row md:items-center justify-between gap-6 rounded-3xl p-6 shadow-ac-sm transition-colors ${
               activeAccount.projectId 
                 ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440]' 
-                : 'border-3 border-ac-brown'
+                : 'border-3 border-ac-brown text-white'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -760,13 +764,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 className={`border-2 rounded-full p-2 transition-colors cursor-pointer ${
                   activeAccount.projectId 
                     ? 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-white' 
-                    : 'bg-ac-cream hover:bg-ac-cream-dark border-ac-brown text-ac-brown'
+                    : 'bg-white/20 hover:bg-white/30 border-white/40 text-white'
                 }`}
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h2 className={`text-2xl font-black flex items-center gap-2 flex-wrap ${activeAccount.projectId ? 'text-white' : 'text-ac-brown'}`}>
+                <h2 className="text-2xl font-black flex items-center gap-2 flex-wrap text-white">
                   {(() => {
                     const accountName = activeAccount.name || "Compte";
                     const projectName = activeAccount.projectName || (projects?.find(p => p.id === activeAccount.projectId)?.name) || "";
@@ -780,13 +784,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${
                     activeAccount.projectId 
                       ? 'bg-slate-800 text-slate-300 border-slate-700' 
-                      : 'text-ac-brown-light bg-ac-cream border-ac-brown/15'
+                      : 'text-white bg-white/20 border-white/30'
                   }`}>
                     {activeAccount.bank || activeAccount.bankName || '—'}
                   </span>
                 </h2>
                 {activeAccount.description && (
-                  <p className={`text-[11px] font-semibold mt-2 italic ${activeAccount.projectId ? 'text-slate-300' : 'text-ac-brown-light'}`}>
+                  <p className={`text-[11px] font-semibold mt-2 italic ${activeAccount.projectId ? 'text-slate-300' : 'text-white/90'}`}>
                     "{activeAccount.description}"
                   </p>
                 )}
@@ -797,21 +801,25 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
               <div className={`text-left md:text-right border-2 rounded-2xl px-6 py-2.5 min-w-[200px] ${
                 activeAccount.projectId 
                   ? 'bg-slate-800/80 border-slate-700 text-white' 
-                  : 'bg-ac-cream-dark/20 border-ac-brown text-ac-brown'
+                  : 'bg-white/20 border-white/30 text-white'
               }`}>
-                <span className={`text-[9px] font-black uppercase block ${activeAccount.projectId ? 'text-slate-400' : 'text-ac-brown-light'}`}>Solde Réel Principal</span>
-                <span className="text-2xl font-black">
+                <span className={`text-[9px] font-black uppercase block ${activeAccount.projectId ? 'text-slate-400' : 'text-white/80'}`}>Solde Réel Principal</span>
+                <span className="text-2xl font-black text-white">
                   {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                 </span>
               </div>
               
               {activeAccount.balance !== activeAccount.visibleBalance && (
-                <div className="text-left md:text-right bg-ac-gold-light/45 border-2 border-ac-gold rounded-2xl px-6 py-2.5 min-w-[200px] animate-bounce-in">
-                  <span className="text-[9px] font-black text-ac-gold-dark uppercase block flex items-center justify-end gap-1">
-                    Solde Disponible <Sparkles className="w-3 h-3 fill-ac-gold" />
+                <div className={`text-left md:text-right border-2 rounded-2xl px-6 py-2 min-w-[200px] animate-bounce-in ${
+                  activeAccount.visibleBalance < 0 
+                    ? 'bg-amber-500/20 border-amber-400 text-white' 
+                    : (activeAccount.projectId ? 'bg-slate-800/60 border-slate-700 text-white' : 'bg-white/20 border-white/30 text-white')
+                }`}>
+                  <span className={`text-[9px] font-black uppercase block flex items-center justify-start md:justify-end gap-1 ${activeAccount.visibleBalance < 0 ? 'text-amber-300' : (activeAccount.projectId ? 'text-slate-400' : 'text-white/80')}`}>
+                    Solde Disponible (indicatif) <Sparkles className="w-3 h-3 fill-ac-gold" />
                   </span>
-                  <span className="text-2xl font-black text-ac-gold-dark">
-                    {(activeAccount.visibleBalance ?? activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                  <span className={`text-xl font-black ${activeAccount.visibleBalance < 0 ? 'text-amber-300' : (activeAccount.projectId ? 'text-ac-gold' : 'text-white')}`}>
+                    {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                   </span>
                 </div>
               )}
@@ -999,16 +1007,15 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                               </div>
                             </td>
                             <td className="py-3.5">
-                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
-                                isImport ? 'bg-slate-100 border-slate-300 text-slate-600' :
-                                tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
-                                tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :
-                                'bg-ac-green-light border-ac-green/20 text-ac-green'
-                              }`}>
-                                {isImport ? 'Importée' :
-                                 tx.executionType === 'planned' ? 'À prévoir' :
-                                 tx.executionType === 'past' ? 'Passée' : 'Spontanée'}
-                              </span>
+                              {(() => {
+                                const badge = getExecutionBadgeInfo(tx);
+                                return (
+                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border inline-flex items-center gap-1 ${badge.className}`}>
+                                    {badge.icon && <span>{badge.icon}</span>}
+                                    <span>{badge.label}</span>
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td className="py-3.5 text-right font-black text-sm">
                               <span className={isIncome ? 'text-ac-green' : 'text-ac-brown'}>
@@ -1050,7 +1057,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                   {transactions.map((tx) => {
                     const isIncome = tx.type === 'credit';
                     const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
-                    const isImport = tx.executionType === 'import' || tx.importBatchId != null;
+                    const badge = getExecutionBadgeInfo(tx);
                     return (
                       <div key={tx.id} className="bg-ac-cream/20 border-2 border-ac-brown rounded-2xl p-4 flex flex-col gap-2 relative">
                         <div className="flex justify-between items-start">
@@ -1073,15 +1080,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 items-center mt-1">
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded border ${
-                            isImport ? 'bg-slate-100 border-slate-300 text-slate-600' :
-                            tx.executionType === 'planned' ? 'bg-ac-sky-light border-ac-sky/20 text-ac-sky' :
-                            tx.executionType === 'past' ? 'bg-ac-cream-dark/55 border-ac-brown/15 text-ac-brown-light' :
-                            'bg-ac-green-light border-ac-green/20 text-ac-green'
-                          }`}>
-                            {isImport ? 'Importée' :
-                             tx.executionType === 'planned' ? 'À prévoir' :
-                             tx.executionType === 'past' ? 'Passée' : 'Spontanée'}
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded border inline-flex items-center gap-1 ${badge.className}`}>
+                            {badge.icon && <span>{badge.icon}</span>}
+                            <span>{badge.label}</span>
                           </span>
                         </div>
 
@@ -1176,7 +1177,9 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {sortedAccounts.map((acc, index) => {
                 const isDragging = draggableAccountId === acc.id;
-                const isFavorite = currentFavoriteId === acc.id;
+                const isExplicitFavorite = storedFavoriteId === acc.id;
+                const isDefaultFavorite = !storedFavoriteId && activeFavoriteAccount?.id === acc.id;
+                const isFavorite = isExplicitFavorite || isDefaultFavorite;
                 const isProjectAcc = Boolean(acc.projectId);
                 
                 // 1. Calcul du titre garanti sans valeur vide
@@ -1193,11 +1196,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     onDrop={(e) => handleAccountDrop(e, index)}
                     onDragEnd={handleAccountDragEnd}
                     onClick={() => setSelectedAccountId(acc.id)}
-                    style={isProjectAcc ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : getCustomCardStyle(acc.color)}
+                    style={isProjectAcc ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(acc.color), color: '#ffffff' }}
                     className={`ac-card account-card p-5 cursor-pointer relative group overflow-visible flex flex-col justify-between transition-all ${
                       isProjectAcc 
                         ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440] shadow-ac-md' 
-                        : 'border-ac-brown'
+                        : 'border-ac-brown text-white'
                     } ${
                       isDragging ? 'ring-3 ring-ac-green ring-offset-2 scale-[1.01] border-dashed opacity-75' : ''
                     }`}
@@ -1205,7 +1208,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className={`font-bold text-sm leading-tight break-words ${isProjectAcc ? 'text-white font-extrabold' : 'text-ac-brown'}`}>
+                          <h3 className={`font-bold text-sm leading-tight break-words ${isProjectAcc ? 'text-white font-extrabold' : 'text-white'}`}>
                             {titleText}
                           </h3>
                           {isProjectAcc && (
@@ -1214,7 +1217,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                             </span>
                           )}
                         </div>
-                        <span className={`text-[10px] font-bold block mt-1.5 ${isProjectAcc ? 'text-slate-300' : 'text-ac-brown-light'}`}>
+                        <span className={`text-[10px] font-bold block mt-1.5 ${isProjectAcc ? 'text-slate-300' : 'text-white/80'}`}>
                           🏦 {acc.bank || acc.bankName || '—'}
                         </span>
                       </div>
@@ -1226,11 +1229,11 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                           className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
                             isProjectAcc
                               ? 'bg-slate-800 hover:bg-slate-700 border-slate-700'
-                              : 'bg-ac-cream hover:bg-amber-100 border-ac-brown/20'
+                              : 'bg-white/20 hover:bg-white/30 border-white/30'
                           }`}
-                          title={isFavorite ? "Compte favori actuel" : "Définir comme compte favori"}
+                          title={isExplicitFavorite ? "Compte favori actuel" : (isDefaultFavorite ? "Compte principal par défaut (index 0)" : "Définir comme compte favori")}
                         >
-                          <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-400 fill-amber-400' : (isProjectAcc ? 'text-slate-500 hover:text-amber-400' : 'text-ac-brown-light/40 hover:text-amber-400')}`} />
+                          <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-300 fill-amber-300' : (isProjectAcc ? 'text-slate-500 hover:text-amber-300' : 'text-white/60 hover:text-amber-300')}`} />
                         </button>
 
                         <div 
@@ -1244,21 +1247,30 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                           className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing ${
                             isProjectAcc
                               ? 'bg-slate-800 border-slate-700 hover:bg-slate-700'
-                              : 'bg-ac-cream border-ac-brown/20 group-hover:bg-ac-gold/10'
+                              : 'bg-white/20 border-white/30 group-hover:bg-white/30'
                           }`}
                           title="Déplacer le compte (glisser-déposer)"
                         >
-                          <PiggyBank className="w-5 h-5 text-ac-gold" />
+                          <PiggyBank className="w-5 h-5 text-white" />
                         </div>
                       </div>
                     </div>
 
-                    <div className={`mt-4 pt-3 border-t flex justify-between items-baseline ${isProjectAcc ? 'border-slate-700' : 'border-ac-brown/10'}`}>
-                      <span className={`text-[10px] font-black uppercase tracking-wide ${isProjectAcc ? 'text-slate-400' : 'text-ac-brown-light/60'}`}>Solde Disponible</span>
-                      <span className={`font-black text-base ${isProjectAcc ? 'text-ac-gold' : 'text-ac-brown'}`}>
-                        {(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                    <div className={`mt-4 pt-3 border-t flex justify-between items-baseline ${isProjectAcc ? 'border-slate-700' : 'border-white/20'}`}>
+                      <span className={`text-[10px] font-black uppercase tracking-wide ${isProjectAcc ? 'text-slate-400' : 'text-white/80'}`}>Solde Réel</span>
+                      <span className={`font-black text-base ${isProjectAcc ? 'text-white' : 'text-white'}`}>
+                        {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                       </span>
                     </div>
+
+                    {acc.balance !== acc.visibleBalance && (
+                      <div className={`text-[9px] font-extrabold flex justify-between items-center mt-1 ${isProjectAcc ? 'text-slate-400' : 'text-white/80'}`}>
+                        <span>Solde disponible :</span>
+                        <span className={acc.visibleBalance < 0 ? 'text-amber-300 font-black' : (isProjectAcc ? 'text-ac-gold font-black' : 'text-white/90 font-black')}>
+                          {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1447,12 +1459,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                         type="button"
                         onClick={() => setAccColor(c.hex)}
                         className={`w-8 h-8 rounded-full border-2 border-ac-brown flex items-center justify-center transition-transform cursor-pointer shadow-xs ${
-                          accColor === c.hex ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
+                          accColor === c.hex || accColor === c.id ? 'scale-115 ring-2 ring-ac-brown ring-offset-1' : 'hover:scale-105 opacity-80'
                         }`}
                         style={{ backgroundColor: c.hex }}
                         title={c.label}
                       >
-                        {accColor === c.hex && <Check className="w-4 h-4 text-white stroke-[3]" />}
+                        {(accColor === c.hex || accColor === c.id) && <Check className="w-4 h-4 text-white stroke-[3]" />}
                       </button>
                     ))}
                   </div>
