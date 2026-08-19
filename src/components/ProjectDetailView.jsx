@@ -11,7 +11,7 @@ import {
 import TransactionModal from './TransactionModal';
 import PocketManager from './PocketManager';
 
-export default function ProjectDetailView({ project, onBack }) {
+export default function ProjectDetailView({ project, selectedProject, onBack }) {
   const { 
     user, 
     username, 
@@ -242,53 +242,58 @@ export default function ProjectDetailView({ project, onBack }) {
   };
 
   const handleDeleteProject = async () => {
-    if (!project?.id || !isOwner) return;
+    const targetProject = project || selectedProject;
+    if (!targetProject?.id) return;
     
     const confirmDelete = window.confirm(
-      "Es-tu sûr de vouloir supprimer définitivement ce projet et l'ensemble de ses comptes, souhaits et dettes associées ?"
+      "Es-tu sûr de vouloir supprimer définitivement ce projet ainsi que tous ses comptes, poches, transactions, souhaits et dettes associées ?"
     );
     if (!confirmDelete) return;
 
     try {
-      const projectId = project.id;
+      const projectId = targetProject.id;
       const batch = writeBatch(firestoreDb);
 
-      // 1. Récupération et suppression des comptes du projet
+      // 1. Récupération des comptes du projet
       const accQuery = query(collection(firestoreDb, "accounts"), where("projectId", "==", projectId));
       const accSnap = await getDocs(accQuery);
       const accountIds = accSnap.docs.map(d => d.id);
       accSnap.forEach(d => batch.delete(d.ref));
 
-      // 2. Suppression des transactions liées aux comptes du projet
-      if (accountIds.length > 0) {
-        const transQuery = query(collection(firestoreDb, "transactions"), where("projectId", "==", projectId));
-        const transSnap = await getDocs(transQuery);
-        transSnap.forEach(d => batch.delete(d.ref));
+      // 2. Suppression des poches liées aux comptes du projet
+      for (const accId of accountIds) {
+        const pocketQuery = query(collection(firestoreDb, "pockets"), where("accountId", "==", accId));
+        const pocketSnap = await getDocs(pocketQuery);
+        pocketSnap.forEach(d => batch.delete(d.ref));
       }
 
-      // 3. Suppression des souhaits du projet
+      // 3. Suppression des transactions du projet
+      const transQuery = query(collection(firestoreDb, "transactions"), where("projectId", "==", projectId));
+      const transSnap = await getDocs(transQuery);
+      transSnap.forEach(d => batch.delete(d.ref));
+
+      // 4. Suppression des souhaits du projet
       const wishQuery = query(collection(firestoreDb, "wishlist"), where("projectId", "==", projectId));
       const wishSnap = await getDocs(wishQuery);
       wishSnap.forEach(d => batch.delete(d.ref));
 
-      // 4. Suppression des dettes collectives du projet
+      // 5. Suppression des dettes collectives du projet
       const debtsQuery = query(collection(firestoreDb, "project_debts"), where("projectId", "==", projectId));
       const debtsSnap = await getDocs(debtsQuery);
       debtsSnap.forEach(d => batch.delete(d.ref));
 
-      // 5. Suppression du document projet lui-même
+      // 6. Suppression du document projet
       const projectRef = doc(firestoreDb, "projects", projectId);
       batch.delete(projectRef);
 
-      // 6. Exécution atomique
+      // 7. Validation atomique
       await batch.commit();
 
-      // 7. Redirection propre vers la liste des projets
       if (typeof onBack === "function") {
         onBack(null);
       }
     } catch (error) {
-      console.error("Détail de l'erreur suppression projet :", error);
+      console.error("Erreur lors de la suppression du projet :", error);
       alert("Erreur lors de la suppression du projet : " + error.message);
     }
   };
