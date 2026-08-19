@@ -44,7 +44,7 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
   const [accountImports, setAccountImports] = useState([]);
   const [importsLoading, setImportsLoading] = useState(false);
 
-  const { accountsData, transactions: allTransactions, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
+  const { accountsData, transactions: allTransactions, pockets: allPockets, user, username, usersMetaDoc, userMeta, projects = [] } = useDb();
   const [accounts, setAccounts] = useState([]);
 
   useEffect(() => {
@@ -191,30 +191,32 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
   };
 
-  // Fetch transactions for the active account
-  const activeAccount = accounts?.find(a => a.id === selectedAccountId);
+  // Raw active account definition
+  const rawActiveAccount = useMemo(() => {
+    return accounts?.find(a => String(a.id) === String(selectedAccountId)) || null;
+  }, [accounts, selectedAccountId]);
 
   // Determine current project if account is associated with a project
   const currentProject = useMemo(() => {
-    if (!activeAccount?.projectId) return null;
-    return projects?.find(p => p.id === activeAccount.projectId) || null;
-  }, [activeAccount, projects]);
+    if (!rawActiveAccount?.projectId) return null;
+    return projects?.find(p => p.id === rawActiveAccount.projectId) || null;
+  }, [rawActiveAccount, projects]);
 
   // Determine role for active account
   const myRole = useMemo(() => {
-    if (!activeAccount) return 'owner';
-    if (activeAccount.projectId) {
+    if (!rawActiveAccount) return 'owner';
+    if (rawActiveAccount.projectId) {
       if (!currentProject) return 'viewer';
       if (currentProject.ownerId === user?.uid) return 'owner';
       return currentProject.members?.[user?.uid]?.role || 'viewer';
     }
-    if (activeAccount.role) return activeAccount.role;
-    const ownerId = activeAccount.userId || activeAccount.creatorId;
+    if (rawActiveAccount.role) return rawActiveAccount.role;
+    const ownerId = rawActiveAccount.userId || rawActiveAccount.creatorId;
     if (ownerId && user?.uid && ownerId !== user.uid) {
       return 'viewer';
     }
     return 'owner';
-  }, [activeAccount, currentProject, user]);
+  }, [rawActiveAccount, currentProject, user]);
 
   const canEdit = myRole === 'owner' || myRole === 'editor';
 
@@ -260,6 +262,46 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     }
     return [];
   }, [selectedAccountId, accountTransactions, allTransactions]);
+
+  // 2. Calcul dynamique du solde réel principal et disponible en temps réel
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const calculatedBalance = useMemo(() => {
+    if (!transactions) return 0;
+    return transactions
+      .filter(t => {
+        if (t.executionType === 'already_executed' || t.executionType === 'past') return false;
+        if (t.executionType === 'forecast' || t.executionType === 'planned') {
+          const txDate = t.date ? (t.date?.toDate ? t.date.toDate().toISOString().split('T')[0] : String(t.date).split('T')[0]) : '';
+          return txDate <= todayStr;
+        }
+        return true;
+      })
+      .reduce((acc, t) => {
+        const amount = Number(t.amount) || 0;
+        return (t.type === 'credit' || t.type === 'income') ? acc + amount : acc - amount;
+      }, 0);
+  }, [transactions, todayStr]);
+
+  const calculatedPocketsTotal = useMemo(() => {
+    if (!selectedAccountId || !allPockets) return 0;
+    return allPockets
+      .filter(p => String(p.accountId) === String(selectedAccountId))
+      .reduce((sum, p) => sum + (Number(p.allocatedAmount) || 0), 0);
+  }, [selectedAccountId, allPockets]);
+
+  const calculatedVisibleBalance = calculatedBalance - calculatedPocketsTotal;
+
+  // Active account enriched with real-time dynamic balance
+  const activeAccount = useMemo(() => {
+    if (!rawActiveAccount) return null;
+    return {
+      ...rawActiveAccount,
+      balance: calculatedBalance,
+      visibleBalance: calculatedVisibleBalance,
+      totalAllouePoches: calculatedPocketsTotal
+    };
+  }, [rawActiveAccount, calculatedBalance, calculatedVisibleBalance, calculatedPocketsTotal]);
 
   // Handle Account Form Submit
   const handleAccountSubmit = async (e) => {
