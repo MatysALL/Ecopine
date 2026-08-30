@@ -9,6 +9,7 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
   signOut,
   onAuthStateChanged
@@ -2096,7 +2097,7 @@ export const loginWithGoogle = async () => {
   const db = firestoreDb;
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  
+
   try {
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
@@ -2115,11 +2116,16 @@ export const loginWithGoogle = async () => {
     }
     return user;
   } catch (error) {
-    if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
-      console.log("Connexion Google annulée par l'utilisateur.");
+    if (error?.code === 'auth/popup-blocked' || error?.code === 'auth/cancelled-popup-request') {
+      console.warn("[AUTH] Pop-up bloquée par le navigateur, tentative par redirection...");
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    if (error?.code === 'auth/popup-closed-by-user') {
+      console.log("[AUTH] Fenêtre fermée par l'utilisateur.");
       return null;
     }
-    console.error("Erreur Google Auth:", error);
+    console.error("[AUTH] Erreur de connexion Google :", error);
     throw error;
   }
 };
