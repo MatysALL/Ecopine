@@ -16,6 +16,7 @@ export default function AuthView() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleAdblockWarning, setGoogleAdblockWarning] = useState(false);
   const [successToast, setSuccessToast] = useState(() => {
     const msg = sessionStorage.getItem('auth_toast') || localStorage.getItem('auth_toast');
     if (msg) {
@@ -80,26 +81,33 @@ export default function AuthView() {
 
   const handleGoogleLogin = async () => {
     setError('');
+    setGoogleAdblockWarning(false);
     setGoogleLoading(true);
     try {
       await loginWithGoogle();
     } catch (err) {
-      if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+      if (err?.code === 'auth/popup-closed-by-user') {
         return;
       }
       console.error("Google login error:", err);
-      switch (err?.code) {
-        case 'auth/popup-blocked':
-          setError("La fenêtre Google a été bloquée par votre navigateur. Veuillez autoriser les fenêtres pop-up.");
-          break;
-        case 'auth/unauthorized-domain':
-          setError("Ce domaine n'est pas autorisé pour l'authentification Google dans la console Firebase.");
-          break;
-        case 'auth/account-exists-with-different-credential':
-          setError("Un compte existe déjà avec cette adresse e-mail via une autre méthode de connexion.");
-          break;
-        default:
-          setError("Échec de la connexion avec Google : " + (err?.message || "Erreur inconnue"));
+      if (
+        err?.code === 'auth/popup-blocked' ||
+        err?.code === 'auth/network-request-failed' ||
+        err?.code === 'auth/cancelled-popup-request'
+      ) {
+        setGoogleAdblockWarning(true);
+        setError("⚠️ Connexion Google bloquée par votre navigateur/bloqueur. Désactivez le bouclier ou connectez-vous par e-mail.");
+      } else {
+        switch (err?.code) {
+          case 'auth/unauthorized-domain':
+            setError("Ce domaine n'est pas autorisé pour l'authentification Google dans la console Firebase.");
+            break;
+          case 'auth/account-exists-with-different-credential':
+            setError("Un compte existe déjà avec cette adresse e-mail via une autre méthode de connexion.");
+            break;
+          default:
+            setError("Échec de la connexion avec Google : " + (err?.message || "Erreur inconnue"));
+        }
       }
     } finally {
       setGoogleLoading(false);
@@ -172,6 +180,12 @@ export default function AuthView() {
             </>
           )}
         </button>
+
+        {googleAdblockWarning && (
+          <p className="text-xs font-bold text-amber-900 bg-amber-100/90 border-2 border-amber-300 rounded-xl p-3 text-center w-full leading-snug animate-bounce-in">
+            ⚠️ Connexion Google bloquée par votre navigateur/bloqueur. Désactivez le bouclier ou connectez-vous par e-mail.
+          </p>
+        )}
 
         {/* Divider */}
         <div className="relative w-full flex items-center justify-center">
