@@ -2253,9 +2253,10 @@ export const DbProvider = ({ children }) => {
   // Auth Subscription
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setAuthLoading(false);
-      if (!user) {
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        setCurrentUser(null);
         // Clear state if logged out
         setAccounts([]);
         setTransactions([]);
@@ -2266,44 +2267,28 @@ export const DbProvider = ({ children }) => {
         setFriendships([]);
         setProjects([]);
         setUsersMetaDoc(null);
+        setDataLoading(false);
       }
+      setAuthLoading(false);
     });
     return unsubscribeAuth;
   }, []);
 
   // Data Subscription (only when logged in)
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setDataLoading(false);
+      return;
+    }
     
     setDataLoading(true);
     let unsubscribes = [];
 
     // 1. Subscribe to users_meta doc
     const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
-    let hadDoc = false;
-    let initialGraceTimer = setTimeout(() => {
-      // If after 5 seconds the document still doesn't exist (e.g. orphaned token), disconnect
-      if (!hadDoc) {
-        console.warn("Aucun profil users_meta trouvé après le délai d'attente initial. Déconnexion...");
-        signOut(auth).then(() => {
-          localStorage.clear();
-          sessionStorage.clear();
-          window.location.reload();
-        }).catch(() => {
-          localStorage.clear();
-          sessionStorage.clear();
-          window.location.reload();
-        });
-      }
-    }, 5000);
 
     const unsubMeta = onSnapshot(metaRef, (docSnap) => {
       if (docSnap.exists()) {
-        hadDoc = true;
-        if (initialGraceTimer) {
-          clearTimeout(initialGraceTimer);
-          initialGraceTimer = null;
-        }
         const data = docSnap.data();
         setUsersMetaDoc(data);
         const updates = {};
@@ -2319,31 +2304,33 @@ export const DbProvider = ({ children }) => {
           updates.role = 'member';
         }
         if (Object.keys(updates).length > 0) {
-          updateDoc(metaRef, updates).catch(err => console.error(err));
+          updateDoc(metaRef, updates).catch(err => console.error("Error updating users_meta:", err));
         }
       } else {
-        if (hadDoc) {
-          console.warn("Profil utilisateur supprimé en temps réel par l'administrateur. Déconnexion...");
-          signOut(auth).then(() => {
-            localStorage.clear();
-            sessionStorage.clear();
-            window.location.reload();
-          }).catch((err) => {
-            console.error("Erreur lors de la déconnexion forcée:", err);
-            localStorage.clear();
-            sessionStorage.clear();
-            window.location.reload();
-          });
-        }
+        // Document does not exist yet: create default users_meta document
+        const newMeta = {
+          uid: currentUser.uid,
+          email: currentUser.email ? currentUser.email.toLowerCase() : '',
+          username: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
+          photoURL: currentUser.photoURL || '/pfp-ac.jpg',
+          role: currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
+          themePreference: 'default',
+          unlockedThemes: ['default'],
+          favoriteAccountId: null,
+          createdAt: new Date().toISOString(),
+          tutorialProgress: {
+            isCompleted: false,
+            steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false }
+          }
+        };
+        setUsersMetaDoc(newMeta);
+        setDoc(metaRef, newMeta, { merge: true }).catch(err => console.error("Error creating users_meta:", err));
       }
     }, (err) => {
       console.error("Erreur d'écoute users_meta:", err);
     });
 
-    unsubscribes.push(() => {
-      if (initialGraceTimer) clearTimeout(initialGraceTimer);
-      unsubMeta();
-    });
+    unsubscribes.push(unsubMeta);
 
     // Subscribe to all users_meta to get names and avatars reactively
     const unsubAllMeta = onSnapshot(collection(firestoreDb, 'users_meta'), (snapshot) => {
