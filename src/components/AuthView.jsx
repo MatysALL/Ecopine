@@ -15,8 +15,8 @@ export default function AuthView() {
   // Status states
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleAdblockWarning, setGoogleAdblockWarning] = useState(false);
+  const [googleError, setGoogleError] = useState(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [successToast, setSuccessToast] = useState(() => {
     const msg = sessionStorage.getItem('auth_toast') || localStorage.getItem('auth_toast');
     if (msg) {
@@ -80,37 +80,19 @@ export default function AuthView() {
   };
 
   const handleGoogleLogin = async () => {
-    setError('');
-    setGoogleAdblockWarning(false);
-    setGoogleLoading(true);
+    setGoogleError(null);
+    setIsGoogleLoading(true);
     try {
-      await loginWithGoogle();
-    } catch (err) {
-      if (err?.code === 'auth/popup-closed-by-user') {
-        return;
+      const loggedUser = await loginWithGoogle();
+      if (!loggedUser) {
+        // Si la popup a été fermée ou bloquée par Opera GX
+        setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bouclier Opera GX ou utilise l'e-mail.");
       }
-      console.error("Google login error:", err);
-      if (
-        err?.code === 'auth/popup-blocked' ||
-        err?.code === 'auth/network-request-failed' ||
-        err?.code === 'auth/cancelled-popup-request'
-      ) {
-        setGoogleAdblockWarning(true);
-        setError("⚠️ Connexion Google bloquée par votre navigateur/bloqueur. Désactivez le bouclier ou connectez-vous par e-mail.");
-      } else {
-        switch (err?.code) {
-          case 'auth/unauthorized-domain':
-            setError("Ce domaine n'est pas autorisé pour l'authentification Google dans la console Firebase.");
-            break;
-          case 'auth/account-exists-with-different-credential':
-            setError("Un compte existe déjà avec cette adresse e-mail via une autre méthode de connexion.");
-            break;
-          default:
-            setError("Échec de la connexion avec Google : " + (err?.message || "Erreur inconnue"));
-        }
-      }
+    } catch (error) {
+      console.error("Erreur Google Login :", error);
+      setGoogleError("Échec de connexion Google (bloqueur actif). Connecte-toi par e-mail.");
     } finally {
-      setGoogleLoading(false);
+      setIsGoogleLoading(false);
     }
   };
 
@@ -163,10 +145,10 @@ export default function AuthView() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          disabled={loading || googleLoading}
+          disabled={loading || isGoogleLoading}
           className="w-full bg-[#FFFDF9] hover:bg-amber-50/60 active:bg-amber-100/60 text-[#5C3A41] font-extrabold text-sm py-3.5 px-4 rounded-2xl border-2 border-[#5C3A41] shadow-ac-sm active:translate-y-0.5 active:shadow-none flex items-center justify-center gap-3 cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none"
         >
-          {googleLoading ? (
+          {isGoogleLoading ? (
             <span className="w-4 h-4 border-2 border-[#5C3A41] border-t-transparent rounded-full animate-spin"></span>
           ) : (
             <>
@@ -181,10 +163,10 @@ export default function AuthView() {
           )}
         </button>
 
-        {googleAdblockWarning && (
-          <p className="text-xs font-bold text-amber-900 bg-amber-100/90 border-2 border-amber-300 rounded-xl p-3 text-center w-full leading-snug animate-bounce-in">
-            ⚠️ Connexion Google bloquée par votre navigateur/bloqueur. Désactivez le bouclier ou connectez-vous par e-mail.
-          </p>
+        {googleError && (
+          <div className="mt-2 p-2.5 text-xs text-amber-900 bg-amber-100/90 border border-amber-300 rounded-xl text-center leading-relaxed">
+            ⚠️ {googleError}
+          </div>
         )}
 
         {/* Divider */}
