@@ -2097,22 +2097,31 @@ export const loginWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   
-  const result = await signInWithPopup(auth, provider);
-  const user = result.user;
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
 
-  if (user) {
-    const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || user.email.split('@')[0],
-        createdAt: new Date().toISOString()
-      }, { merge: true });
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Habitant'),
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      }
     }
+    return user;
+  } catch (error) {
+    if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+      console.log("Connexion Google annulée par l'utilisateur.");
+      return null;
+    }
+    console.error("Erreur Google Auth:", error);
+    throw error;
   }
-  return user;
 };
 
 /**
