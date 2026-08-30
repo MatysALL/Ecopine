@@ -15,8 +15,8 @@ export default function AuthView() {
   // Status states
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState(null);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [successToast, setSuccessToast] = useState(() => {
     const msg = sessionStorage.getItem('auth_toast') || localStorage.getItem('auth_toast');
     if (msg) {
@@ -81,7 +81,7 @@ export default function AuthView() {
 
   const handleGoogleLogin = async () => {
     setGoogleError(null);
-    setIsGoogleLoading(true);
+    setGoogleLoading(true);
     try {
       const loggedUser = await loginWithGoogle();
       if (!loggedUser) {
@@ -92,7 +92,7 @@ export default function AuthView() {
       console.error("Erreur Google Login :", error);
       setGoogleError("Échec de connexion Google (bloqueur actif). Connecte-toi par e-mail.");
     } finally {
-      setIsGoogleLoading(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -145,10 +145,10 @@ export default function AuthView() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          disabled={loading || isGoogleLoading}
+          disabled={loading || googleLoading}
           className="w-full bg-[#FFFDF9] hover:bg-amber-50/60 active:bg-amber-100/60 text-[#5C3A41] font-extrabold text-sm py-3.5 px-4 rounded-2xl border-2 border-[#5C3A41] shadow-ac-sm active:translate-y-0.5 active:shadow-none flex items-center justify-center gap-3 cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none"
         >
-          {isGoogleLoading ? (
+          {googleLoading ? (
             <span className="w-4 h-4 border-2 border-[#5C3A41] border-t-transparent rounded-full animate-spin"></span>
           ) : (
             <>
