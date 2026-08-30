@@ -9,6 +9,7 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signInWithPopup,
+  GoogleAuthProvider,
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
@@ -2091,6 +2092,29 @@ export async function deleteMyAccount() {
   window.location.reload();
 }
 
+export const loginWithGoogle = async () => {
+  const db = firestoreDb;
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  
+  const result = await signInWithPopup(auth, provider);
+  const user = result.user;
+
+  if (user) {
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email.split('@')[0],
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  }
+  return user;
+};
+
 /**
  * Firebase React Context & Hook definition
  */
@@ -2211,50 +2235,6 @@ export const DbProvider = ({ children }) => {
 
   const logInUser = async (email, password) => {
     return signInWithEmailAndPassword(auth, email, password);
-  };
-
-  const loginWithGoogle = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-
-      if (user) {
-        const metaRef = doc(firestoreDb, 'users_meta', user.uid);
-        const docSnap = await getDoc(metaRef);
-
-        if (!docSnap.exists()) {
-          // Create minimal profile document and set tutorialProgress.isCompleted = false to trigger onboarding
-          await setDoc(metaRef, {
-            uid: user.uid,
-            email: user.email ? user.email.toLowerCase() : '',
-            username: user.displayName || "Habitant",
-            photoURL: "/pfp-ac.jpg",
-            role: user.email?.toLowerCase() === "matysallanet@gmail.com" ? "admin" : "member",
-            themePreference: "default",
-            unlockedThemes: ["default"],
-            favoriteAccountId: null,
-            createdAt: new Date().toISOString(),
-            tutorialProgress: {
-              isCompleted: false,
-              steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false }
-            }
-          });
-        } else {
-          await setDoc(metaRef, {
-            email: user.email ? user.email.toLowerCase() : ''
-          }, { merge: true });
-        }
-      }
-
-      return user;
-    } catch (error) {
-      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        console.log("Connexion Google annulée par l'utilisateur.");
-        return null;
-      }
-      console.error("Erreur Google Auth:", error);
-      throw error;
-    }
   };
 
   const logOutUser = async () => {

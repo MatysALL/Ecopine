@@ -1,3 +1,4 @@
+/* global __APP_VERSION__ */
 import React, { useState } from 'react';
 import { useDb } from '../db';
 import { Leaf, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
@@ -14,7 +15,7 @@ export default function AuthView() {
   // Status states
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [successToast, setSuccessToast] = useState(() => {
     const msg = sessionStorage.getItem('auth_toast') || localStorage.getItem('auth_toast');
     if (msg) {
@@ -79,21 +80,15 @@ export default function AuthView() {
 
   const handleGoogleLogin = async () => {
     setError('');
-    setIsSubmitting(true);
+    setGoogleLoading(true);
     try {
-      const user = await loginWithGoogle();
-      if (!user) {
-        // User closed the popup, silently reset
-        setIsSubmitting(false);
+      await loginWithGoogle();
+    } catch (err) {
+      if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
         return;
       }
-    } catch (err) {
       console.error("Google login error:", err);
-      switch (err.code) {
-        case 'auth/popup-closed-by-user':
-        case 'auth/cancelled-popup-request':
-          // Silently ignore without crashing or error banner
-          break;
+      switch (err?.code) {
         case 'auth/popup-blocked':
           setError("La fenêtre Google a été bloquée par votre navigateur. Veuillez autoriser les fenêtres pop-up.");
           break;
@@ -104,10 +99,10 @@ export default function AuthView() {
           setError("Un compte existe déjà avec cette adresse e-mail via une autre méthode de connexion.");
           break;
         default:
-          setError("Échec de la connexion avec Google : " + (err.message || "Erreur inconnue"));
+          setError("Échec de la connexion avec Google : " + (err?.message || "Erreur inconnue"));
       }
     } finally {
-      setIsSubmitting(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -126,7 +121,7 @@ export default function AuthView() {
           </div>
           <h2 className="text-3xl font-black tracking-tight text-ac-brown">Ecopine</h2>
           <span className="text-[10px] font-black text-ac-brown-light bg-ac-cream px-3 py-0.5 rounded-full border border-ac-brown/20 uppercase">
-            Version 6.1.0 Cloud
+            VERSION {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__.replace(/^V/i, '') : '1.0.0'} CLOUD
           </span>
         </div>
 
@@ -160,10 +155,10 @@ export default function AuthView() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          disabled={loading || isSubmitting}
+          disabled={loading || googleLoading}
           className="w-full bg-[#FFFDF9] hover:bg-amber-50/60 active:bg-amber-100/60 text-[#5C3A41] font-extrabold text-sm py-3.5 px-4 rounded-2xl border-2 border-[#5C3A41] shadow-ac-sm active:translate-y-0.5 active:shadow-none flex items-center justify-center gap-3 cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none"
         >
-          {isSubmitting ? (
+          {googleLoading ? (
             <span className="w-4 h-4 border-2 border-[#5C3A41] border-t-transparent rounded-full animate-spin"></span>
           ) : (
             <>
@@ -234,7 +229,7 @@ export default function AuthView() {
 
           <button
             type="submit"
-            disabled={loading || isSubmitting}
+            disabled={loading || googleLoading}
             className="w-full bg-ac-green text-white font-extrabold text-sm py-3.5 rounded-2xl border-3 border-ac-brown shadow-ac-sm active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 cursor-pointer transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
