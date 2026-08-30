@@ -82,15 +82,24 @@ export default function AuthView() {
   const handleGoogleLogin = async () => {
     setGoogleError(null);
     setGoogleLoading(true);
+
+    // Promesse de timeout de sécurité (2,5 secondes max)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("AUTH_TIMEOUT")), 2500)
+    );
+
     try {
-      const loggedUser = await loginWithGoogle();
+      const loggedUser = await Promise.race([
+        loginWithGoogle(),
+        timeoutPromise
+      ]);
+
       if (!loggedUser) {
-        // Si la popup a été fermée ou bloquée par Opera GX
         setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bouclier Opera GX ou utilise l'e-mail.");
       }
     } catch (error) {
-      console.error("Erreur Google Login :", error);
-      setGoogleError("Échec de connexion Google (bloqueur actif). Connecte-toi par e-mail.");
+      console.warn("[AUTH] Échec ou timeout de la connexion Google :", error);
+      setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bouclier Opera GX ou utilise l'e-mail.");
     } finally {
       setGoogleLoading(false);
     }
