@@ -2093,8 +2093,56 @@ export async function deleteMyAccount() {
   window.location.reload();
 }
 
+/**
+ * Initialise ou met à jour le profil utilisateur dans la collection users_meta
+ */
+export const syncUserMeta = async (currentUser) => {
+  if (!currentUser) return;
+  try {
+    const metaRef = doc(firestoreDb, "users_meta", currentUser.uid);
+    const metaSnap = await getDoc(metaRef);
+
+    if (!metaSnap.exists()) {
+      await setDoc(metaRef, {
+        uid: currentUser.uid,
+        email: currentUser.email ? currentUser.email.toLowerCase() : '',
+        displayName: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
+        username: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
+        photoURL: currentUser.photoURL || '/pfp-ac.jpg',
+        role: currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
+        themePreference: 'default',
+        unlockedThemes: ['default'],
+        favoriteAccountId: null,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        tutorialProgress: {
+          isCompleted: false,
+          steps: {
+            accounts: false,
+            calendar: false,
+            debts: false,
+            wishlist: false,
+            home: false,
+            settings: false
+          }
+        }
+      });
+    } else {
+      const data = metaSnap.data();
+      await setDoc(metaRef, {
+        lastLogin: new Date().toISOString(),
+        displayName: currentUser.displayName || data.displayName || data.username || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
+        username: data.username || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
+        photoURL: currentUser.photoURL || data.photoURL || '/pfp-ac.jpg'
+      }, { merge: true });
+    }
+    console.log("[FIRESTORE] Profil users_meta synchronisé avec succès");
+  } catch (err) {
+    console.error("[FIRESTORE ERR] Échec écriture users_meta :", err);
+  }
+};
+
 export const loginWithGoogle = async () => {
-  const db = firestoreDb;
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
 
@@ -2103,16 +2151,7 @@ export const loginWithGoogle = async () => {
     const user = result.user;
 
     if (user) {
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        await setDoc(userRef, {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Habitant'),
-          createdAt: new Date().toISOString()
-        }, { merge: true });
-      }
+      await syncUserMeta(user);
     }
     return user;
   } catch (error) {
@@ -2226,12 +2265,14 @@ export const DbProvider = ({ children }) => {
       uid: user.uid,
       email: email.trim().toLowerCase(),
       username: firstname.trim(),
+      displayName: firstname.trim(),
       photoURL: '/pfp-ac.jpg',
       role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
       themePreference: 'default',
       unlockedThemes: ['default'],
       favoriteAccountId: null,
       createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
       tutorialProgress: {
         isCompleted: false,
         steps: {
@@ -2258,9 +2299,10 @@ export const DbProvider = ({ children }) => {
 
   // Auth Subscription
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
+        await syncUserMeta(user);
       } else {
         setCurrentUser(null);
         // Clear state if logged out
@@ -2749,6 +2791,7 @@ export const DbProvider = ({ children }) => {
     logInUser,
     loginWithGoogle,
     logOutUser,
+    syncUserMeta,
     allUsersMeta,
     activeTheme,
     getActiveTheme,
