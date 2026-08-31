@@ -6,12 +6,12 @@ import { Leaf, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
 export default function AuthView() {
   const { signUpUser, logInUser, loginWithGoogle } = useDb();
   const [isRegister, setIsRegister] = useState(false);
-  
+
   // Form fields
   const [firstname, setFirstname] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
+
   // Status states
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -95,11 +95,11 @@ export default function AuthView() {
       ]);
 
       if (!loggedUser) {
-        setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bouclier Opera GX ou utilise l'e-mail.");
+        setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bloqueur de pub ou utilise la connexion par e-mail.");
       }
     } catch (error) {
       console.warn("[AUTH] Échec ou timeout de la connexion Google :", error);
-      setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bouclier Opera GX ou utilise l'e-mail.");
+      setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bloqueur de pub ou utilise la connexion par e-mail.");
     } finally {
       setGoogleLoading(false);
     }
@@ -108,7 +108,7 @@ export default function AuthView() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-ac-cream p-4 text-ac-brown select-none ac-dotted-bg">
       <div className="bg-[#FFFDF9] border-4 border-ac-brown rounded-3xl max-w-md w-full p-8 shadow-ac-lg relative overflow-hidden flex flex-col items-center space-y-6">
-        
+
         {/* Decorative corner patterns */}
         <div className="absolute top-0 right-0 w-12 h-12 bg-ac-green/10 rounded-bl-3xl border-l-2 border-b-2 border-ac-brown/10 pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-12 h-12 bg-ac-gold/10 rounded-tr-3xl border-r-2 border-t-2 border-ac-brown/10 pointer-events-none"></div>
@@ -127,9 +127,9 @@ export default function AuthView() {
         {/* Welcome message bubble */}
         <div className="bg-ac-gold-light border-3 border-ac-brown rounded-2xl p-4 shadow-ac-sm relative w-full text-center">
           <p className="text-xs font-bold leading-relaxed text-ac-brown-light">
-            {isRegister 
-              ? `"Bonjour, oui oui ! Crée ton passeport budgétaire pour commencer à synchroniser tes clochettes sur ton île !"`
-              : `"Ravi de te revoir sur ton île budgétaire ! Connecte-toi pour retrouver tes comptes et budgets en direct !"`}
+            {isRegister
+              ? `Bienvenue sur Ecopine! Crée ton compte pour commencer à gérer tes comptes et budgets !`
+              : `Ravi de te revoir ! Connecte-toi pour retrouver tes comptes et budgets !`}
           </p>
           <div className="w-3.5 h-3.5 bg-ac-gold-light border-b-3 border-r-3 border-ac-brown absolute bottom-[-9.5px] left-1/2 transform -translate-x-1/2 rotate-45 hidden md:block"></div>
         </div>
@@ -197,7 +197,7 @@ export default function AuthView() {
                 type="text"
                 value={firstname}
                 onChange={(e) => setFirstname(e.target.value)}
-                placeholder="Ex: Matys"
+                placeholder="Wayfs"
                 className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                 required={isRegister}
               />
@@ -212,7 +212,7 @@ export default function AuthView() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="habitant@nookisland.com"
+              placeholder="Wayfs@gmail.com"
               className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl px-4 py-2.5 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
               required
             />
@@ -257,9 +257,9 @@ export default function AuthView() {
             }}
             className="text-xs font-black text-ac-brown-light hover:text-ac-green transition-colors cursor-pointer"
           >
-            {isRegister 
-              ? "Tu as déjà une tente ? Connecte-toi ici !"
-              : "Nouveau sur l'île ? Inscris-toi ici !"}
+            {isRegister
+              ? "Tu as déjà un compte ? Connecte-toi ici !"
+              : "Nouveau sur Ecopine ? Inscris-toi ici !"}
           </button>
         </div>
 
