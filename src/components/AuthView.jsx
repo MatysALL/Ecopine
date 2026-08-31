@@ -83,9 +83,9 @@ export default function AuthView() {
     setGoogleError(null);
     setGoogleLoading(true);
 
-    // Promesse de timeout de sécurité (2,5 secondes max)
+    // Promesse de timeout de sécurité (4 secondes max) passage à 4s pour éviter l'affichage de l'erreur trop tôt.
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("AUTH_TIMEOUT")), 2500)
+      setTimeout(() => reject(new Error("AUTH_TIMEOUT")), 4000)
     );
 
     try {
