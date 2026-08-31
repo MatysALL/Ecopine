@@ -83,23 +83,14 @@ export default function AuthView() {
     setGoogleError(null);
     setGoogleLoading(true);
 
-    // Promesse de timeout de sécurité (4 secondes max) passage à 4s pour éviter l'affichage de l'erreur trop tôt.
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("AUTH_TIMEOUT")), 4000)
-    );
-
     try {
-      const loggedUser = await Promise.race([
-        loginWithGoogle(),
-        timeoutPromise
-      ]);
-
+      const loggedUser = await loginWithGoogle();
       if (!loggedUser) {
-        setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bloqueur de pub ou utilise la connexion par e-mail.");
+        setGoogleError("Connexion interrompue. Désactive ton bloqueur de pub ou connecte-toi par e-mail.");
       }
     } catch (error) {
-      console.warn("[AUTH] Échec ou timeout de la connexion Google :", error);
-      setGoogleError("Connexion fermée ou bloquée par le navigateur. Désactive le bloqueur de pub ou utilise la connexion par e-mail.");
+      console.error("[AUTH] Erreur connexion Google :", error);
+      setGoogleError("Connexion interrompue. Désactive ton bloqueur de pub ou connecte-toi par e-mail.");
     } finally {
       setGoogleLoading(false);
     }
