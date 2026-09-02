@@ -211,6 +211,13 @@ export default function App() {
     return name.slice(0, 2).toUpperCase();
   };
 
+  const handleNavTabClick = (tabId) => {
+    setActiveTab(tabId);
+    if (tabId === 'accounts') {
+      setSelectedAccountId(null);
+    }
+  };
+
   return (
     <div className={`flex flex-col md:flex-row bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30 transition-colors duration-300 ${activeThemeClass}`}>
       {/* Mobile Top Header (only on mobile screens) */}
@@ -255,7 +262,11 @@ export default function App() {
       )}
 
       {/* Sidebar Navigation (Desktop) */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        setSelectedAccountId={setSelectedAccountId} 
+      />
 
       {/* Main Panel Content */}
       <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-28 md:pb-8 max-w-7xl mx-auto w-full">
@@ -295,7 +306,7 @@ export default function App() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => handleNavTabClick(item.id)}
                   className={`flex flex-col items-center justify-center flex-1 h-full transition-all gap-0.5 cursor-pointer select-none ${
                     isActive 
                       ? 'text-ac-green scale-105 font-black animate-bounce-once' 

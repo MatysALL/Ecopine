@@ -2,7 +2,7 @@ import React from 'react';
 import { Leaf, PiggyBank, Calendar, Settings, Gift, LogOut, Handshake, Users, Folder } from 'lucide-react';
 import { useDb } from '../db';
 
-export default function Sidebar({ activeTab, setActiveTab }) {
+export default function Sidebar({ activeTab, setActiveTab, setSelectedAccountId, setSelectedAccount }) {
   const { logOutUser, user, userMeta, username, pendingRequestsCount, isAdmin } = useDb();
   const photoURL = userMeta?.find(m => m.key === 'photoURL')?.value || user?.photoURL;
 
@@ -25,6 +25,18 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     { id: 'social', label: 'Social', icon: Users, color: 'text-[#5C9440]' },
     { id: 'settings', label: 'Paramètres', icon: Settings, color: 'text-ac-brown-light' },
   ];
+
+  const handleNavClick = (id) => {
+    setActiveTab(id);
+    if (id === 'accounts') {
+      if (typeof setSelectedAccountId === 'function') {
+        setSelectedAccountId(null);
+      }
+      if (typeof setSelectedAccount === 'function') {
+        setSelectedAccount(null);
+      }
+    }
+  };
 
   const handleLogout = async () => {
     if (window.confirm("Es-tu sûr de vouloir quitter ton île budgétaire ?")) {
@@ -86,7 +98,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => handleNavClick(item.id)}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border-3 font-extrabold text-sm transition-all duration-150 text-left ac-btn ${
                   isActive
                     ? 'bg-ac-green text-white border-ac-brown shadow-none translate-y-1'
