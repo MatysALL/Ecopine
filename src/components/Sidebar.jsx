@@ -1,5 +1,5 @@
 import React from 'react';
-import { Leaf, PiggyBank, Calendar, Settings, Gift, LogOut, Handshake, Users, Folder } from 'lucide-react';
+import { Leaf, PiggyBank, Settings, Gift, LogOut, Handshake, Users, Folder } from 'lucide-react';
 import { useDb } from '../db';
 
 export default function Sidebar({ activeTab, setActiveTab, setSelectedAccountId, setSelectedAccount }) {
@@ -18,7 +18,6 @@ export default function Sidebar({ activeTab, setActiveTab, setSelectedAccountId,
   const navItems = [
     { id: 'dashboard', label: 'Accueil', icon: Leaf, color: 'text-ac-green' },
     { id: 'accounts', label: 'Comptes', icon: PiggyBank, color: 'text-ac-gold' },
-    { id: 'calendar', label: 'Calendrier', icon: Calendar, color: 'text-ac-sky' },
     { id: 'debts', label: 'Dettes', icon: Handshake, color: 'text-ac-orange' },
     { id: 'wishlist', label: 'Souhaits', icon: Gift, color: 'text-ac-red' },
     { id: 'projects', label: 'Projets', icon: Folder, color: 'text-[#3E8BBA]' },

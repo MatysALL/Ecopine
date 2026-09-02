@@ -154,6 +154,9 @@ export default function App() {
           <AccountsView
             selectedAccountId={selectedAccountId}
             setSelectedAccountId={setSelectedAccountId}
+            setActiveTab={setActiveTab}
+            setCurrentView={setActiveTab}
+            onNavigate={setActiveTab}
           />
         );
       case 'calendar':

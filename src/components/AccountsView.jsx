@@ -8,12 +8,18 @@ import {
   Plus, Edit, Trash2, ArrowLeft, Upload, FileText, CheckCircle, 
   Coins, PiggyBank, AlertTriangle, 
   Sparkles, FileSpreadsheet, ArrowRightLeft, X, Star,
-  Palette, Check
+  Palette, Check, Calendar
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import PocketManager from './PocketManager';
 
-export default function AccountsView({ selectedAccountId, setSelectedAccountId }) {
+export default function AccountsView({ 
+  selectedAccountId, 
+  setSelectedAccountId, 
+  setActiveTab, 
+  setCurrentView, 
+  onNavigate 
+}) {
   // Account Form states
   const [accountFormOpen, setAccountFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
@@ -99,6 +105,12 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
     } catch (err) {
       console.error("Erreur lors de la définition du compte favori :", err);
     }
+  };
+
+  const handleOpenCalendar = () => {
+    if (typeof setCurrentView === 'function') setCurrentView('calendar');
+    else if (typeof setActiveTab === 'function') setActiveTab('calendar');
+    else if (typeof onNavigate === 'function') onNavigate('calendar');
   };
 
   // Drag & Drop states for Personal Accounts
@@ -1289,7 +1301,13 @@ export default function AccountsView({ selectedAccountId, setSelectedAccountId }
                 Crée tes livrets d'épargne ou tes comptes courants pour visualiser tes finances.
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleOpenCalendar}
+                className="bg-ac-sky text-white font-extrabold text-sm px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-1.5 hover:translate-y-[1px] cursor-pointer self-start sm:self-auto transition-all"
+              >
+                <Calendar className="w-4 h-4" /> Calendrier
+              </button>
               <button
                 onClick={() => {
                   setTransferSourceId('');
