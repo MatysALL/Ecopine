@@ -259,11 +259,14 @@ export default function Dashboard({
           {/* 2. Section Compte Favori */}
           {favoriteAccountDetails ? (() => {
             const isFavProj = Boolean(favoriteAccountDetails.account.projectId);
+            const favBgColor = isFavProj ? '#1E232A' : (resolveColorHex(favoriteAccountDetails.account.color) || '#38bdf8');
+            const isFavLight = !isFavProj && isLightColor(favBgColor);
+
             return (
             <div 
               onClick={() => onViewAccountDetails(favoriteAccountDetails.account.id)}
-              style={isFavProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(favoriteAccountDetails.account.color), color: '#ffffff', borderColor: '#4A3E3D' }}
-              className={`ac-card account-card p-8 cursor-pointer relative overflow-visible group select-none hover:scale-[1.01] transition-all text-white ${
+              style={isFavProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: favBgColor, color: isFavLight ? '#0f172a' : '#ffffff', borderColor: '#4A3E3D' }}
+              className={`ac-card account-card p-8 cursor-pointer relative overflow-visible group select-none hover:scale-[1.01] transition-all ${
                 isFavProj ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440]' : 'border-3 border-ac-brown'
               }`}
             >
@@ -271,7 +274,9 @@ export default function Dashboard({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-ac-sm border ${
-                      isFavProj ? 'bg-slate-800 border-slate-700 text-ac-gold' : 'text-white bg-white/20 border-white/30'
+                      isFavProj 
+                        ? 'bg-slate-800 border-slate-700 text-ac-gold' 
+                        : (isFavLight ? 'bg-black/10 text-slate-800 border-slate-900/20' : 'text-white bg-white/20 border-white/30')
                     }`}>
                       ⭐ Compte Favori - {favoriteAccountDetails.account.name || favoriteAccountDetails.account.title || "Compte"}
                     </span>
@@ -281,7 +286,7 @@ export default function Dashboard({
                       </span>
                     )}
                   </div>
-                  <h3 className="text-base font-black mt-4 text-white">
+                  <h3 className={`text-base font-black mt-4 ${isFavLight ? 'text-slate-700 font-bold' : 'text-white'}`}>
                     Solde Réel Principal
                   </h3>
                 </div>
@@ -293,10 +298,10 @@ export default function Dashboard({
               </div>
 
               <div className="mt-4 flex items-baseline gap-2">
-                <span className="text-4xl font-black tracking-tight text-white">
+                <span className={`text-4xl font-black tracking-tight ${isFavLight ? 'text-slate-900' : 'text-white'}`}>
                   {(favoriteAccountDetails.account.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                 </span>
-                <span className="text-lg font-black text-white/90">🔔</span>
+                <span className={`text-lg font-black ${isFavLight ? 'text-slate-700' : 'text-white/90'}`}>🔔</span>
 
                 {/* 30 day variation badge */}
                 <span className={`ml-4 text-xs font-black px-2 py-1 rounded-lg border flex items-center gap-0.5 ${
@@ -311,14 +316,18 @@ export default function Dashboard({
 
               {/* Indicative available balance if pockets exist */}
               {favoriteAccountDetails.account.balance !== favoriteAccountDetails.account.visibleBalance && (
-                <div className="mt-4 flex items-center justify-between gap-2 bg-white/90 border border-ac-gold rounded-xl px-3.5 py-2 text-[10px] font-bold text-ac-brown shadow-xs">
+                <div className={`mt-4 flex items-center justify-between gap-2 border rounded-xl px-3.5 py-2 text-[10px] font-bold shadow-xs ${
+                  isFavLight 
+                    ? 'bg-white/90 border-ac-gold text-slate-900' 
+                    : 'bg-black/30 border-ac-gold/60 text-white'
+                }`}>
                   <div className="flex items-center gap-1.5 min-w-0">
                     <Sparkles className="w-3.5 h-3.5 text-ac-gold shrink-0 fill-ac-gold" />
                     <span className="truncate">
-                      Solde disponible (indicatif) : <strong className={favoriteAccountDetails.account.visibleBalance < 0 ? 'text-ac-red' : 'text-ac-green'}>{(favoriteAccountDetails.account.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔</strong>
+                      Solde disponible (indicatif) : <strong className={favoriteAccountDetails.account.visibleBalance < 0 ? 'text-ac-red' : (isFavLight ? 'text-emerald-700' : 'text-emerald-300')}>{(favoriteAccountDetails.account.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔</strong>
                     </span>
                   </div>
-                  <span className="text-[9px] font-extrabold text-ac-brown-light shrink-0">
+                  <span className={`text-[9px] font-extrabold shrink-0 ${isFavLight ? 'text-slate-500' : 'text-white/70'}`}>
                     ({((favoriteAccountDetails.account.balance ?? 0) - (favoriteAccountDetails.account.visibleBalance ?? 0)).toLocaleString('fr-FR')} 🔔 en poches)
                   </span>
                 </div>
@@ -326,8 +335,17 @@ export default function Dashboard({
 
               {/* Pockets Section */}
               {favPockets.length > 0 && (
-                <div className="mt-6 space-y-3 bg-white/70 border-2 border-ac-brown/30 rounded-2xl p-4" onClick={(e) => e.stopPropagation()}>
-                  <h4 className="text-xs font-black text-ac-brown border-b border-ac-brown/15 pb-1 flex items-center gap-1.5">
+                <div 
+                  className={`mt-6 space-y-3 rounded-2xl p-4 border-2 ${
+                    isFavLight 
+                      ? 'bg-white/90 border-slate-300 shadow-xs' 
+                      : 'bg-black/25 border-white/20 shadow-xs backdrop-blur-xs'
+                  }`} 
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h4 className={`text-xs font-black border-b pb-1 flex items-center gap-1.5 ${
+                    isFavLight ? 'text-slate-900 border-slate-200' : 'text-white border-white/15'
+                  }`}>
                     <Sparkles className="w-3.5 h-3.5 text-ac-gold fill-ac-gold" /> Pochettes actives du compte
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -372,24 +390,41 @@ export default function Dashboard({
               )}
 
               {/* 5 Latest transactions for this account */}
-              <div className="mt-6 space-y-3 bg-white/70 border-2 border-ac-brown/30 rounded-2xl p-4" onClick={(e) => e.stopPropagation()}>
-                <h4 className="text-xs font-black text-ac-brown border-b border-ac-brown/15 pb-1 flex items-center gap-1">
+              <div 
+                className={`mt-6 space-y-3 rounded-2xl p-4 border-2 ${
+                  isFavLight 
+                    ? 'bg-white/95 border-slate-300 text-slate-800 shadow-xs' 
+                    : 'bg-black/25 border-white/20 text-white shadow-xs backdrop-blur-xs'
+                }`} 
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h4 className={`text-xs font-black border-b pb-1 flex items-center gap-1 ${
+                  isFavLight ? 'text-slate-900 border-slate-200' : 'text-white border-white/15'
+                }`}>
                   <Activity className="w-3.5 h-3.5 text-ac-gold" /> Dernières écritures de ce compte
                 </h4>
                 {favoriteAccountDetails.latestTxs.length === 0 ? (
-                  <p className="text-[10px] text-ac-brown-light italic py-2 text-center">Aucune transaction récente.</p>
+                  <p className={`text-[10px] italic py-2 text-center font-medium ${
+                    isFavLight ? 'text-slate-500' : 'text-white/70'
+                  }`}>
+                    Aucune transaction récente.
+                  </p>
                 ) : (
-                  <div className="divide-y divide-ac-cream-dark">
+                  <div className={`divide-y ${isFavLight ? 'divide-slate-200' : 'divide-white/10'}`}>
                     {favoriteAccountDetails.latestTxs.map((tx) => {
                       const isIncome = tx.type === 'credit';
                       const formattedDate = tx.date ? (tx.date?.toDate ? tx.date.toDate().toLocaleDateString('fr-FR') : (isNaN(new Date(tx.date).getTime()) ? String(tx.date) : new Date(tx.date).toLocaleDateString('fr-FR'))) : '';
                       return (
                         <div key={tx.id} className="py-2 flex justify-between items-center text-xs">
                           <div>
-                            <p className="font-extrabold text-ac-brown truncate max-w-[150px]">{tx.name}</p>
-                            <span className="text-[8px] font-bold text-ac-brown-light block">{formattedDate}</span>
+                            <p className={`font-extrabold truncate max-w-[150px] ${isFavLight ? 'text-slate-900' : 'text-white'}`}>{tx.name}</p>
+                            <span className={`text-[8px] font-bold block ${isFavLight ? 'text-slate-500' : 'text-white/70'}`}>{formattedDate}</span>
                           </div>
-                          <span className={`font-black ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
+                          <span className={`font-black ${
+                            isIncome 
+                              ? (isFavLight ? 'text-emerald-700' : 'text-emerald-300') 
+                              : (isFavLight ? 'text-slate-900' : 'text-white')
+                          }`}>
                             {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR')} 🔔
                           </span>
                         </div>
@@ -399,7 +434,7 @@ export default function Dashboard({
                 )}
               </div>
 
-              <div className="mt-4 flex items-center text-[10px] font-black text-white/80 group-hover:text-white transition-colors">
+              <div className={`mt-4 flex items-center text-[10px] font-black ${isFavLight ? 'text-slate-700 group-hover:text-slate-900' : 'text-white/80 group-hover:text-white'} transition-colors`}>
                 Voir le détail des transactions <ChevronRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
@@ -425,18 +460,20 @@ export default function Dashboard({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {otherAccounts.map((acc) => {
                   const isProj = Boolean(acc.projectId);
+                  const accBgColor = isProj ? '#1E232A' : (resolveColorHex(acc.color) || '#38bdf8');
+                  const isAccLight = !isProj && isLightColor(accBgColor);
                   return (
                     <div 
                       key={acc.id}
                       onClick={() => onViewAccountDetails(acc.id)}
-                      style={isProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(acc.color), color: '#ffffff' }}
-                      className={`p-4 hover:brightness-95 transition-all border-2 rounded-2xl cursor-pointer flex justify-between items-center group relative shadow-xs text-white ${
+                      style={isProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: accBgColor, color: isAccLight ? '#0f172a' : '#ffffff' }}
+                      className={`p-4 hover:brightness-95 transition-all border-2 rounded-2xl cursor-pointer flex justify-between items-center group relative shadow-xs ${
                         isProj ? 'project-account-card bg-[#1E232A] text-white border-[#2E3440]' : 'border-ac-brown'
                       }`}
                     >
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className={`font-extrabold text-xs ${isProj ? 'text-white' : 'text-white'}`}>{acc.name || acc.title || (isProj ? "Compte Projet" : "Compte")}</h4>
+                          <h4 className={`font-extrabold text-xs ${isProj ? 'text-white' : (isAccLight ? 'text-slate-900' : 'text-white')}`}>{acc.name || acc.title || (isProj ? "Compte Projet" : "Compte")}</h4>
                           {isProj && (
                             <span className="text-[7px] font-black uppercase px-1.5 py-0.2 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
                               📁 Projet
@@ -444,17 +481,17 @@ export default function Dashboard({
                           )}
                         </div>
                         <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border mt-1 inline-block ${
-                          isProj ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white/20 border-white/30 text-white/90'
+                          isProj ? 'bg-slate-800 border-slate-700 text-slate-300' : (isAccLight ? 'bg-black/10 border-slate-900/20 text-slate-700' : 'bg-white/20 border-white/30 text-white/90')
                         }`}>
                           🏦 {acc.bank || acc.bankName || '—'}
                         </span>
                       </div>
                       <div className="text-right flex flex-col items-end">
-                        <span className={`font-black text-sm block ${isProj ? 'text-white' : 'text-white'}`}>
+                        <span className={`font-black text-sm block ${isProj ? 'text-white' : (isAccLight ? 'text-slate-900' : 'text-white')}`}>
                           {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
                         </span>
                         {acc.balance !== acc.visibleBalance && (
-                          <span className={`text-[8px] font-extrabold block ${acc.visibleBalance < 0 ? 'text-amber-300' : (isProj ? 'text-slate-400' : 'text-white/75')}`}>
+                          <span className={`text-[8px] font-extrabold block ${acc.visibleBalance < 0 ? 'text-amber-400' : (isProj ? 'text-slate-400' : (isAccLight ? 'text-slate-600' : 'text-white/75'))}`}>
                             Dispo : {(acc.visibleBalance ?? 0).toLocaleString('fr-FR')} 🔔
                           </span>
                         )}
