@@ -235,6 +235,39 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
 .theme-default .text-ac-brown-light { color: #374151 !important; }
 
 /* ==========================================================================
+   THEME 1 BIS: DEFAULT DARK (Éco Nuit - /utilisateur.png)
+   ========================================================================== */
+.theme-default_dark, body.theme-default_dark {
+  --theme-primary: #22c55e;
+  --theme-secondary: #064e3b;
+  --theme-text: #f0fdf4;
+  --color-ac-cream: #064e3b;
+  --color-ac-cream-dark: #022c22;
+  --color-ac-green: #22c55e;
+  --color-ac-green-dark: #16a34a;
+  --color-ac-brown: #f0fdf4;
+  --color-ac-brown-light: #a7f3d0;
+  --color-white: #065f46;
+  background-color: #064e3b !important;
+  color: #f0fdf4 !important;
+}
+.theme-default_dark .ac-card:not(.account-card) {
+  background-color: #065f46 !important;
+  border-color: #10b981 !important;
+  color: #f0fdf4 !important;
+  box-shadow: 0 8px 0 0 rgba(2, 44, 34, 0.4) !important;
+}
+.theme-default_dark .bg-white { background-color: #065f46 !important; color: #f0fdf4 !important; }
+.theme-default_dark .bg-\[\#FFFDF9\] { background-color: #065f46 !important; color: #f0fdf4 !important; }
+.theme-default_dark .bg-\[\#FFFDF9\]\/60 { background-color: rgba(6, 95, 70, 0.6) !important; }
+.theme-default_dark .bg-ac-cream { background-color: #064e3b !important; }
+.theme-default_dark .bg-ac-cream-dark { background-color: #022c22 !important; }
+.theme-default_dark .bg-ac-green { background-color: #22c55e !important; color: #022c22 !important; }
+.theme-default_dark .border-ac-brown { border-color: #10b981 !important; }
+.theme-default_dark .text-ac-brown { color: #f0fdf4 !important; }
+.theme-default_dark .text-ac-brown-light { color: #a7f3d0 !important; }
+
+/* ==========================================================================
    THEME 2: JOUR (Jour Pur - /corbeau.png)
    ========================================================================== */
 .theme-jour, body.theme-jour {

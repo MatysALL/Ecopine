@@ -16,6 +16,7 @@ import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './c
 import { PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users, Folder } from 'lucide-react';
 import TransactionModal from './components/TransactionModal';
 import { APP_THEMES } from './config/themes';
+import EncounterModal from './components/EncounterModal';
 
 export default function App() {
   const { isLoading, user, username, accounts, userMeta, activeTheme, isAdmin, tutorialProgress, pendingRequestsCount } = useDb();
@@ -382,6 +383,9 @@ export default function App() {
           onClose={() => setShowCelebration(false)}
         />
       )}
+
+      {/* Pop-up de rencontre animalière globale */}
+      <EncounterModal />
     </div>
   );
 }

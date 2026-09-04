@@ -9,6 +9,16 @@ export const APP_THEMES = {
       text: "#111827"         // Noir profond
     }
   },
+  default_dark: {
+    id: "default_dark",
+    name: "Éco Nuit",
+    avatar: "/utilisateur.png",
+    colors: {
+      primary: "#22c55e",     // Vert vif éco moderne
+      secondary: "#064e3b",   // Fond vert forêt très sombre / émeraude profond
+      text: "#f0fdf4"         // Blanc menthe très clair
+    }
+  },
   jour: {
     id: "jour",
     name: "Jour Pur",

@@ -172,6 +172,9 @@ export default function DebtsView() {
 
           batch.set(mirrorDebtRef, {
             userId: targetFriend.uid || targetFriend.id,
+            debtorId: mirrorType === 'to_pay' ? (targetFriend.uid || targetFriend.id) : user.uid,
+            creatorId: user.uid,
+            isMirror: true,
             entityName: currentUserPseudo,
             associatedFriendId: user.uid,
             associatedFriendName: currentUserPseudo,

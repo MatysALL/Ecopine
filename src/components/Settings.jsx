@@ -5,6 +5,7 @@ import {
   User, Palette, RotateCcw, AlertTriangle, X, Lock
 } from 'lucide-react';
 import { APP_THEMES, AVAILABLE_AVATARS } from '../config/themes';
+import { triggerAnimalEncounter } from '../context/EncounterContext';
 
 export { AVAILABLE_AVATARS, APP_THEMES };
 
@@ -65,8 +66,17 @@ export default function Settings() {
   };
 
   const handleThemeChange = async (themeId) => {
-    const isUnlocked = unlockedThemes?.includes(themeId) || themeId === 'default';
+    const isUnlocked = unlockedThemes?.includes(themeId) || themeId === 'default' || themeId === 'default_dark';
     if (!isUnlocked) return;
+
+    const previousTheme = themePreference;
+    if (
+      previousTheme !== 'default' &&
+      previousTheme !== 'default_dark' &&
+      (themeId === 'default' || themeId === 'default_dark')
+    ) {
+      triggerAnimalEncounter('panda');
+    }
 
     setThemePreference(themeId);
     try {
@@ -332,7 +342,7 @@ export default function Settings() {
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
               {themesList.map(t => {
-                const isUnlocked = unlockedThemes?.includes(t.id) || t.id === 'default';
+                const isUnlocked = unlockedThemes?.includes(t.id) || t.id === 'default' || t.id === 'default_dark';
                 const isSelected = themePreference === t.id;
 
                 if (isUnlocked) {

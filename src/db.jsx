@@ -14,6 +14,7 @@ import {
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
+import { triggerAnimalEncounter } from './utils/encounter';
 
 /**
  * Period calculations helpers
@@ -2201,9 +2202,9 @@ export const useDb = () => {
  * Calculates the active theme based on user profile preferences
  */
 export function getActiveTheme(userProfile) {
-  const unlocked = userProfile?.unlockedThemes || ['default'];
+  const unlocked = userProfile?.unlockedThemes || ['default', 'default_dark'];
   const pref = userProfile?.themePreference || 'default';
-  if (unlocked.includes(pref)) {
+  if (pref === 'default' || pref === 'default_dark' || unlocked.includes(pref)) {
     return pref;
   }
   return 'default';
@@ -2236,10 +2237,10 @@ export const DbProvider = ({ children }) => {
   // Theme sync listener: ensure themePreference is valid
   useEffect(() => {
     if (!currentUser || !usersMetaDoc) return;
-    const unlocked = usersMetaDoc.unlockedThemes || ['default'];
+    const unlocked = usersMetaDoc.unlockedThemes || ['default', 'default_dark'];
     const themePref = usersMetaDoc.themePreference || 'default';
 
-    if (!unlocked.includes(themePref)) {
+    if (themePref !== 'default' && themePref !== 'default_dark' && !unlocked.includes(themePref)) {
       const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
       updateDoc(metaRef, {
         themePreference: 'default'
@@ -2402,6 +2403,24 @@ export const DbProvider = ({ children }) => {
         snapshot.docChanges().forEach(change => {
           if (change.type === 'removed') {
             delete docsMap[change.doc.id];
+          } else if (change.type === 'added' && colName === 'debts') {
+            const data = change.doc.data();
+            // Détection si nous devons de l'argent à un ami (debtorId === currentUserId ou userId === currentUserId et type à payer)
+            const isDebtor = data.debtorId === currentUser.uid || (
+              data.userId === currentUser.uid &&
+              ['to_pay', 'je_dois', 'i_owe', 'debt'].includes((data.type || '').toLowerCase())
+            );
+            // Créée par un tiers
+            const isCreatedByThirdParty = (
+              (data.creatorId && data.creatorId !== currentUser.uid) ||
+              (data.associatedFriendId && data.associatedFriendId !== currentUser.uid) ||
+              data.isMirror === true ||
+              (typeof data.description === 'string' && data.description.includes('[Miroir]'))
+            );
+
+            if (isDebtor && isCreatedByThirdParty) {
+              triggerAnimalEncounter("chat");
+            }
           }
         });
         notify();

@@ -4,6 +4,7 @@ import {
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
   ChevronRight, Gift, Activity, Handshake
 } from 'lucide-react';
+import { triggerAnimalEncounter } from '../context/EncounterContext';
 
 export default function Dashboard({ 
   onViewAccountDetails, 
@@ -87,13 +88,26 @@ export default function Dashboard({
     });
   }, [debts]);
 
+  const handleWaifClick = () => {
+    const currentHour = new Date().getHours();
+    if (currentHour >= 6 && currentHour < 23) {
+      triggerAnimalEncounter("corbeau");
+    } else {
+      triggerAnimalEncounter("chouette");
+    }
+  };
+
   return (
     <div className="space-y-6 md:space-y-8 select-none pb-20 md:pb-0 p-1 md:p-0">
       {/* 1. Bulle de bienvenue Waif */}
       <div className="bg-ac-green-light border-3 border-ac-brown rounded-3xl relative overflow-hidden shadow-ac-sm p-4 sm:p-5">
         {/* En-tête Waif */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-slate-900 overflow-hidden bg-slate-100 flex-shrink-0">
+          <div 
+            onClick={handleWaifClick}
+            className="w-10 h-10 rounded-full border-2 border-slate-900 overflow-hidden bg-slate-100 flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
+            title="Waif"
+          >
             <img
               src="/waif.jpg"
               alt="Waif"

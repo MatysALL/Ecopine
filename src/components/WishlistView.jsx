@@ -5,6 +5,7 @@ import { db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit2, Trash2, Gift, Coins, Sparkles, X
 } from 'lucide-react';
+import { triggerAnimalEncounter } from '../context/EncounterContext';
 
 export default function WishlistView() {
   const { wishlist: wishes, accountsData: accounts, user, projects = [] } = useDb();
@@ -111,6 +112,10 @@ export default function WishlistView() {
           ...wishData,
           order: sortedWishes.length
         });
+        // 1 chance sur 3 (environ 33.3%)
+        if (Math.random() < 0.333) {
+          triggerAnimalEncounter("renard");
+        }
       }
 
       resetForm();

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import TransactionModal from './TransactionModal';
 import PocketManager from './PocketManager';
+import { triggerAnimalEncounter } from '../context/EncounterContext';
 
 export default function ProjectDetailView({ project, selectedProject, onBack }) {
   const { 
@@ -289,6 +290,8 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
       // 7. Validation atomique
       await batch.commit();
 
+      triggerAnimalEncounter("loup");
+
       if (typeof onBack === "function") {
         onBack(null);
       }
@@ -306,6 +309,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
     if (window.confirm("Es-tu sûr de vouloir quitter ce projet partagé ?")) {
       try {
         await db.projects.leaveProject(project.id);
+        triggerAnimalEncounter("loup");
         setSelectedAccId(null);
         setEditingWish(null);
         setBuyingWish(null);
