@@ -2,17 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { db, useDb } from '../db';
 import { 
   Trash2, ShieldAlert, CheckCircle, AlertCircle, 
-  User, Palette, RotateCcw, AlertTriangle, X
+  User, Palette, RotateCcw, AlertTriangle, X, Lock
 } from 'lucide-react';
+import { APP_THEMES, AVAILABLE_AVATARS } from '../config/themes';
 
-export const AVAILABLE_AVATARS = [
-  { id: 'default', src: '/pfp-ac.jpg', label: 'Feuille classique' },
-  { id: 'tom_nook', src: '/pfp-tom-nook.jpg', label: 'Tom Nook' },
-  { id: 'marie', src: '/pfp-marie.jpg', label: 'Marie' },
-  { id: 'thibou', src: '/pfp-thibou.jpg', label: 'Thibou' },
-  { id: 'ankha', src: '/pfp-ankha.jpg', label: 'Ankha' },
-  { id: 'clochette', src: '/pfp-clochette.jpg', label: 'Sac de Clochettes' }
-];
+export { AVAILABLE_AVATARS, APP_THEMES };
 
 export default function Settings() {
   // Profile states
@@ -26,6 +20,7 @@ export default function Settings() {
     user,
     logOutUser,
     unlockedThemes,
+    unlockedAvatars,
     resetMyAccount,
     deleteMyAccount
   } = useDb();
@@ -49,28 +44,33 @@ export default function Settings() {
       const photoMeta = userMeta.find(m => m.key === 'photoURL');
       const themeMeta = userMeta.find(m => m.key === 'theme_preference');
       setUsername(nameMeta?.value || '');
-      setPhotoURL(photoMeta?.value || user?.photoURL || '/pfp-ac.jpg');
+      setPhotoURL(photoMeta?.value || user?.photoURL || '/utilisateur.png');
       setThemePreference(themeMeta?.value || 'default');
     }
   }, [userMeta, user]);
 
-  const handleSelectAvatar = async (avatarSrc) => {
-    if (!user?.uid || photoURL === avatarSrc) return;
+  const handleSelectAvatar = async (avatar) => {
+    const isUnlocked = unlockedAvatars?.includes(avatar.id) || unlockedAvatars?.includes(avatar.src) || avatar.id === 'utilisateur';
+    if (!isUnlocked) return;
+    if (!user?.uid || photoURL === avatar.src) return;
 
     // Mise à jour optimiste du state local
-    setPhotoURL(avatarSrc);
+    setPhotoURL(avatar.src);
 
     try {
-      await db.user_meta.put({ key: 'photoURL', value: avatarSrc });
+      await db.user_meta.put({ key: 'photoURL', value: avatar.src });
     } catch (error) {
       console.error("Erreur lors du changement d'avatar :", error);
     }
   };
 
-  const handleThemeChange = async (theme) => {
-    setThemePreference(theme);
+  const handleThemeChange = async (themeId) => {
+    const isUnlocked = unlockedThemes?.includes(themeId) || themeId === 'default';
+    if (!isUnlocked) return;
+
+    setThemePreference(themeId);
     try {
-      await db.user_meta.put({ key: 'theme_preference', value: theme });
+      await db.user_meta.put({ key: 'theme_preference', value: themeId });
     } catch (err) {
       console.error("Erreur lors de la sauvegarde du thème :", err);
     }
@@ -80,7 +80,7 @@ export default function Settings() {
     e.preventDefault();
     try {
       await db.user_meta.put({ key: 'username', value: username.trim() });
-      await db.user_meta.put({ key: 'photoURL', value: (photoURL || '/pfp-ac.jpg').trim() });
+      await db.user_meta.put({ key: 'photoURL', value: (photoURL || '/utilisateur.png').trim() });
       await db.user_meta.put({ key: 'theme_preference', value: themePreference });
       
       setSaveSuccess(true);
@@ -160,15 +160,7 @@ export default function Settings() {
     }
   };
 
-  const themesList = [
-    { id: 'default', name: 'Standard', desc: 'Crème & Boisé', bg: '#F4F1EA', btn: '#78B159', text: '#4A3E3D', border: '#4A3E3D' },
-    { id: 'red', name: 'Rouge Pastel', desc: 'Fraise & Blush', bg: '#FFF0F2', btn: '#FF8B94', text: '#5C2E35', border: '#8A4F58' },
-    { id: 'blue', name: 'Bleu Pastel', desc: 'Ciel & Glace', bg: '#EDF6FA', btn: '#92C7E8', text: '#1E2D3B', border: '#4B5E70' },
-    { id: 'yellow', name: 'Jaune Pastel', desc: 'Beurre & Miel', bg: '#FFF9E6', btn: '#F7DB99', text: '#4A3525', border: '#785D4A' },
-    { id: 'lea', name: 'Thème Léa', desc: 'Sakura Rose & Violet', bg: '#F5F3FF', btn: '#EC4899', text: '#4C1D95', border: '#8B5CF6' },
-    { id: 'wayfs', name: 'Thème Wayfs', desc: 'Abyssal Bleu & Violet', bg: '#0F172A', btn: '#8B5CF6', text: '#F8FAFC', border: '#8B5CF6' },
-    { id: 'neon', name: 'Thème Néon', desc: 'Cyberpunk Néon', bg: '#09090B', btn: '#00FFFF', text: '#F4F4F5', border: '#FF00FF' }
-  ];
+  const themesList = Object.values(APP_THEMES);
 
   return (
     <div className="space-y-8 animate-fade-in text-ac-brown select-none">
@@ -265,46 +257,62 @@ export default function Settings() {
               <span className="text-2xl">🎨</span>
               <div>
                 <h2 className="text-lg font-black text-ac-brown">
-                  Avatar de l'habitant
+                  Avatar du profil
                 </h2>
                 <p className="text-xs font-semibold text-ac-brown-light">
-                  Choisis ton apparence. Le changement s'applique instantanément à toute l'application.
+                  Choisis ton apparence parmi nos 7 mascottes.
                 </p>
               </div>
             </div>
 
             {/* Grille des avatars disponibles */}
-            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-3.5 mt-5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-7 gap-3 mt-5">
               {AVAILABLE_AVATARS.map((avatar) => {
-                const isSelected = photoURL === avatar.src || (!photoURL && avatar.src === '/pfp-ac.jpg');
-                
+                const isSelected = photoURL === avatar.src || (!photoURL && avatar.src === '/utilisateur.png');
+                const isUnlocked = unlockedAvatars?.includes(avatar.id) || unlockedAvatars?.includes(avatar.src) || avatar.id === 'utilisateur';
+
                 return (
                   <button
                     key={avatar.id}
                     type="button"
-                    onClick={() => handleSelectAvatar(avatar.src)}
-                    className={`relative group flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 cursor-pointer ${
-                      isSelected
-                        ? 'bg-ac-green/15 ring-3 ring-ac-green shadow-md scale-105 border-2 border-ac-green'
-                        : 'hover:bg-ac-cream hover:scale-105 active:scale-95 border-2 border-transparent'
+                    disabled={!isUnlocked}
+                    onClick={() => handleSelectAvatar(avatar)}
+                    title={isUnlocked ? avatar.name : `${avatar.name} (Verrouillé)`}
+                    className={`relative group flex flex-col items-center justify-center p-2.5 rounded-2xl transition-all duration-200 ${
+                      !isUnlocked 
+                        ? 'opacity-40 grayscale cursor-not-allowed border-2 border-dashed border-ac-brown/30 bg-ac-cream-dark/20' 
+                        : isSelected
+                          ? 'bg-ac-green/15 ring-3 ring-ac-green shadow-md scale-105 border-2 border-ac-green cursor-pointer'
+                          : 'hover:bg-ac-cream hover:scale-105 active:scale-95 border-2 border-transparent cursor-pointer'
                     }`}
                   >
                     {/* Image de l'avatar */}
-                    <div className={`relative w-14 h-14 rounded-full overflow-hidden border-2 transition-colors shadow-inner ${
-                      isSelected ? 'border-ac-green' : 'border-ac-brown/30 group-hover:border-ac-green'
+                    <div className={`relative w-13 h-13 rounded-full overflow-hidden border-2 transition-colors shadow-inner ${
+                      !isUnlocked 
+                        ? 'border-ac-brown/20'
+                        : isSelected 
+                          ? 'border-ac-green' 
+                          : 'border-ac-brown/30 group-hover:border-ac-green'
                     }`}>
                       <img
                         src={avatar.src}
-                        alt={avatar.label}
+                        alt={avatar.name}
                         className="w-full h-full object-cover"
-                        onError={(e) => { e.currentTarget.src = '/pfp-ac.jpg'; }}
+                        onError={(e) => { e.currentTarget.src = '/utilisateur.png'; }}
                       />
                     </div>
 
                     {/* Label de l'avatar */}
-                    <span className="mt-2 text-[11px] font-bold text-ac-brown text-center truncate max-w-full">
-                      {avatar.label}
+                    <span className="mt-1.5 text-[11px] font-bold text-ac-brown text-center truncate max-w-full">
+                      {avatar.name}
                     </span>
+
+                    {/* Badge cadenas si verrouillé */}
+                    {!isUnlocked && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-ac-brown/70 text-white rounded-full flex items-center justify-center text-[9px] shadow">
+                        <Lock className="w-2.5 h-2.5" />
+                      </span>
+                    )}
 
                     {/* Badge de sélection active */}
                     {isSelected && (
@@ -319,54 +327,106 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Thème de l'île Card */}
+        {/* Thème Card */}
         <div className="ac-card p-6 bg-white border-ac-brown flex flex-col justify-between">
           <div>
             <h3 className="text-base font-black text-ac-brown flex items-center gap-2 mb-4">
-              <Palette className="w-5 h-5 text-ac-green" /> Thème de l'île
+              <Palette className="w-5 h-5 text-ac-green" /> Thème de l'application
             </h3>
             <p className="text-xs font-semibold text-ac-brown-light leading-relaxed mb-6">
-              Choisis ton ambiance pastel favorite. Le thème s'applique instantanément et est synchronisé sur ton profil.
+              Choisis ton ambiance parmi les 7 thèmes exclusifs. Chaque thème applique ses 3 couleurs phares (principale, secondaire et texte).
             </p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
               {themesList.map(t => {
-                const isUnlocked = unlockedThemes?.includes(t.id);
+                const isUnlocked = unlockedThemes?.includes(t.id) || t.id === 'default';
+                const isSelected = themePreference === t.id;
+
                 if (isUnlocked) {
                   return (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => handleThemeChange(t.id)}
-                      className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-left w-full aspect-square hover:scale-102 hover:shadow-ac-xs ${
-                        themePreference === t.id ? 'ring-4 ring-ac-green scale-102' : 'opacity-85'
+                      className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-left w-full aspect-square hover:scale-102 hover:shadow-ac-xs relative overflow-hidden ${
+                        isSelected ? 'ring-4 ring-ac-green scale-102 border-ac-green shadow-md' : 'opacity-90 border-ac-brown/20'
                       }`}
-                      style={{ backgroundColor: t.bg, borderColor: t.border, color: t.text }}
+                      style={{ 
+                        backgroundColor: t.colors.secondary, 
+                        borderColor: isSelected ? undefined : t.colors.primary, 
+                        color: t.colors.text 
+                      }}
                     >
-                      <div className="w-full">
-                        <span className="block text-xs font-black">{t.name}</span>
-                        <span className="block text-[9px] font-bold opacity-85 leading-tight mt-0.5">{t.desc}</span>
+                      <div className="w-full flex items-start justify-between gap-1">
+                        <div>
+                          <span className="block text-xs font-black">{t.name}</span>
+                          <span className="block text-[9px] font-bold opacity-75 mt-0.5">Mascotte</span>
+                        </div>
+                        {/* Mascotte miniature */}
+                        <div className="w-7 h-7 rounded-full overflow-hidden border border-current shrink-0 bg-white/40">
+                          <img src={t.avatar} alt={t.name} className="w-full h-full object-cover" />
+                        </div>
                       </div>
-                      {/* Previews */}
-                      <div className="flex gap-1.5 mt-3 self-end">
-                        <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: t.bg, borderColor: t.border }} title="Fond"></div>
-                        <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: t.btn, borderColor: t.border }} title="Bouton"></div>
-                        <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: t.text, borderColor: t.border }} title="Texte"></div>
+
+                      {/* 3 Pastilles de couleur : Principal, Secondaire, Texte */}
+                      <div className="flex items-center justify-between w-full mt-2 pt-2 border-t border-current/15">
+                        <span className="text-[9px] font-extrabold uppercase opacity-75">3 Couleurs</span>
+                        <div className="flex gap-1.5 items-center">
+                          <div 
+                            className="w-4 h-4 rounded-full border border-black/20 shadow-xs" 
+                            style={{ backgroundColor: t.colors.primary }} 
+                            title={`Principal: ${t.colors.primary}`}
+                          />
+                          <div 
+                            className="w-4 h-4 rounded-full border border-black/20 shadow-xs" 
+                            style={{ backgroundColor: t.colors.secondary }} 
+                            title={`Secondaire: ${t.colors.secondary}`}
+                          />
+                          <div 
+                            className="w-4 h-4 rounded-full border border-black/20 shadow-xs" 
+                            style={{ backgroundColor: t.colors.text }} 
+                            title={`Texte: ${t.colors.text}`}
+                          />
+                        </div>
                       </div>
+
+                      {isSelected && (
+                        <span className="absolute bottom-1 right-1 text-[10px] font-black px-1.5 py-0.5 rounded-full bg-ac-green text-white shadow-xs">
+                          Actif
+                        </span>
+                      )}
                     </button>
                   );
                 } else {
                   return (
                     <div
                       key={t.id}
-                      className="flex flex-col justify-between p-3.5 rounded-2xl border-2 border-dashed border-ac-brown/30 bg-ac-cream-dark/45 opacity-55 select-none w-full aspect-square relative overflow-hidden"
+                      className="flex flex-col justify-between p-3.5 rounded-2xl border-2 border-dashed border-ac-brown/30 bg-ac-cream-dark/30 opacity-60 select-none w-full aspect-square relative overflow-hidden"
                     >
-                      <div className="w-full">
-                        <span className="block text-xs font-black text-ac-brown-light/80">🔒 Thème Mystère</span>
-                        <span className="block text-[8px] font-extrabold text-ac-brown-light/65 leading-tight mt-1">Indice : un secret à découvrir...</span>
+                      <div className="w-full flex items-start justify-between gap-1">
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-ac-brown-light" />
+                            <span className="block text-xs font-black text-ac-brown-light/90">{t.name}</span>
+                          </div>
+                          <span className="block text-[8px] font-extrabold text-ac-brown-light/65 leading-tight mt-0.5">
+                            Thème verrouillé
+                          </span>
+                        </div>
+                        {/* Mascotte floutée / grisée */}
+                        <div className="w-7 h-7 rounded-full overflow-hidden border border-ac-brown/20 shrink-0 opacity-40 grayscale">
+                          <img src={t.avatar} alt={t.name} className="w-full h-full object-cover" />
+                        </div>
                       </div>
-                      <div className="flex items-center justify-center absolute inset-0 text-xl opacity-10">
-                        🍃
+
+                      {/* 3 Pastilles de couleur même si verrouillé */}
+                      <div className="flex items-center justify-between w-full mt-2 pt-2 border-t border-ac-brown/10">
+                        <span className="text-[9px] font-bold text-ac-brown-light/70">Aperçu</span>
+                        <div className="flex gap-1.5 items-center opacity-60">
+                          <div className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: t.colors.primary }} />
+                          <div className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: t.colors.secondary }} />
+                          <div className="w-3.5 h-3.5 rounded-full border border-black/20" style={{ backgroundColor: t.colors.text }} />
+                        </div>
                       </div>
                     </div>
                   );

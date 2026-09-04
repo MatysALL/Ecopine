@@ -83,9 +83,15 @@
   to { transform: translateY(0); }
 }
 
+:root {
+  --theme-primary: #86efac;
+  --theme-secondary: #dcfce7;
+  --theme-text: #111827;
+}
+
 html, body {
-  background-color: #F4F1EA;
-  color: #4A3E3D;
+  background-color: var(--theme-secondary, #dcfce7);
+  color: var(--theme-text, #111827);
   font-family: 'Nunito', system-ui, -apple-system, sans-serif;
   margin: 0;
   padding: 0;
@@ -144,19 +150,7 @@ html, body {
 /* Project Cards Dark Theme (Guaranteed Dark Background across all themes) */
 .project-account-card,
 .project-wish-card,
-.project-card-dark,
-.theme-sakura .project-account-card,
-.theme-sakura .project-wish-card,
-.theme-red .project-account-card,
-.theme-red .project-wish-card,
-.theme-blue .project-account-card,
-.theme-blue .project-wish-card,
-.theme-yellow .project-account-card,
-.theme-yellow .project-wish-card,
-.theme-neon .project-account-card,
-.theme-neon .project-wish-card,
-.theme-wayfs .project-account-card,
-.theme-wayfs .project-wish-card {
+.project-card-dark {
   background-color: #1E232A !important;
   color: #FFFFFF !important;
   border-color: #2E3440 !important;
@@ -187,128 +181,6 @@ html, body {
   box-shadow: 0 0px 0 0 #4A3E3D;
 }
 
-/* --- SAKURA EASTER EGG THEME (v3.4.0) --- */
-.theme-sakura {
-  --color-ac-cream: #F5F3FF; /* Violet lavande très doux */
-  --color-ac-cream-dark: #EDE9FE;
-  --color-ac-green: #EC4899; /* Rose magenta pastel vif */
-  --color-ac-green-dark: #D01C7A;
-  --color-ac-green-light: #FAE8FF;
-  --color-ac-brown: #4C1D95; /* Violet nuit / prune profond */
-  --color-ac-brown-light: #8B5CF6; /* Violet améthyste */
-  --color-white: #FAF5FF; /* Blanc lilas très lumineux */
-
-  /* App Background override */
-  background-color: #F5F3FF !important;
-  color: #4C1D95 !important;
-}
-
-/* Base body style for Sakura */
-body.theme-sakura {
-  background-color: #F5F3FF !important;
-  color: #4C1D95 !important;
-}
-
-/* Cards & containers overrides */
-.theme-sakura .ac-card {
-  background-color: #FAF5FF !important;
-  border-color: #8B5CF6 !important;
-  box-shadow: 0 8px 0 0 rgba(139, 92, 246, 0.15) !important;
-}
-.theme-sakura .ac-card:hover {
-  box-shadow: 0 10px 0 0 rgba(139, 92, 246, 0.2) !important;
-}
-
-/* Background overrides for general elements */
-.theme-sakura .bg-white {
-  background-color: #FAF5FF !important;
-}
-.theme-sakura .bg-\[\#FFFDF9\] {
-  background-color: #FAF5FF !important;
-}
-.theme-sakura .bg-\[\#FFFDF9\]\/60 {
-  background-color: rgba(250, 245, 255, 0.6) !important;
-}
-.theme-sakura .bg-ac-cream {
-  background-color: #F5F3FF !important;
-}
-.theme-sakura .bg-ac-cream-dark {
-  background-color: #EDE9FE !important;
-}
-.theme-sakura .bg-ac-green {
-  background-color: #EC4899 !important;
-  color: #FFFFFF !important;
-}
-.theme-sakura .bg-ac-green-dark {
-  background-color: #D01C7A !important;
-}
-.theme-sakura .bg-ac-green-light {
-  background-color: #FAE8FF !important;
-}
-
-/* Buttons and text on green backgrounds (which are now pink bubblegum) */
-.theme-sakura .ac-btn {
-  border-color: #8B5CF6 !important;
-  box-shadow: 0 4px 0 0 #8B5CF6 !important;
-}
-.theme-sakura .ac-btn:active {
-  box-shadow: 0 0px 0 0 #8B5CF6 !important;
-}
-.theme-sakura .bg-ac-green.text-white,
-.theme-sakura .bg-ac-green .text-white,
-.theme-sakura button.bg-ac-green,
-.theme-sakura .ac-btn.bg-ac-green,
-.theme-sakura button.bg-ac-green-dark {
-  color: #FFFFFF !important;
-}
-
-/* SVG icons within green/bubblegum buttons should also match the text color */
-.theme-sakura .bg-ac-green svg,
-.theme-sakura button.bg-ac-green svg,
-.theme-sakura .ac-btn.bg-ac-green svg,
-.theme-sakura button.bg-ac-green-dark svg {
-  color: #FFFFFF !important;
-  stroke: #FFFFFF !important;
-}
-
-/* Borders overrides */
-.theme-sakura .border-ac-brown {
-  border-color: #8B5CF6 !important;
-}
-.theme-sakura .border-ac-brown\/10 {
-  border-color: rgba(139, 92, 246, 0.1) !important;
-}
-.theme-sakura .border-ac-brown\/15 {
-  border-color: rgba(139, 92, 246, 0.15) !important;
-}
-.theme-sakura .border-ac-brown\/20 {
-  border-color: rgba(139, 92, 246, 0.2) !important;
-}
-.theme-sakura .border-ac-brown\/30 {
-  border-color: rgba(139, 92, 246, 0.3) !important;
-}
-
-/* Custom background patterns */
-.theme-sakura .ac-dotted-bg {
-  background-image: radial-gradient(rgba(139, 92, 246, 0.15) 1.5px, transparent 1.5px) !important;
-}
-.theme-sakura .ac-leaf-pattern {
-  background-color: #EC4899 !important;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.2) 15%, transparent 16%) !important;
-}
-
-/* Webkit Scrollbars override for Sakura */
-.theme-sakura::-webkit-scrollbar-track {
-  background: #F5F3FF !important;
-}
-.theme-sakura::-webkit-scrollbar-thumb {
-  background: #EDE9FE !important;
-  border: 2px solid #F5F3FF !important;
-}
-.theme-sakura::-webkit-scrollbar-thumb:hover {
-  background: #EC4899 !important;
-}
-
 /* --- GLOBAL THEME TRANSITION SYSTEM --- */
 body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, button, select, input, div, span, label, p, h1, h2, h3, h4, svg {
   transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1), 
@@ -317,487 +189,216 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
               box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* --- PASTEL RED THEME (theme-red) --- */
-.theme-red {
-  --color-ac-cream: #FFF0F2;
-  --color-ac-cream-dark: #FCD5D9;
-  --color-ac-green: #FF8B94;
-  --color-ac-green-dark: #E5737A;
-  --color-ac-green-light: #FFF0F2;
-  --color-ac-brown: #5C2E35;
-  --color-ac-brown-light: #8A4F58;
-  --color-white: #FFFDFD;
-  background-color: #FFF0F2 !important;
-  color: #5C2E35 !important;
+/* ==========================================================================
+   THEME 1: DEFAULT (Éco & Finances - /utilisateur.png)
+   ========================================================================== */
+.theme-default, body.theme-default {
+  --theme-primary: #86efac;
+  --theme-secondary: #dcfce7;
+  --theme-text: #111827;
+  --color-ac-cream: #dcfce7;
+  --color-ac-cream-dark: #bbf7d0;
+  --color-ac-green: #86efac;
+  --color-ac-green-dark: #4ade80;
+  --color-ac-brown: #111827;
+  --color-ac-brown-light: #374151;
+  --color-white: #ffffff;
+  background-color: #dcfce7 !important;
+  color: #111827 !important;
 }
-body.theme-red {
-  background-color: #FFF0F2 !important;
-  color: #5C2E35 !important;
+.theme-default .ac-card {
+  background-color: #ffffff !important;
+  border-color: #111827 !important;
+  box-shadow: 0 8px 0 0 rgba(17, 24, 39, 0.12) !important;
 }
-.theme-red .ac-card {
-  background-color: #FFFDFD !important;
-  border-color: #8A4F58 !important;
-  box-shadow: 0 8px 0 0 rgba(138, 79, 88, 0.15) !important;
-}
-.theme-red .ac-card:hover {
-  box-shadow: 0 10px 0 0 rgba(138, 79, 88, 0.2) !important;
-}
-.theme-red .bg-white {
-  background-color: #FFFDFD !important;
-}
-.theme-red .bg-\[\#FFFDF9\] {
-  background-color: #FFFDFD !important;
-}
-.theme-red .bg-\[\#FFFDF9\]\/60 {
-  background-color: rgba(255, 253, 253, 0.6) !important;
-}
-.theme-red .bg-ac-cream {
-  background-color: #FFF0F2 !important;
-}
-.theme-red .bg-ac-cream-dark {
-  background-color: #FCD5D9 !important;
-}
-.theme-red .bg-ac-green {
-  background-color: #FF8B94 !important;
-  color: #5C2E35 !important;
-}
-.theme-red .bg-ac-green-dark {
-  background-color: #E5737A !important;
-}
-.theme-red .bg-ac-green-light {
-  background-color: #FFF0F2 !important;
-}
-.theme-red .ac-btn {
-  border-color: #8A4F58 !important;
-  box-shadow: 0 4px 0 0 #8A4F58 !important;
-}
-.theme-red .ac-btn:active {
-  box-shadow: 0 0px 0 0 #8A4F58 !important;
-}
-.theme-red .bg-ac-green.text-white,
-.theme-red .bg-ac-green .text-white,
-.theme-red button.bg-ac-green,
-.theme-red .ac-btn.bg-ac-green,
-.theme-red button.bg-ac-green-dark {
-  color: #5C2E35 !important;
-}
-.theme-red .bg-ac-green svg,
-.theme-red button.bg-ac-green svg,
-.theme-red .ac-btn.bg-ac-green svg,
-.theme-red button.bg-ac-green-dark svg {
-  color: #5C2E35 !important;
-  stroke: #5C2E35 !important;
-}
-.theme-red .border-ac-brown {
-  border-color: #8A4F58 !important;
-}
-.theme-red .border-ac-brown\/10 { border-color: rgba(138, 79, 88, 0.1) !important; }
-.theme-red .border-ac-brown\/15 { border-color: rgba(138, 79, 88, 0.15) !important; }
-.theme-red .border-ac-brown\/20 { border-color: rgba(138, 79, 88, 0.2) !important; }
-.theme-red .border-ac-brown\/30 { border-color: rgba(138, 79, 88, 0.3) !important; }
-.theme-red .ac-dotted-bg {
-  background-image: radial-gradient(rgba(138, 79, 88, 0.15) 1.5px, transparent 1.5px) !important;
-}
-.theme-red .ac-leaf-pattern {
-  background-color: #FF8B94 !important;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.2) 15%, transparent 16%) !important;
-}
-.theme-red::-webkit-scrollbar-track {
-  background: #FFF0F2 !important;
-}
-.theme-red::-webkit-scrollbar-thumb {
-  background: #FCD5D9 !important;
-  border: 2px solid #FFF0F2 !important;
-}
-.theme-red::-webkit-scrollbar-thumb:hover {
-  background: #FF8B94 !important;
-}
+.theme-default .bg-white { background-color: #ffffff !important; }
+.theme-default .bg-\[\#FFFDF9\] { background-color: #ffffff !important; }
+.theme-default .bg-ac-cream { background-color: #dcfce7 !important; }
+.theme-default .bg-ac-cream-dark { background-color: #bbf7d0 !important; }
+.theme-default .bg-ac-green { background-color: #86efac !important; color: #111827 !important; }
+.theme-default .border-ac-brown { border-color: #111827 !important; }
 
-/* --- PASTEL BLUE THEME (theme-blue) --- */
-.theme-blue {
-  --color-ac-cream: #EDF6FA;
-  --color-ac-cream-dark: #D4E7F2;
-  --color-ac-green: #92C7E8;
-  --color-ac-green-dark: #70A5C9;
-  --color-ac-green-light: #F4F9FC;
-  --color-ac-brown: #1E2D3B;
-  --color-ac-brown-light: #4B5E70;
-  --color-white: #F9FBFC;
-  background-color: #EDF6FA !important;
-  color: #1E2D3B !important;
+/* ==========================================================================
+   THEME 2: JOUR (Jour Pur - /corbeau.png)
+   ========================================================================== */
+.theme-jour, body.theme-jour {
+  --theme-primary: #e2e8f0;
+  --theme-secondary: #f8fafc;
+  --theme-text: #0f172a;
+  --color-ac-cream: #f8fafc;
+  --color-ac-cream-dark: #f1f5f9;
+  --color-ac-green: #cbd5e1;
+  --color-ac-green-dark: #94a3b8;
+  --color-ac-brown: #0f172a;
+  --color-ac-brown-light: #475569;
+  --color-white: #ffffff;
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
 }
-body.theme-blue {
-  background-color: #EDF6FA !important;
-  color: #1E2D3B !important;
+.theme-jour .ac-card {
+  background-color: #ffffff !important;
+  border-color: #0f172a !important;
+  box-shadow: 0 8px 0 0 rgba(15, 23, 42, 0.08) !important;
 }
-.theme-blue .ac-card {
-  background-color: #F9FBFC !important;
-  border-color: #4B5E70 !important;
-  box-shadow: 0 8px 0 0 rgba(75, 94, 112, 0.15) !important;
-}
-.theme-blue .ac-card:hover {
-  box-shadow: 0 10px 0 0 rgba(75, 94, 112, 0.2) !important;
-}
-.theme-blue .bg-white {
-  background-color: #F9FBFC !important;
-}
-.theme-blue .bg-\[\#FFFDF9\] {
-  background-color: #F9FBFC !important;
-}
-.theme-blue .bg-\[\#FFFDF9\]\/60 {
-  background-color: rgba(249, 251, 252, 0.6) !important;
-}
-.theme-blue .bg-ac-cream {
-  background-color: #EDF6FA !important;
-}
-.theme-blue .bg-ac-cream-dark {
-  background-color: #D4E7F2 !important;
-}
-.theme-blue .bg-ac-green {
-  background-color: #92C7E8 !important;
-  color: #1E2D3B !important;
-}
-.theme-blue .bg-ac-green-dark {
-  background-color: #70A5C9 !important;
-}
-.theme-blue .bg-ac-green-light {
-  background-color: #F4F9FC !important;
-}
-.theme-blue .ac-btn {
-  border-color: #4B5E70 !important;
-  box-shadow: 0 4px 0 0 #4B5E70 !important;
-}
-.theme-blue .ac-btn:active {
-  box-shadow: 0 0px 0 0 #4B5E70 !important;
-}
-.theme-blue .bg-ac-green.text-white,
-.theme-blue .bg-ac-green .text-white,
-.theme-blue button.bg-ac-green,
-.theme-blue .ac-btn.bg-ac-green,
-.theme-blue button.bg-ac-green-dark {
-  color: #1E2D3B !important;
-}
-.theme-blue .bg-ac-green svg,
-.theme-blue button.bg-ac-green svg,
-.theme-blue .ac-btn.bg-ac-green svg,
-.theme-blue button.bg-ac-green-dark svg {
-  color: #1E2D3B !important;
-  stroke: #1E2D3B !important;
-}
-.theme-blue .border-ac-brown {
-  border-color: #4B5E70 !important;
-}
-.theme-blue .border-ac-brown\/10 { border-color: rgba(75, 94, 112, 0.1) !important; }
-.theme-blue .border-ac-brown\/15 { border-color: rgba(75, 94, 112, 0.15) !important; }
-.theme-blue .border-ac-brown\/20 { border-color: rgba(75, 94, 112, 0.2) !important; }
-.theme-blue .border-ac-brown\/30 { border-color: rgba(75, 94, 112, 0.3) !important; }
-.theme-blue .ac-dotted-bg {
-  background-image: radial-gradient(rgba(75, 94, 112, 0.15) 1.5px, transparent 1.5px) !important;
-}
-.theme-blue .ac-leaf-pattern {
-  background-color: #92C7E8 !important;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.2) 15%, transparent 16%) !important;
-}
-.theme-blue::-webkit-scrollbar-track {
-  background: #EDF6FA !important;
-}
-.theme-blue::-webkit-scrollbar-thumb {
-  background: #D4E7F2 !important;
-  border: 2px solid #EDF6FA !important;
-}
-.theme-blue::-webkit-scrollbar-thumb:hover {
-  background: #92C7E8 !important;
-}
+.theme-jour .bg-white { background-color: #ffffff !important; }
+.theme-jour .bg-\[\#FFFDF9\] { background-color: #ffffff !important; }
+.theme-jour .bg-ac-cream { background-color: #f8fafc !important; }
+.theme-jour .bg-ac-cream-dark { background-color: #f1f5f9 !important; }
+.theme-jour .bg-ac-green { background-color: #e2e8f0 !important; color: #0f172a !important; }
+.theme-jour .border-ac-brown { border-color: #0f172a !important; }
 
-/* --- PASTEL YELLOW THEME (theme-yellow) --- */
-.theme-yellow {
-  --color-ac-cream: #FFF9E6;
-  --color-ac-cream-dark: #F9F0C5;
-  --color-ac-green: #F7DB99;
-  --color-ac-green-dark: #DBBE60;
-  --color-ac-green-light: #FFFCF2;
-  --color-ac-brown: #4A3525;
-  --color-ac-brown-light: #785D4A;
-  --color-white: #FFFDF8;
-  background-color: #FFF9E6 !important;
-  color: #4A3525 !important;
+/* ==========================================================================
+   THEME 3: NUIT (Nuit Profonde - /chouette.png)
+   ========================================================================== */
+.theme-nuit, body.theme-nuit {
+  --theme-primary: #0f172a;
+  --theme-secondary: #1e293b;
+  --theme-text: #f8fafc;
+  --color-ac-cream: #0f172a;
+  --color-ac-cream-dark: #1e293b;
+  --color-ac-green: #38bdf8;
+  --color-ac-green-dark: #0284c7;
+  --color-ac-brown: #f8fafc;
+  --color-ac-brown-light: #94a3b8;
+  --color-white: #1e293b;
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
 }
-body.theme-yellow {
-  background-color: #FFF9E6 !important;
-  color: #4A3525 !important;
+.theme-nuit .ac-card {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+  box-shadow: 0 8px 0 0 rgba(0, 0, 0, 0.4) !important;
 }
-.theme-yellow .ac-card {
-  background-color: #FFFDF8 !important;
-  border-color: #785D4A !important;
-  box-shadow: 0 8px 0 0 rgba(120, 93, 74, 0.15) !important;
-}
-.theme-yellow .ac-card:hover {
-  box-shadow: 0 10px 0 0 rgba(120, 93, 74, 0.2) !important;
-}
-.theme-yellow .bg-white {
-  background-color: #FFFDF8 !important;
-}
-.theme-yellow .bg-\[\#FFFDF9\] {
-  background-color: #FFFDF8 !important;
-}
-.theme-yellow .bg-\[\#FFFDF9\]\/60 {
-  background-color: rgba(255, 253, 248, 0.6) !important;
-}
-.theme-yellow .bg-ac-cream {
-  background-color: #FFF9E6 !important;
-}
-.theme-yellow .bg-ac-cream-dark {
-  background-color: #F9F0C5 !important;
-}
-.theme-yellow .bg-ac-green {
-  background-color: #F7DB99 !important;
-  color: #4A3525 !important;
-}
-.theme-yellow .bg-ac-green-dark {
-  background-color: #DBBE60 !important;
-}
-.theme-yellow .bg-ac-green-light {
-  background-color: #FFFCF2 !important;
-}
-.theme-yellow .ac-btn {
-  border-color: #785D4A !important;
-  box-shadow: 0 4px 0 0 #785D4A !important;
-}
-.theme-yellow .ac-btn:active {
-  box-shadow: 0 0px 0 0 #785D4A !important;
-}
-.theme-yellow .bg-ac-green.text-white,
-.theme-yellow .bg-ac-green .text-white,
-.theme-yellow button.bg-ac-green,
-.theme-yellow .ac-btn.bg-ac-green,
-.theme-yellow button.bg-ac-green-dark {
-  color: #4A3525 !important;
-}
-.theme-yellow .bg-ac-green svg,
-.theme-yellow button.bg-ac-green svg,
-.theme-yellow .ac-btn.bg-ac-green svg,
-.theme-yellow button.bg-ac-green-dark svg {
-  color: #4A3525 !important;
-  stroke: #4A3525 !important;
-}
-.theme-yellow .border-ac-brown {
-  border-color: #785D4A !important;
-}
-.theme-yellow .border-ac-brown\/10 { border-color: rgba(120, 93, 74, 0.1) !important; }
-.theme-yellow .border-ac-brown\/15 { border-color: rgba(120, 93, 74, 0.15) !important; }
-.theme-yellow .border-ac-brown\/20 { border-color: rgba(120, 93, 74, 0.2) !important; }
-.theme-yellow .border-ac-brown\/30 { border-color: rgba(120, 93, 74, 0.3) !important; }
-.theme-yellow .ac-dotted-bg {
-  background-image: radial-gradient(rgba(120, 93, 74, 0.15) 1.5px, transparent 1.5px) !important;
-}
-.theme-yellow .ac-leaf-pattern {
-  background-color: #F7DB99 !important;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.2) 15%, transparent 16%) !important;
-}
-.theme-yellow::-webkit-scrollbar-track {
-  background: #FFF9E6 !important;
-}
-.theme-yellow::-webkit-scrollbar-thumb {
-  background: #F9F0C5 !important;
-  border: 2px solid #FFF9E6 !important;
-}
-.theme-yellow::-webkit-scrollbar-thumb:hover {
-  background: #F7DB99 !important;
-}
+.theme-nuit .bg-white { background-color: #1e293b !important; color: #f8fafc !important; }
+.theme-nuit .bg-\[\#FFFDF9\] { background-color: #1e293b !important; color: #f8fafc !important; }
+.theme-nuit .bg-\[\#FFFDF9\]\/60 { background-color: rgba(30, 41, 59, 0.6) !important; }
+.theme-nuit .bg-ac-cream { background-color: #0f172a !important; }
+.theme-nuit .bg-ac-cream-dark { background-color: #1e293b !important; }
+.theme-nuit .bg-ac-green { background-color: #38bdf8 !important; color: #0f172a !important; }
+.theme-nuit .border-ac-brown { border-color: #334155 !important; }
+.theme-nuit .text-ac-brown { color: #f8fafc !important; }
+.theme-nuit .text-ac-brown-light { color: #94a3b8 !important; }
 
-/* --- EASTER EGG NEON MULTICOLOR THEME (theme-neon) --- */
-.theme-neon {
-  --color-ac-cream: #09090B;
-  --color-ac-cream-dark: #121214;
-  --color-ac-green: #00FFFF; /* Cyan */
-  --color-ac-green-dark: #00D1D1;
-  --color-ac-green-light: #121214;
-  --color-ac-brown: #F4F4F5;
-  --color-ac-brown-light: #A1A1AA;
-  --color-white: #18181B; /* Dark cards background */
-  background-color: #09090B !important;
-  color: #F4F4F5 !important;
+/* ==========================================================================
+   THEME 4: FEU (Feu & Automne - /renard.png)
+   ========================================================================== */
+.theme-feu, body.theme-feu {
+  --theme-primary: #ea580c;
+  --theme-secondary: #ffedd5;
+  --theme-text: #fef08a;
+  --color-ac-cream: #ffedd5;
+  --color-ac-cream-dark: #fed7aa;
+  --color-ac-green: #ea580c;
+  --color-ac-green-dark: #c2410c;
+  --color-ac-brown: #431407;
+  --color-ac-brown-light: #7c2d12;
+  --color-white: #fff7ed;
+  background-color: #ffedd5 !important;
+  color: #431407 !important;
 }
-body.theme-neon {
-  background-color: #09090B !important;
-  color: #F4F4F5 !important;
+.theme-feu .ac-card {
+  background-color: #fff7ed !important;
+  border-color: #ea580c !important;
+  box-shadow: 0 8px 0 0 rgba(234, 88, 12, 0.15) !important;
 }
-.theme-neon .ac-card {
-  background-color: #121214 !important;
-  border-color: #FF00FF !important; /* Neon Magenta */
-  box-shadow: 0 0 15px rgba(255, 0, 255, 0.4) !important;
-}
-.theme-neon .ac-card:hover {
-  box-shadow: 0 0 25px rgba(255, 0, 255, 0.7) !important;
-}
-.theme-neon .bg-white {
-  background-color: #121214 !important;
-}
-.theme-neon .bg-\[\#FFFDF9\] {
-  background-color: #121214 !important;
-}
-.theme-neon .bg-\[\#FFFDF9\]\/60 {
-  background-color: rgba(18, 18, 20, 0.6) !important;
-}
-.theme-neon .bg-ac-cream {
-  background-color: #09090B !important;
-}
-.theme-neon .bg-ac-cream-dark {
-  background-color: #121214 !important;
-}
-.theme-neon .bg-ac-green {
-  background-color: #00FFFF !important; /* Neon Cyan */
-  color: #09090B !important;
-}
-.theme-neon .bg-ac-green-dark {
-  background-color: #00D1D1 !important;
-}
-.theme-neon .bg-ac-green-light {
-  background-color: #1E1B4B !important;
-}
-.theme-neon .ac-btn {
-  border-color: #00FFFF !important;
-  box-shadow: 0 4px 0 0 #00D1D1, 0 0 10px rgba(0, 255, 255, 0.3) !important;
-  background-color: #09090B !important;
-  color: #00FFFF !important;
-}
-.theme-neon .ac-btn:active {
-  box-shadow: 0 0px 0 0 #00D1D1, 0 0 2px rgba(0, 255, 255, 0.3) !important;
-}
-.theme-neon .bg-ac-green.text-white,
-.theme-neon .bg-ac-green .text-white,
-.theme-neon button.bg-ac-green,
-.theme-neon .ac-btn.bg-ac-green,
-.theme-neon button.bg-ac-green-dark {
-  color: #09090B !important;
-}
-.theme-neon .bg-ac-green svg,
-.theme-neon button.bg-ac-green svg,
-.theme-neon .ac-btn.bg-ac-green svg,
-.theme-neon button.bg-ac-green-dark svg {
-  color: #09090B !important;
-  stroke: #09090B !important;
-}
-.theme-neon .border-ac-brown {
-  border-color: #FF00FF !important; /* Magenta */
-}
-.theme-neon .border-ac-brown\/10 { border-color: rgba(255, 0, 255, 0.15) !important; }
-.theme-neon .border-ac-brown\/15 { border-color: rgba(255, 0, 255, 0.25) !important; }
-.theme-neon .border-ac-brown\/20 { border-color: rgba(255, 0, 255, 0.35) !important; }
-.theme-neon .border-ac-brown\/30 { border-color: rgba(255, 0, 255, 0.5) !important; }
-.theme-neon .ac-dotted-bg {
-  background-image: radial-gradient(rgba(0, 255, 255, 0.2) 1.5px, transparent 1.5px) !important;
-}
-.theme-neon .ac-leaf-pattern {
-  background-color: #39FF14 !important; /* Neon Green */
-  background-image: radial-gradient(rgba(255, 255, 255, 0.4) 15%, transparent 16%) !important;
-}
-.theme-neon::-webkit-scrollbar-track {
-  background: #09090B !important;
-}
-.theme-neon::-webkit-scrollbar-thumb {
-  background: #121214 !important;
-  border: 2px solid #09090B !important;
-}
-.theme-neon::-webkit-scrollbar-thumb:hover {
-  background: #00FFFF !important;
-}
+.theme-feu .bg-white { background-color: #fff7ed !important; }
+.theme-feu .bg-\[\#FFFDF9\] { background-color: #fff7ed !important; }
+.theme-feu .bg-ac-cream { background-color: #ffedd5 !important; }
+.theme-feu .bg-ac-cream-dark { background-color: #fed7aa !important; }
+.theme-feu .bg-ac-green { background-color: #ea580c !important; color: #fef08a !important; }
+.theme-feu .border-ac-brown { border-color: #ea580c !important; }
 
-/* --- EASTER EGG DARK BLUE PURPLE THEME (theme-wayfs) --- */
-.theme-wayfs {
-  --color-ac-cream: #0F172A;
-  --color-ac-cream-dark: #1E1B4B;
-  --color-ac-green: #8B5CF6; /* Amethyst */
-  --color-ac-green-dark: #7C3AED;
-  --color-ac-green-light: #2E1065;
-  --color-ac-brown: #F8FAFC;
-  --color-ac-brown-light: #94A3B8;
-  --color-white: #1E293B; /* Slate 800 */
-  background-color: #0F172A !important;
-  color: #F8FAFC !important;
+/* ==========================================================================
+   THEME 5: NEIGE (Toundra Enneigée - /loup.png)
+   ========================================================================== */
+.theme-neige, body.theme-neige {
+  --theme-primary: #e0f2fe;
+  --theme-secondary: #bae6fd;
+  --theme-text: #0c4a6e;
+  --color-ac-cream: #bae6fd;
+  --color-ac-cream-dark: #7dd3fc;
+  --color-ac-green: #38bdf8;
+  --color-ac-green-dark: #0284c7;
+  --color-ac-brown: #0c4a6e;
+  --color-ac-brown-light: #0369a1;
+  --color-white: #f0f9ff;
+  background-color: #bae6fd !important;
+  color: #0c4a6e !important;
 }
-body.theme-wayfs {
-  background-color: #0F172A !important;
-  color: #F8FAFC !important;
+.theme-neige .ac-card {
+  background-color: #f0f9ff !important;
+  border-color: #0c4a6e !important;
+  box-shadow: 0 8px 0 0 rgba(12, 74, 110, 0.15) !important;
 }
-.theme-wayfs .ac-card {
-  background-color: #1E293B !important;
-  border-color: #8B5CF6 !important;
-  box-shadow: 0 8px 0 0 rgba(139, 92, 246, 0.15) !important;
+.theme-neige .bg-white { background-color: #f0f9ff !important; }
+.theme-neige .bg-\[\#FFFDF9\] { background-color: #f0f9ff !important; }
+.theme-neige .bg-ac-cream { background-color: #bae6fd !important; }
+.theme-neige .bg-ac-cream-dark { background-color: #7dd3fc !important; }
+.theme-neige .bg-ac-green { background-color: #38bdf8 !important; color: #0c4a6e !important; }
+.theme-neige .border-ac-brown { border-color: #0c4a6e !important; }
+
+/* ==========================================================================
+   THEME 6: CHAT (Bêtises & Fun - /chat.png)
+   ========================================================================== */
+.theme-chat, body.theme-chat {
+  --theme-primary: #f43f5e;
+  --theme-secondary: #a7f3d0;
+  --theme-text: #18181b;
+  --color-ac-cream: #a7f3d0;
+  --color-ac-cream-dark: #6ee7b7;
+  --color-ac-green: #f43f5e;
+  --color-ac-green-dark: #e11d48;
+  --color-ac-brown: #18181b;
+  --color-ac-brown-light: #3f3f46;
+  --color-white: #ffffff;
+  background-color: #a7f3d0 !important;
+  color: #18181b !important;
 }
-.theme-wayfs .ac-card:hover {
-  box-shadow: 0 10px 0 0 rgba(139, 92, 246, 0.2) !important;
+.theme-chat .ac-card {
+  background-color: #ffffff !important;
+  border-color: #18181b !important;
+  box-shadow: 0 8px 0 0 rgba(24, 24, 27, 0.15) !important;
 }
-.theme-wayfs .bg-white {
-  background-color: #1E293B !important;
+.theme-chat .bg-white { background-color: #ffffff !important; }
+.theme-chat .bg-\[\#FFFDF9\] { background-color: #ffffff !important; }
+.theme-chat .bg-ac-cream { background-color: #a7f3d0 !important; }
+.theme-chat .bg-ac-cream-dark { background-color: #6ee7b7 !important; }
+.theme-chat .bg-ac-green { background-color: #f43f5e !important; color: #ffffff !important; }
+.theme-chat .border-ac-brown { border-color: #18181b !important; }
+
+/* ==========================================================================
+   THEME 7: PANDA (Néon Moderne - /panda.png)
+   ========================================================================== */
+.theme-panda, body.theme-panda {
+  --theme-primary: #10b981;
+  --theme-secondary: #050505;
+  --theme-text: #00ff88;
+  --color-ac-cream: #050505;
+  --color-ac-cream-dark: #121212;
+  --color-ac-green: #10b981;
+  --color-ac-green-dark: #059669;
+  --color-ac-brown: #00ff88;
+  --color-ac-brown-light: #34d399;
+  --color-white: #121212;
+  background-color: #050505 !important;
+  color: #00ff88 !important;
 }
-.theme-wayfs .bg-\[\#FFFDF9\] {
-  background-color: #1E293B !important;
+.theme-panda .ac-card {
+  background-color: #121212 !important;
+  border-color: #10b981 !important;
+  color: #00ff88 !important;
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.2) !important;
 }
-.theme-wayfs .bg-\[\#FFFDF9\]\/60 {
-  background-color: rgba(30, 41, 59, 0.6) !important;
-}
-.theme-wayfs .bg-ac-cream {
-  background-color: #0F172A !important;
-}
-.theme-wayfs .bg-ac-cream-dark {
-  background-color: #1E1B4B !important;
-}
-.theme-wayfs .bg-ac-green {
-  background-color: #8B5CF6 !important;
-  color: #FFFFFF !important;
-}
-.theme-wayfs .bg-ac-green-dark {
-  background-color: #7C3AED !important;
-}
-.theme-wayfs .bg-ac-green-light {
-  background-color: #2E1065 !important;
-}
-.theme-wayfs .ac-btn {
-  border-color: #8B5CF6 !important;
-  box-shadow: 0 4px 0 0 #7C3AED !important;
-}
-.theme-wayfs .ac-btn:active {
-  box-shadow: 0 0px 0 0 #7C3AED !important;
-}
-.theme-wayfs .bg-ac-green.text-white,
-.theme-wayfs .bg-ac-green .text-white,
-.theme-wayfs button.bg-ac-green,
-.theme-wayfs .ac-btn.bg-ac-green,
-.theme-wayfs button.bg-ac-green-dark {
-  color: #FFFFFF !important;
-}
-.theme-wayfs .bg-ac-green svg,
-.theme-wayfs button.bg-ac-green svg,
-.theme-wayfs .ac-btn.bg-ac-green svg,
-.theme-wayfs button.bg-ac-green-dark svg {
-  color: #FFFFFF !important;
-  stroke: #FFFFFF !important;
-}
-.theme-wayfs .border-ac-brown {
-  border-color: #8B5CF6 !important;
-}
-.theme-wayfs .border-ac-brown\/10 { border-color: rgba(139, 92, 246, 0.1) !important; }
-.theme-wayfs .border-ac-brown\/15 { border-color: rgba(139, 92, 246, 0.15) !important; }
-.theme-wayfs .border-ac-brown\/20 { border-color: rgba(139, 92, 246, 0.2) !important; }
-.theme-wayfs .border-ac-brown\/30 { border-color: rgba(139, 92, 246, 0.3) !important; }
-.theme-wayfs .ac-dotted-bg {
-  background-image: radial-gradient(rgba(139, 92, 246, 0.15) 1.5px, transparent 1.5px) !important;
-}
-.theme-wayfs .ac-leaf-pattern {
-  background-color: #8B5CF6 !important;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.2) 15%, transparent 16%) !important;
-}
-.theme-wayfs::-webkit-scrollbar-track {
-  background: #0F172A !important;
-}
-.theme-wayfs::-webkit-scrollbar-thumb {
-  background: #1E1B4B !important;
-  border: 2px solid #0F172A !important;
-}
-.theme-wayfs::-webkit-scrollbar-thumb:hover {
-  background: #8B5CF6 !important;
-}
+.theme-panda .bg-white { background-color: #121212 !important; color: #00ff88 !important; }
+.theme-panda .bg-\[\#FFFDF9\] { background-color: #121212 !important; color: #00ff88 !important; }
+.theme-panda .bg-\[\#FFFDF9\]\/60 { background-color: rgba(18, 18, 18, 0.6) !important; }
+.theme-panda .bg-ac-cream { background-color: #050505 !important; }
+.theme-panda .bg-ac-cream-dark { background-color: #121212 !important; }
+.theme-panda .bg-ac-green { background-color: #10b981 !important; color: #050505 !important; }
+.theme-panda .border-ac-brown { border-color: #10b981 !important; }
+.theme-panda .text-ac-brown { color: #00ff88 !important; }
+.theme-panda .text-ac-brown-light { color: #34d399 !important; }
 
 .scrollbar-none::-webkit-scrollbar {
   display: none;

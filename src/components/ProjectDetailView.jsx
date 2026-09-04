@@ -207,7 +207,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
       return {
         uid,
         name: meta?.username || storedMember.username || 'Membre',
-        photoURL: meta?.photoURL || storedMember.photoURL || '/pfp-ac.jpg',
+        photoURL: meta?.photoURL || storedMember.photoURL || '/utilisateur.png',
         role: isProjectOwner ? 'owner' : (storedMember.role || 'viewer')
       };
     });

@@ -492,10 +492,10 @@ export default function DebtsView() {
                     selectedFriend.allowDebts !== false ? (
                       <div className="flex items-center gap-2.5 p-2.5 bg-ac-green/10 border-2 border-dashed border-ac-green/30 rounded-2xl">
                         <img 
-                          src={selectedFriend.photoURL || '/pfp-ac.jpg'} 
+                          src={selectedFriend.photoURL || '/utilisateur.png'} 
                           alt={selectedFriend.name} 
                           className="w-8 h-8 rounded-full border-2 border-ac-brown object-cover shrink-0"
-                          onError={(e) => { e.target.src = '/pfp-ac.jpg'; }}
+                          onError={(e) => { e.target.src = '/utilisateur.png'; }}
                         />
                         <div className="text-xs min-w-0">
                           <p className="font-black text-ac-brown truncate">

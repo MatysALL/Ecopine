@@ -15,6 +15,7 @@ import ProjectsView from './components/ProjectsView';
 import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './components/TutorialComponents';
 import { PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users, Folder } from 'lucide-react';
 import TransactionModal from './components/TransactionModal';
+import { APP_THEMES } from './config/themes';
 
 export default function App() {
   const { isLoading, user, username, accounts, userMeta, activeTheme, isAdmin, tutorialProgress, pendingRequestsCount } = useDb();
@@ -108,27 +109,32 @@ export default function App() {
     }
   }, [activeTab, isAdmin]);
 
-  const activeThemeClass = useMemo(() => {
-    const map = {
-      'default': 'theme-default',
-      'red': 'theme-red',
-      'blue': 'theme-blue',
-      'yellow': 'theme-yellow',
-      'neon': 'theme-neon',
-      'wayfs': 'theme-wayfs',
-      'lea': 'theme-sakura'
-    };
-    return map[activeTheme] || 'theme-default';
+  const currentTheme = useMemo(() => {
+    return APP_THEMES[activeTheme] || APP_THEMES.default;
   }, [activeTheme]);
 
+  const activeThemeClass = useMemo(() => {
+    return `theme-${currentTheme.id}`;
+  }, [currentTheme]);
+
   useEffect(() => {
-    const themeClasses = ['theme-default', 'theme-red', 'theme-blue', 'theme-yellow', 'theme-neon', 'theme-wayfs', 'theme-sakura'];
-    themeClasses.forEach(c => document.body.classList.remove(c));
-    document.body.classList.add(activeThemeClass);
+    const { primary, secondary, text } = currentTheme.colors;
+    
+    // Inject dynamic CSS variables on document root
+    const root = document.documentElement;
+    root.style.setProperty('--theme-primary', primary);
+    root.style.setProperty('--theme-secondary', secondary);
+    root.style.setProperty('--theme-text', text);
+
+    const allThemeClasses = Object.keys(APP_THEMES).map(id => `theme-${id}`);
+    allThemeClasses.push('theme-sakura', 'theme-red', 'theme-blue', 'theme-yellow', 'theme-neon', 'theme-wayfs');
+    allThemeClasses.forEach(c => document.body.classList.remove(c));
+    document.body.classList.add(`theme-${currentTheme.id}`);
+    
     return () => {
-      themeClasses.forEach(c => document.body.classList.remove(c));
+      allThemeClasses.forEach(c => document.body.classList.remove(c));
     };
-  }, [activeThemeClass]);
+  }, [currentTheme]);
 
   // Navigate to accounts tab and focus on specific account details
   const handleViewAccountDetails = (accountId) => {
@@ -222,7 +228,14 @@ export default function App() {
   };
 
   return (
-    <div className={`flex flex-col md:flex-row bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30 transition-colors duration-300 ${activeThemeClass}`}>
+    <div 
+      className={`flex flex-col md:flex-row bg-ac-cream min-h-screen text-ac-brown selection:bg-ac-green/30 transition-colors duration-300 ${activeThemeClass}`}
+      style={{
+        '--theme-primary': currentTheme.colors.primary,
+        '--theme-secondary': currentTheme.colors.secondary,
+        '--theme-text': currentTheme.colors.text
+      }}
+    >
       {/* Mobile Top Header (only on mobile screens) */}
       {user && !needsOnboarding && (
         <header className="md:hidden flex justify-between items-center bg-ac-cream-dark border-b-3 border-ac-brown px-4 py-3 sticky top-0 z-30 select-none w-full">

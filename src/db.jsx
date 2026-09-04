@@ -670,8 +670,12 @@ export async function runFirestoreMigration() {
           updates.unlockedThemes = ['default'];
         }
 
-        if (typeof data.photoURL === 'string' && (data.photoURL.includes('googleusercontent.com') || data.photoURL.includes('lh3.google'))) {
-          updates.photoURL = '/pfp-ac.jpg';
+        if (!data.unlockedAvatars || !Array.isArray(data.unlockedAvatars)) {
+          updates.unlockedAvatars = ['utilisateur'];
+        }
+
+        if (typeof data.photoURL === 'string' && (data.photoURL.includes('googleusercontent.com') || data.photoURL.includes('lh3.google') || data.photoURL.includes('pfp-'))) {
+          updates.photoURL = '/utilisateur.png';
         }
 
         if (!data.createdAt) {
@@ -867,6 +871,7 @@ export const db = {
         'photoURL': 'photoURL',
         'theme_preference': 'themePreference',
         'unlocked_themes': 'unlockedThemes',
+        'unlocked_avatars': 'unlockedAvatars',
         'tutorial_progress': 'tutorialProgress'
       };
       const field = fieldMap[key];
@@ -888,6 +893,7 @@ export const db = {
         if (key === 'photoURL') return { key: 'photoURL', value: data.photoURL };
         if (key === 'theme_preference') return { key: 'theme_preference', value: data.themePreference || 'default' };
         if (key === 'unlocked_themes') return { key: 'unlocked_themes', value: data.unlockedThemes || ['default'] };
+        if (key === 'unlocked_avatars') return { key: 'unlocked_avatars', value: data.unlockedAvatars || ['utilisateur'] };
         if (key === 'tutorial_progress') return { key: 'tutorial_progress', value: data.tutorialProgress || { isCompleted: false, steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false } } };
       }
       return null;
@@ -911,6 +917,7 @@ export const db = {
         if (m.key === 'photoURL') fields.photoURL = m.value;
         if (m.key === 'theme_preference') fields.themePreference = m.value;
         if (m.key === 'unlocked_themes') fields.unlockedThemes = m.value;
+        if (m.key === 'unlocked_avatars') fields.unlockedAvatars = m.value;
         if (m.key === 'tutorial_progress') fields.tutorialProgress = m.value;
       });
       if (db._activeBatch) {
@@ -1711,7 +1718,7 @@ export const db = {
       const currentUid = auth.currentUser.uid;
       const metaDoc = await getDoc(doc(firestoreDb, 'users_meta', currentUid));
       const myUsername = metaDoc.exists() ? (metaDoc.data().username || auth.currentUser.displayName || 'Habitant') : 'Habitant';
-      const myPhotoURL = metaDoc.exists() ? (metaDoc.data().photoURL || auth.currentUser.photoURL || '/pfp-ac.jpg') : '/pfp-ac.jpg';
+      const myPhotoURL = metaDoc.exists() ? (metaDoc.data().photoURL || auth.currentUser.photoURL || '/utilisateur.png') : '/utilisateur.png';
 
       const projectDoc = {
         name: (name || 'Nouveau Projet').trim(),
@@ -1763,16 +1770,16 @@ export const db = {
           if (friendMetaDoc.exists()) {
             const data = friendMetaDoc.data();
             friendName = friendName || data.username || 'Habitant';
-            friendPhoto = friendPhoto || data.photoURL || '/pfp-ac.jpg';
+            friendPhoto = friendPhoto || data.photoURL || '/utilisateur.png';
           }
         } catch (e) {
           friendName = friendName || 'Habitant';
-          friendPhoto = friendPhoto || '/pfp-ac.jpg';
+          friendPhoto = friendPhoto || '/utilisateur.png';
         }
       }
 
       friendName = friendName || 'Habitant';
-      friendPhoto = friendPhoto || '/pfp-ac.jpg';
+      friendPhoto = friendPhoto || '/utilisateur.png';
 
       // Check friendship permission allowProjects if available
       try {
@@ -2108,10 +2115,11 @@ export const syncUserMeta = async (currentUser) => {
         email: currentUser.email ? currentUser.email.toLowerCase() : '',
         displayName: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
         username: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
-        photoURL: currentUser.photoURL || '/pfp-ac.jpg',
+        photoURL: '/utilisateur.png',
         role: currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
         themePreference: 'default',
         unlockedThemes: ['default'],
+        unlockedAvatars: ['utilisateur'],
         favoriteAccountId: null,
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
@@ -2129,12 +2137,21 @@ export const syncUserMeta = async (currentUser) => {
       });
     } else {
       const data = metaSnap.data();
-      await setDoc(metaRef, {
+      const updates = {
         lastLogin: new Date().toISOString(),
         displayName: currentUser.displayName || data.displayName || data.username || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
         username: data.username || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
-        photoURL: currentUser.photoURL || data.photoURL || '/pfp-ac.jpg'
-      }, { merge: true });
+      };
+      if (!data.photoURL || data.photoURL.includes('pfp-') || data.photoURL === '/pfp-ac.jpg') {
+        updates.photoURL = '/utilisateur.png';
+      }
+      if (!data.unlockedThemes || !Array.isArray(data.unlockedThemes)) {
+        updates.unlockedThemes = ['default'];
+      }
+      if (!data.unlockedAvatars || !Array.isArray(data.unlockedAvatars)) {
+        updates.unlockedAvatars = ['utilisateur'];
+      }
+      await setDoc(metaRef, updates, { merge: true });
     }
     console.log("[FIRESTORE] Profil users_meta synchronisé avec succès");
   } catch (err) {
@@ -2216,41 +2233,17 @@ export const DbProvider = ({ children }) => {
     return getActiveTheme(usersMetaDoc);
   }, [usersMetaDoc]);
 
-  // Permanent Theme Unlock Triggers Listener
+  // Theme sync listener: ensure themePreference is valid
   useEffect(() => {
     if (!currentUser || !usersMetaDoc) return;
-
     const unlocked = usersMetaDoc.unlockedThemes || ['default'];
-    const username = usersMetaDoc.username || '';
     const themePref = usersMetaDoc.themePreference || 'default';
 
-    let needsUpdate = false;
-    const nextUnlocked = [...unlocked];
-    let nextThemePref = themePref;
-
-    // 1. Easter Egg Léa
-    const normalizedUsername = username.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    if (normalizedUsername === 'lea' && !nextUnlocked.includes('lea')) {
-      nextUnlocked.push('lea');
-      nextThemePref = 'lea';
-      needsUpdate = true;
-      alert("🎉 Thème Sakura (Rose & Violet) débloqué pour toujours !");
-    }
-
-    // 2. Easter Egg Wayfs
-    if (username.toLowerCase().trim() === 'wayfs' && !nextUnlocked.includes('wayfs')) {
-      nextUnlocked.push('wayfs');
-      nextThemePref = 'wayfs';
-      needsUpdate = true;
-      alert("🎉 Thème Abyssal (Bleu & Violet) débloqué pour toujours !");
-    }
-
-    if (needsUpdate) {
+    if (!unlocked.includes(themePref)) {
       const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
       updateDoc(metaRef, {
-        unlockedThemes: nextUnlocked,
-        themePreference: nextThemePref
-      }).catch(err => console.error("Error unlocking theme:", err));
+        themePreference: 'default'
+      }).catch(err => console.error("Error resetting theme preference:", err));
     }
   }, [currentUser, usersMetaDoc]);
 
@@ -2266,10 +2259,11 @@ export const DbProvider = ({ children }) => {
       email: email.trim().toLowerCase(),
       username: firstname.trim(),
       displayName: firstname.trim(),
-      photoURL: '/pfp-ac.jpg',
+      photoURL: '/utilisateur.png',
       role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
       themePreference: 'default',
       unlockedThemes: ['default'],
+      unlockedAvatars: ['utilisateur'],
       favoriteAccountId: null,
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),
@@ -2343,8 +2337,14 @@ export const DbProvider = ({ children }) => {
         if (!data.email && currentUser.email) {
           updates.email = currentUser.email.toLowerCase();
         }
-        if (!data.photoURL) {
-          updates.photoURL = '/pfp-ac.jpg';
+        if (!data.photoURL || data.photoURL.includes('pfp-') || data.photoURL === '/pfp-ac.jpg') {
+          updates.photoURL = '/utilisateur.png';
+        }
+        if (!data.unlockedThemes || !Array.isArray(data.unlockedThemes)) {
+          updates.unlockedThemes = ['default'];
+        }
+        if (!data.unlockedAvatars || !Array.isArray(data.unlockedAvatars)) {
+          updates.unlockedAvatars = ['utilisateur'];
         }
         if (currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' && data.role !== 'admin') {
           updates.role = 'admin';
@@ -2360,10 +2360,11 @@ export const DbProvider = ({ children }) => {
           uid: currentUser.uid,
           email: currentUser.email ? currentUser.email.toLowerCase() : '',
           username: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
-          photoURL: currentUser.photoURL || '/pfp-ac.jpg',
+          photoURL: '/utilisateur.png',
           role: currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
           themePreference: 'default',
           unlockedThemes: ['default'],
+          unlockedAvatars: ['utilisateur'],
           favoriteAccountId: null,
           createdAt: new Date().toISOString(),
           tutorialProgress: {
@@ -2634,6 +2635,9 @@ export const DbProvider = ({ children }) => {
       if (usersMetaDoc.unlockedThemes !== undefined) {
         list.push({ key: 'unlocked_themes', value: usersMetaDoc.unlockedThemes });
       }
+      if (usersMetaDoc.unlockedAvatars !== undefined) {
+        list.push({ key: 'unlocked_avatars', value: usersMetaDoc.unlockedAvatars });
+      }
       if (usersMetaDoc.tutorialProgress !== undefined) {
         list.push({ key: 'tutorial_progress', value: usersMetaDoc.tutorialProgress });
       }
@@ -2748,7 +2752,7 @@ export const DbProvider = ({ children }) => {
           uid: friendUid,
           email: isSender ? f.receiverEmail : f.senderEmail,
           name: meta?.username || (isSender ? f.receiverName : f.senderName) || (isSender ? f.receiverEmail : f.senderEmail) || 'Habitant',
-          photoURL: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg',
+          photoURL: meta?.photoURL || meta?.avatarUrl || '/utilisateur.png',
           myAllowDebts: myPermissions.allowDebts !== false,
           myAllowProjects: myPermissions.allowProjects !== false,
           allowDebts: friendPermissions.allowDebts !== false,
@@ -2796,6 +2800,7 @@ export const DbProvider = ({ children }) => {
     activeTheme,
     getActiveTheme,
     unlockedThemes: usersMetaDoc?.unlockedThemes || ['default'],
+    unlockedAvatars: usersMetaDoc?.unlockedAvatars || ['utilisateur'],
     pendingRequestsCount,
     adminResetUser,
     adminDeleteUser,

@@ -109,7 +109,7 @@ export default function SocialView() {
         const senderMeta = allUsersMeta.find(m => m.uid === req.senderId);
         return {
           ...req,
-          avatar: senderMeta?.photoURL || senderMeta?.avatarUrl || '/pfp-ac.jpg',
+          avatar: senderMeta?.photoURL || senderMeta?.avatarUrl || '/utilisateur.png',
           name: senderMeta?.username || req.senderName || 'Habitant'
         };
       });
@@ -271,7 +271,7 @@ export default function SocialView() {
       return {
         uid,
         name: meta?.username || 'Habitant inconnu',
-        avatar: meta?.photoURL || meta?.avatarUrl || '/pfp-ac.jpg',
+        avatar: meta?.photoURL || meta?.avatarUrl || '/utilisateur.png',
         email: meta?.email || ''
       };
     }).sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
@@ -370,10 +370,10 @@ export default function SocialView() {
                     <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-ac-brown shrink-0 bg-white shadow-xs">
                         <img
-                          src={friend.photoURL || '/pfp-ac.jpg'}
+                          src={friend.photoURL || '/utilisateur.png'}
                           alt={friend.name}
                           className="w-full h-full object-cover object-center block"
-                          onError={(e) => { e.currentTarget.src = '/pfp-ac.jpg'; }}
+                          onError={(e) => { e.currentTarget.src = '/utilisateur.png'; }}
                         />
                       </div>
                       <div className="flex flex-col min-w-0">
@@ -511,10 +511,10 @@ export default function SocialView() {
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full overflow-hidden border border-ac-brown shrink-0 bg-white">
                         <img
-                          src={req.avatar || '/pfp-ac.jpg'}
+                          src={req.avatar || '/utilisateur.png'}
                           alt={req.name}
                           className="w-full h-full object-cover object-center block"
-                          onError={(e) => { e.currentTarget.src = '/pfp-ac.jpg'; }}
+                          onError={(e) => { e.currentTarget.src = '/utilisateur.png'; }}
                         />
                       </div>
                       <div className="flex flex-col min-w-0">
@@ -663,10 +663,10 @@ export default function SocialView() {
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-full overflow-hidden border border-ac-brown shrink-0 bg-white">
                         <img
-                          src={redUser.avatar || '/pfp-ac.jpg'}
+                          src={redUser.avatar || '/utilisateur.png'}
                           alt={redUser.name}
                           className="w-full h-full object-cover object-center block"
-                          onError={(e) => { e.currentTarget.src = '/pfp-ac.jpg'; }}
+                          onError={(e) => { e.currentTarget.src = '/utilisateur.png'; }}
                         />
                       </div>
                       <div className="flex flex-col min-w-0">
@@ -740,10 +740,10 @@ export default function SocialView() {
             <div className="p-3 bg-ac-cream/70 border-2 border-ac-brown/20 rounded-2xl flex items-center gap-3">
               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-ac-brown shrink-0 bg-white">
                 <img
-                  src={friendForPermissions.photoURL || '/pfp-ac.jpg'}
+                  src={friendForPermissions.photoURL || '/utilisateur.png'}
                   alt={friendForPermissions.name}
                   className="w-full h-full object-cover"
-                  onError={(e) => { e.currentTarget.src = '/pfp-ac.jpg'; }}
+                  onError={(e) => { e.currentTarget.src = '/utilisateur.png'; }}
                 />
               </div>
               <div className="min-w-0 flex-1">
