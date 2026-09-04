@@ -164,6 +164,19 @@ html, body {
   box-shadow: 0 10px 0 0 rgba(15, 23, 42, 0.5) !important;
 }
 
+/* Custom Account Cards (Guaranteed to preserve assigned colors across all themes) */
+.account-card:not(.project-account-card) {
+  border-width: 3px;
+  border-style: solid;
+  border-radius: 1.5rem;
+  box-shadow: 0 8px 0 0 rgba(74, 62, 61, 0.12);
+}
+
+.account-card:not(.project-account-card):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 0 0 rgba(74, 62, 61, 0.15);
+}
+
 .ac-btn {
   display: inline-flex;
   align-items: center;
@@ -206,9 +219,10 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
   background-color: #dcfce7 !important;
   color: #111827 !important;
 }
-.theme-default .ac-card {
+.theme-default .ac-card:not(.account-card) {
   background-color: #ffffff !important;
   border-color: #111827 !important;
+  color: #111827 !important;
   box-shadow: 0 8px 0 0 rgba(17, 24, 39, 0.12) !important;
 }
 .theme-default .bg-white { background-color: #ffffff !important; }
@@ -217,6 +231,8 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
 .theme-default .bg-ac-cream-dark { background-color: #bbf7d0 !important; }
 .theme-default .bg-ac-green { background-color: #86efac !important; color: #111827 !important; }
 .theme-default .border-ac-brown { border-color: #111827 !important; }
+.theme-default .text-ac-brown { color: #111827 !important; }
+.theme-default .text-ac-brown-light { color: #374151 !important; }
 
 /* ==========================================================================
    THEME 2: JOUR (Jour Pur - /corbeau.png)
@@ -235,9 +251,10 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
   background-color: #f8fafc !important;
   color: #0f172a !important;
 }
-.theme-jour .ac-card {
+.theme-jour .ac-card:not(.account-card) {
   background-color: #ffffff !important;
   border-color: #0f172a !important;
+  color: #0f172a !important;
   box-shadow: 0 8px 0 0 rgba(15, 23, 42, 0.08) !important;
 }
 .theme-jour .bg-white { background-color: #ffffff !important; }
@@ -246,6 +263,8 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
 .theme-jour .bg-ac-cream-dark { background-color: #f1f5f9 !important; }
 .theme-jour .bg-ac-green { background-color: #e2e8f0 !important; color: #0f172a !important; }
 .theme-jour .border-ac-brown { border-color: #0f172a !important; }
+.theme-jour .text-ac-brown { color: #0f172a !important; }
+.theme-jour .text-ac-brown-light { color: #475569 !important; }
 
 /* ==========================================================================
    THEME 3: NUIT (Nuit Profonde - /chouette.png)
@@ -264,7 +283,7 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
   background-color: #0f172a !important;
   color: #f8fafc !important;
 }
-.theme-nuit .ac-card {
+.theme-nuit .ac-card:not(.account-card) {
   background-color: #1e293b !important;
   border-color: #334155 !important;
   color: #f8fafc !important;
@@ -286,7 +305,7 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
 .theme-feu, body.theme-feu {
   --theme-primary: #ea580c;
   --theme-secondary: #ffedd5;
-  --theme-text: #fef08a;
+  --theme-text: #431407;
   --color-ac-cream: #ffedd5;
   --color-ac-cream-dark: #fed7aa;
   --color-ac-green: #ea580c;
@@ -297,9 +316,10 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
   background-color: #ffedd5 !important;
   color: #431407 !important;
 }
-.theme-feu .ac-card {
+.theme-feu .ac-card:not(.account-card) {
   background-color: #fff7ed !important;
   border-color: #ea580c !important;
+  color: #431407 !important;
   box-shadow: 0 8px 0 0 rgba(234, 88, 12, 0.15) !important;
 }
 .theme-feu .bg-white { background-color: #fff7ed !important; }
@@ -308,6 +328,8 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
 .theme-feu .bg-ac-cream-dark { background-color: #fed7aa !important; }
 .theme-feu .bg-ac-green { background-color: #ea580c !important; color: #fef08a !important; }
 .theme-feu .border-ac-brown { border-color: #ea580c !important; }
+.theme-feu .text-ac-brown { color: #431407 !important; }
+.theme-feu .text-ac-brown-light { color: #7c2d12 !important; }
 
 /* ==========================================================================
    THEME 5: NEIGE (Toundra Enneigée - /loup.png)
@@ -326,9 +348,10 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
   background-color: #bae6fd !important;
   color: #0c4a6e !important;
 }
-.theme-neige .ac-card {
+.theme-neige .ac-card:not(.account-card) {
   background-color: #f0f9ff !important;
   border-color: #0c4a6e !important;
+  color: #0c4a6e !important;
   box-shadow: 0 8px 0 0 rgba(12, 74, 110, 0.15) !important;
 }
 .theme-neige .bg-white { background-color: #f0f9ff !important; }
@@ -337,6 +360,8 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
 .theme-neige .bg-ac-cream-dark { background-color: #7dd3fc !important; }
 .theme-neige .bg-ac-green { background-color: #38bdf8 !important; color: #0c4a6e !important; }
 .theme-neige .border-ac-brown { border-color: #0c4a6e !important; }
+.theme-neige .text-ac-brown { color: #0c4a6e !important; }
+.theme-neige .text-ac-brown-light { color: #0369a1 !important; }
 
 /* ==========================================================================
    THEME 6: CHAT (Bêtises & Fun - /chat.png)
@@ -355,9 +380,10 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
   background-color: #a7f3d0 !important;
   color: #18181b !important;
 }
-.theme-chat .ac-card {
+.theme-chat .ac-card:not(.account-card) {
   background-color: #ffffff !important;
   border-color: #18181b !important;
+  color: #18181b !important;
   box-shadow: 0 8px 0 0 rgba(24, 24, 27, 0.15) !important;
 }
 .theme-chat .bg-white { background-color: #ffffff !important; }
@@ -366,6 +392,8 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
 .theme-chat .bg-ac-cream-dark { background-color: #6ee7b7 !important; }
 .theme-chat .bg-ac-green { background-color: #f43f5e !important; color: #ffffff !important; }
 .theme-chat .border-ac-brown { border-color: #18181b !important; }
+.theme-chat .text-ac-brown { color: #18181b !important; }
+.theme-chat .text-ac-brown-light { color: #3f3f46 !important; }
 
 /* ==========================================================================
    THEME 7: PANDA (Néon Moderne - /panda.png)
@@ -384,7 +412,7 @@ body, .app-container, .ac-card, .ac-btn, header, main, sidebar, aside, nav, butt
   background-color: #050505 !important;
   color: #00ff88 !important;
 }
-.theme-panda .ac-card {
+.theme-panda .ac-card:not(.account-card) {
   background-color: #121212 !important;
   border-color: #10b981 !important;
   color: #00ff88 !important;

@@ -2846,11 +2846,31 @@ export const resolveColorHex = (color) => {
   return found ? found.hex : color;
 };
 
+export const isLightColor = (color) => {
+  if (!color) return false;
+  if (color === 'white' || color === '#ffffff' || color === '#FFF' || color === '#fff') return true;
+  const hex = resolveColorHex(color);
+  if (!hex || typeof hex !== 'string') return false;
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length !== 3 && cleanHex.length !== 6) return false;
+  const fullHex = cleanHex.length === 3 
+    ? cleanHex.split('').map(c => c + c).join('') 
+    : cleanHex;
+  const r = parseInt(fullHex.substring(0, 2), 16);
+  const g = parseInt(fullHex.substring(2, 4), 16);
+  const b = parseInt(fullHex.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return false;
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 185;
+};
+
 export const getCustomCardStyle = (color, isProject = false) => {
   if (isProject) {
     return { backgroundColor: '#1E232A', color: '#FFFFFF', borderColor: '#2E3440' };
   }
-  return { backgroundColor: resolveColorHex(color), color: '#FFFFFF' };
+  const resolved = resolveColorHex(color) || '#38bdf8';
+  const isLight = isLightColor(resolved);
+  return { backgroundColor: resolved, color: isLight ? '#0F172A' : '#FFFFFF' };
 };
 
 

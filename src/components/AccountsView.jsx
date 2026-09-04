@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { db, useDb, COLOR_PALETTE, getCustomCardStyle, resolveColorHex, getExecutionBadgeInfo, getActiveOrFavoriteAccount } from '../db';
+import { db, useDb, COLOR_PALETTE, getCustomCardStyle, resolveColorHex, isLightColor, getExecutionBadgeInfo, getActiveOrFavoriteAccount } from '../db';
 import { 
   collection, doc, setDoc, deleteDoc, query, where, onSnapshot, getDocs, writeBatch 
 } from 'firebase/firestore';
@@ -911,81 +911,89 @@ export default function AccountsView({
       {selectedAccountId && activeAccount ? (
         <div className="space-y-8 animate-fade-in">
           {/* Header & Account info banner */}
-          <div 
-            style={activeAccount.projectId ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: resolveColorHex(activeAccount.color), color: '#ffffff', borderColor: '#4A3E3D' }}
-            className={`flex flex-col md:flex-row md:items-center justify-between gap-6 rounded-3xl p-6 shadow-ac-sm transition-colors ${
-              activeAccount.projectId 
-                ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440]' 
-                : 'border-3 border-ac-brown text-white'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setSelectedAccountId(null)}
-                className={`border-2 rounded-full p-2 transition-colors cursor-pointer ${
-                  activeAccount.projectId 
-                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-white' 
-                    : 'bg-white/20 hover:bg-white/30 border-white/40 text-white'
+          {(() => {
+            const isDetailProj = Boolean(activeAccount.projectId);
+            const detailBg = isDetailProj ? '#1E232A' : (resolveColorHex(activeAccount.color) || '#38bdf8');
+            const isDetailLight = !isDetailProj && isLightColor(detailBg);
+
+            return (
+              <div 
+                style={isDetailProj ? { backgroundColor: '#1E232A', borderColor: '#2E3440', color: '#ffffff' } : { backgroundColor: detailBg, color: isDetailLight ? '#0f172a' : '#ffffff', borderColor: '#4A3E3D' }}
+                className={`account-card flex flex-col md:flex-row md:items-center justify-between gap-6 rounded-3xl p-6 shadow-ac-sm transition-colors ${
+                  isDetailProj 
+                    ? 'project-account-card bg-[#1E232A] text-white border-3 border-[#2E3440]' 
+                    : 'border-3 border-ac-brown'
                 }`}
               >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h2 className="text-2xl font-black flex items-center gap-2 flex-wrap text-white">
-                  {(() => {
-                    const accountName = activeAccount.name || "Compte";
-                    const projectName = activeAccount.projectName || (projects?.find(p => p.id === activeAccount.projectId)?.name) || "";
-                    return projectName ? `${accountName} - ${projectName}` : accountName;
-                  })()}
-                  {activeAccount.projectId && (
-                    <span className="text-xs font-black uppercase px-2.5 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
-                      📁 Projet
-                    </span>
-                  )}
-                  <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${
-                    activeAccount.projectId 
-                      ? 'bg-slate-800 text-slate-300 border-slate-700' 
-                      : 'text-white bg-white/20 border-white/30'
-                  }`}>
-                    {activeAccount.bank || activeAccount.bankName || '—'}
-                  </span>
-                </h2>
-                {activeAccount.description && (
-                  <p className={`text-[11px] font-semibold mt-2 italic ${activeAccount.projectId ? 'text-slate-300' : 'text-white/90'}`}>
-                    "{activeAccount.description}"
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <div className={`text-left md:text-right border-2 rounded-2xl px-6 py-2.5 min-w-[200px] ${
-                activeAccount.projectId 
-                  ? 'bg-slate-800/80 border-slate-700 text-white' 
-                  : 'bg-white/20 border-white/30 text-white'
-              }`}>
-                <span className={`text-[9px] font-black uppercase block ${activeAccount.projectId ? 'text-slate-400' : 'text-white/80'}`}>Solde Réel Principal</span>
-                <span className="text-2xl font-black text-white">
-                  {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                </span>
-              </div>
-              
-              {activeAccount.balance !== activeAccount.visibleBalance && (
-                <div className={`text-left md:text-right border-2 rounded-2xl px-6 py-2 min-w-[200px] animate-bounce-in ${
-                  activeAccount.visibleBalance < 0 
-                    ? 'bg-amber-500/20 border-amber-400 text-white' 
-                    : (activeAccount.projectId ? 'bg-slate-800/60 border-slate-700 text-white' : 'bg-white/20 border-white/30 text-white')
-                }`}>
-                  <span className={`text-[9px] font-black uppercase block flex items-center justify-start md:justify-end gap-1 ${activeAccount.visibleBalance < 0 ? 'text-amber-300' : (activeAccount.projectId ? 'text-slate-400' : 'text-white/80')}`}>
-                    Solde Disponible (indicatif) <Sparkles className="w-3 h-3 fill-ac-gold" />
-                  </span>
-                  <span className={`text-xl font-black ${activeAccount.visibleBalance < 0 ? 'text-amber-300' : (activeAccount.projectId ? 'text-ac-gold' : 'text-white')}`}>
-                    {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
-                  </span>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setSelectedAccountId(null)}
+                    className={`border-2 rounded-full p-2 transition-colors cursor-pointer ${
+                      isDetailProj 
+                        ? 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-white' 
+                        : (isDetailLight ? 'bg-black/5 hover:bg-black/10 border-slate-900/20 text-slate-800' : 'bg-white/20 hover:bg-white/30 border-white/40 text-white')
+                    }`}
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h2 className={`text-2xl font-black flex items-center gap-2 flex-wrap ${isDetailLight ? 'text-slate-900' : 'text-white'}`}>
+                      {(() => {
+                        const accountName = activeAccount.name || "Compte";
+                        const projectName = activeAccount.projectName || (projects?.find(p => p.id === activeAccount.projectId)?.name) || "";
+                        return projectName ? `${accountName} - ${projectName}` : accountName;
+                      })()}
+                      {activeAccount.projectId && (
+                        <span className="text-xs font-black uppercase px-2.5 py-0.5 bg-ac-gold/20 text-ac-gold border border-ac-gold/40 rounded-full">
+                          📁 Projet
+                        </span>
+                      )}
+                      <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${
+                        activeAccount.projectId 
+                          ? 'bg-slate-800 text-slate-300 border-slate-700' 
+                          : (isDetailLight ? 'bg-black/10 text-slate-800 border-slate-900/20' : 'text-white bg-white/20 border-white/30')
+                      }`}>
+                        {activeAccount.bank || activeAccount.bankName || '—'}
+                      </span>
+                    </h2>
+                    {activeAccount.description && (
+                      <p className={`text-[11px] font-semibold mt-2 italic ${activeAccount.projectId ? 'text-slate-300' : (isDetailLight ? 'text-slate-700' : 'text-white/90')}`}>
+                        "{activeAccount.description}"
+                      </p>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className={`text-left md:text-right border-2 rounded-2xl px-6 py-2.5 min-w-[200px] ${
+                    activeAccount.projectId 
+                      ? 'bg-slate-800/80 border-slate-700 text-white' 
+                      : (isDetailLight ? 'bg-black/5 border-slate-900/15 text-slate-900' : 'bg-white/20 border-white/30 text-white')
+                  }`}>
+                    <span className={`text-[9px] font-black uppercase block ${activeAccount.projectId ? 'text-slate-400' : (isDetailLight ? 'text-slate-600 font-bold' : 'text-white/80')}`}>Solde Réel Principal</span>
+                    <span className={`text-2xl font-black ${isDetailLight ? 'text-slate-900' : 'text-white'}`}>
+                      {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                    </span>
+                  </div>
+                  
+                  {activeAccount.balance !== activeAccount.visibleBalance && (
+                    <div className={`text-left md:text-right border-2 rounded-2xl px-6 py-2 min-w-[200px] animate-bounce-in ${
+                      activeAccount.visibleBalance < 0 
+                        ? 'bg-amber-500/20 border-amber-400 text-white' 
+                        : (activeAccount.projectId ? 'bg-slate-800/60 border-slate-700 text-white' : (isDetailLight ? 'bg-black/5 border-slate-900/15 text-slate-900' : 'bg-white/20 border-white/30 text-white'))
+                    }`}>
+                      <span className={`text-[9px] font-black uppercase block flex items-center justify-start md:justify-end gap-1 ${activeAccount.visibleBalance < 0 ? 'text-amber-500 font-bold' : (activeAccount.projectId ? 'text-slate-400' : (isDetailLight ? 'text-slate-600 font-bold' : 'text-white/80'))}`}>
+                        Solde Disponible (indicatif) <Sparkles className="w-3 h-3 fill-ac-gold" />
+                      </span>
+                      <span className={`text-xl font-black ${activeAccount.visibleBalance < 0 ? 'text-amber-500' : (activeAccount.projectId ? 'text-ac-gold' : (isDetailLight ? 'text-slate-900' : 'text-white'))}`}>
+                        {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Account Edit/Export/Import/Delete Controls */}
           <div className="flex flex-wrap gap-3 items-center">
@@ -1351,6 +1359,8 @@ export default function AccountsView({
                       const isDefaultFavorite = !storedFavoriteId && activeFavoriteAccount?.id === acc.id;
                       const isFavorite = isExplicitFavorite || isDefaultFavorite;
                       const titleText = acc.name || acc.title || "Compte";
+                      const cardBg = resolveColorHex(acc.color) || '#38bdf8';
+                      const isCardLight = isLightColor(cardBg);
 
                       return (
                         <div 
@@ -1361,17 +1371,19 @@ export default function AccountsView({
                           onDragOver={handleDragOver}
                           onDragEnd={handleDragEnd}
                           onClick={() => setSelectedAccountId(acc.id)}
-                          style={{ backgroundColor: resolveColorHex(acc.color), color: '#ffffff' }}
-                          className={`ac-card account-card p-5 cursor-grab active:cursor-grabbing relative group overflow-visible flex flex-col justify-between transition-all duration-200 border-ac-brown text-white ${
+                          style={{ backgroundColor: cardBg, color: isCardLight ? '#0f172a' : '#ffffff' }}
+                          className={`ac-card account-card p-5 cursor-grab active:cursor-grabbing relative group overflow-visible flex flex-col justify-between transition-all duration-200 border-ac-brown ${
+                            isCardLight ? 'text-slate-900' : 'text-white'
+                          } ${
                             draggedIndex === index ? 'opacity-40 scale-95 border-dashed border-2 border-green-500' : ''
                           }`}
                         >
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-sm leading-tight break-words text-white">
+                              <h3 className={`font-bold text-sm leading-tight break-words ${isCardLight ? 'text-slate-900' : 'text-white'}`}>
                                 {titleText}
                               </h3>
-                              <span className="text-[10px] font-bold block mt-1.5 text-white/80">
+                              <span className={`text-[10px] font-bold block mt-1.5 ${isCardLight ? 'text-slate-700' : 'text-white/80'}`}>
                                 🏦 {acc.bank || acc.bankName || '—'}
                               </span>
                             </div>
@@ -1381,25 +1393,29 @@ export default function AccountsView({
                                 type="button"
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => handleToggleFavorite(e, acc.id)}
-                                className="w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer bg-white/20 hover:bg-white/30 border-white/30"
+                                className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
+                                  isCardLight 
+                                    ? 'bg-black/10 hover:bg-black/15 border-slate-900/20' 
+                                    : 'bg-white/20 hover:bg-white/30 border-white/30'
+                                }`}
                                 title={isExplicitFavorite ? "Compte favori actuel" : (isDefaultFavorite ? "Compte principal par défaut (index 0)" : "Définir comme compte favori")}
                               >
-                                <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-300 fill-amber-300' : 'text-white/60 hover:text-amber-300'}`} />
+                                <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-400 fill-amber-400' : (isCardLight ? 'text-slate-500 hover:text-amber-500' : 'text-white/60 hover:text-amber-300')}`} />
                               </button>
                             </div>
                           </div>
 
-                          <div className="mt-4 pt-3 border-t border-white/20 flex justify-between items-baseline">
-                            <span className="text-[10px] font-black uppercase tracking-wide text-white/80">Solde Réel</span>
-                            <span className="font-black text-base text-white">
+                          <div className={`mt-4 pt-3 border-t flex justify-between items-baseline ${isCardLight ? 'border-slate-900/15' : 'border-white/20'}`}>
+                            <span className={`text-[10px] font-black uppercase tracking-wide ${isCardLight ? 'text-slate-600 font-bold' : 'text-white/80'}`}>Solde Réel</span>
+                            <span className={`font-black text-base ${isCardLight ? 'text-slate-900' : 'text-white'}`}>
                               {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                             </span>
                           </div>
 
                           {acc.balance !== acc.visibleBalance && (
-                            <div className="text-[9px] font-extrabold flex justify-between items-center mt-1 text-white/80">
+                            <div className={`text-[9px] font-extrabold flex justify-between items-center mt-1 ${isCardLight ? 'text-slate-600' : 'text-white/80'}`}>
                               <span>Solde disponible :</span>
-                              <span className={acc.visibleBalance < 0 ? 'text-amber-300 font-black' : 'text-white/90 font-black'}>
+                              <span className={acc.visibleBalance < 0 ? 'text-amber-500 font-black' : (isCardLight ? 'text-slate-900 font-black' : 'text-white/90 font-black')}>
                                 {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
                               </span>
                             </div>
