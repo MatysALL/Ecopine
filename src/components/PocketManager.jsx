@@ -293,7 +293,7 @@ export default function PocketManager({ accountId, role }) {
               <Coins className="w-4 h-4 text-ac-gold fill-ac-gold" /> Pochettes virtuelles de l'habitant
             </h3>
             <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-white border border-ac-brown/30 text-ac-brown">
-              Solde Réel : <strong>{(realBalance ?? 0).toLocaleString('fr-FR')} 🔔</strong>
+              Solde Réel : <strong>{(realBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong>
             </span>
           </div>
           
@@ -303,12 +303,12 @@ export default function PocketManager({ accountId, role }) {
                 ? 'bg-amber-100 border-amber-300 text-amber-800' 
                 : 'bg-white/80 border-ac-brown/20 text-ac-green'
             }`}>
-              Solde disponible : <strong>{(availableBalance ?? 0).toLocaleString('fr-FR')} 🔔</strong>
+              Solde disponible : <strong>{(availableBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong>
             </span>
             <span className="text-ac-brown-light">•</span>
-            <span>Alloué aux poches : <strong>{(totalAllocated ?? 0).toLocaleString('fr-FR')} 🔔</strong></span>
+            <span>Alloué aux poches : <strong>{(totalAllocated ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong></span>
             <span className="text-ac-brown-light">•</span>
-            <span>Restant : <strong>{(totalCurrent ?? 0).toLocaleString('fr-FR')} 🔔</strong></span>
+            <span>Restant : <strong>{(totalCurrent ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong></span>
           </div>
         </div>
         {role !== 'viewer' && (
@@ -351,7 +351,7 @@ export default function PocketManager({ accountId, role }) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Montant alloué (🔔)</label>
+                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Montant alloué (en euros)</label>
                 <input
                   type="number"
                   value={allocatedAmount}
@@ -489,7 +489,7 @@ export default function PocketManager({ accountId, role }) {
         <div className="text-center py-10 bg-white border-2 border-dashed border-ac-brown/20 rounded-3xl">
           <AlertCircle className="w-8 h-8 text-ac-brown-light mx-auto mb-2 opacity-55" />
           <p className="text-xs font-bold text-ac-brown-light">
-            Aucune poche de clochettes créée sur ce compte.
+            Aucune poche créée sur ce compte.
           </p>
         </div>
       ) : (
@@ -587,10 +587,10 @@ export default function PocketManager({ accountId, role }) {
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-baseline text-xs font-black">
                     <span className="text-white text-base">
-                      {(Math.round(current) ?? 0).toLocaleString('fr-FR')} 🔔
+                      {(Math.round(current) ?? 0).toLocaleString('fr-FR')} €
                     </span>
                     <span className="text-white/80 text-[10px]">
-                      sur {(allocated ?? 0).toLocaleString('fr-FR')} 🔔
+                      sur {(allocated ?? 0).toLocaleString('fr-FR')} €
                     </span>
                   </div>
 
@@ -631,7 +631,7 @@ export default function PocketManager({ accountId, role }) {
 
             <form onSubmit={handleDebitSubmit} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Montant à déduire (🔔)</label>
+                <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Montant à déduire (en euros)</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -641,7 +641,7 @@ export default function PocketManager({ accountId, role }) {
                     className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 text-xs font-bold focus:outline-none focus:bg-white"
                     required
                   />
-                  <span className="absolute left-2.5 top-3.5 text-xs font-black">🔔</span>
+                  <span className="absolute left-2.5 top-3.5 text-xs font-black">€</span>
                 </div>
               </div>
 

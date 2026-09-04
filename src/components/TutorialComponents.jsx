@@ -106,12 +106,12 @@ export function TutorialSpotlight({ activeTab, onValidate, onClose }) {
     calendar: {
       stepKey: 'calendar',
       title: 'Calendrier Économique',
-      msg: 'Le calendrier te permet de planifier tes renouvellements de budget et d\'anticiper tes échéances de clochettes du mois !'
+      msg: 'Le calendrier te permet de planifier tes renouvellements de budget et d\'anticiper tes échéances du mois !'
     },
     debts: {
       stepKey: 'debts',
       title: 'Registre des Dettes',
-      msg: 'Tu as prêté des clochettes à un habitant ? Note-le ici ! Tu pourras lier une dette directement à un ami pour solder tes comptes en un clic.'
+      msg: 'Tu as prêté de l\'argent à un habitant ? Note-le ici ! Tu pourras lier une dette directement à un ami pour solder tes comptes en un clic.'
     },
     wishlist: {
       stepKey: 'wishlist',

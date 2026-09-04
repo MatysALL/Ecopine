@@ -534,7 +534,7 @@ export default function DebtsView() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Montant *</label>
+              <label className="block text-[10px] font-black uppercase text-ac-brown-light mb-1">Montant (en euros) *</label>
               <div className="relative">
                 <input
                   type="number"
@@ -546,7 +546,7 @@ export default function DebtsView() {
                   className="w-full bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 py-2 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                   required
                 />
-                <span className="absolute left-3 top-2.5 text-xs font-black">🔔</span>
+                <span className="absolute left-3 top-2.5 text-xs font-black">€</span>
               </div>
             </div>
 
@@ -648,7 +648,7 @@ export default function DebtsView() {
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-ac-brown/10 sm:border-t-0 pt-3 sm:pt-0 shrink-0">
                       <span className="font-black text-ac-red text-sm bg-white border border-ac-brown/25 px-2.5 py-1 rounded-full shadow-ac-xs">
-                        -{formattedAmount} 🔔
+                        -{formattedAmount} €
                       </span>
 
                       <div className="flex gap-1.5">
@@ -714,7 +714,7 @@ export default function DebtsView() {
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-ac-brown/10 sm:border-t-0 pt-3 sm:pt-0 shrink-0">
                       <span className="font-black text-ac-green text-sm bg-white border border-ac-brown/25 px-2.5 py-1 rounded-full shadow-ac-xs">
-                        +{formattedAmount} 🔔
+                        +{formattedAmount} €
                       </span>
 
                       <div className="flex gap-1.5">
@@ -791,7 +791,7 @@ export default function DebtsView() {
                   </p>
                   <p className="text-sm font-extrabold">{settlingDebt.entityName || settlingDebt.person || settlingDebt.name || 'Dette'}</p>
                   <p className={`text-xs font-black ${settlingDebt.type === 'to_pay' ? 'text-ac-red' : 'text-ac-green'}`}>
-                    Montant : {(settlingDebt.amount ?? 0).toLocaleString('fr-FR')} 🔔
+                    Montant : {(settlingDebt.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                   </p>
                 </div>
 
@@ -809,7 +809,7 @@ export default function DebtsView() {
                       <option value="">-- Choisir le compte concerné --</option>
                       {accounts.map(acc => (
                         <option key={acc.id} value={acc.id}>
-                          {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR')} 🔔 disponible)
+                          {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € disponible)
                         </option>
                       ))}
                     </select>

@@ -92,7 +92,7 @@ export default function Settings() {
   };
 
   const handleResetTutorial = async () => {
-    if (!window.confirm("Veux-tu relancer le tutoriel d'installation Nook ? Tes tampons seront réinitialisés mais tes clochettes et comptes restent intacts !")) return;
+    if (!window.confirm("Veux-tu relancer le tutoriel d'installation ? Tes tampons seront réinitialisés mais tes euros et comptes restent intacts !")) return;
 
     try {
       await db.user_meta.put({

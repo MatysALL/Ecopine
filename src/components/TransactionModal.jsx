@@ -149,7 +149,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
           {/* Amount and Date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (Clochettes) *</label>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (en euros) *</label>
               <div className="relative">
                 <input
                   type="number"
@@ -161,7 +161,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                   className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-8 pr-4 text-sm font-bold focus:outline-none focus:bg-white"
                   required
                 />
-                <span className="absolute left-3 top-3.5 text-xs font-black">🔔</span>
+                <span className="absolute left-3 top-3.5 text-xs font-black">€</span>
               </div>
             </div>
 
@@ -250,7 +250,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction,
                   const pAmt = p.currentAmount !== undefined ? Number(p.currentAmount) : Number(p.allocatedAmount);
                   return (
                     <option key={p.id} value={p.id}>
-                      🍃 {p.name} ({(!isNaN(pAmt) ? pAmt : 0).toLocaleString('fr-FR')} 🔔 dispo)
+                      🍃 {p.name} ({(!isNaN(pAmt) ? pAmt : 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € dispo)
                     </option>
                   );
                 })}

@@ -320,7 +320,7 @@ export default function WishlistView() {
         <div className="text-center py-12 bg-white rounded-3xl border-3 border-ac-brown text-ac-brown-light space-y-4">
           <Gift className="w-12 h-12 text-ac-brown-light/45 mx-auto" />
           <p className="font-extrabold text-sm">Ton catalogue de souhaits est vide.</p>
-          <p className="text-xs max-w-sm mx-auto">Ajoute ton premier souhait de clochettes en cliquant sur le bouton "Nouveau Souhait" en haut à droite ! 🍃</p>
+          <p className="text-xs max-w-sm mx-auto">Ajoute ton premier souhait en cliquant sur le bouton "Nouveau Souhait" en haut à droite ! 🍃</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -481,7 +481,7 @@ export default function WishlistView() {
                 <form onSubmit={handleConfirmPurchase} className="space-y-4">
                   <div>
                     <label className="block text-xs font-black uppercase text-ac-brown-light mb-1.5">
-                      Prix réel payé (Clochettes) *
+                      Prix réel payé (en euros) *
                     </label>
                     <div className="relative">
                       <input
@@ -494,7 +494,7 @@ export default function WishlistView() {
                         className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-10 pr-4 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                         required
                       />
-                      <span className="absolute left-3.5 top-3 text-sm font-black">🔔</span>
+                      <span className="absolute left-3.5 top-3 text-sm font-black">€</span>
                     </div>
                   </div>
 
@@ -511,7 +511,7 @@ export default function WishlistView() {
                       <option value="">-- Choisir le compte de débit --</option>
                       {accounts?.map(acc => (
                         <option key={acc.id} value={acc.id}>
-                          {acc.name} (Solde : {(acc.visibleBalance ?? acc.currentBalance ?? acc.balance ?? 0).toLocaleString('fr-FR')} 🔔)
+                          {acc.name} (Solde : {(acc.visibleBalance ?? acc.currentBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)
                         </option>
                       ))}
                     </select>

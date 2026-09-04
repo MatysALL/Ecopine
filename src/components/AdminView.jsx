@@ -899,7 +899,7 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
 
     case 'accounts': {
       const totalBalance = calculateAccountBalance(row, allTransactions);
-      const displayBalance = totalBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' 🔔';
+      const displayBalance = totalBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
       return (
         <>
           <td className="p-3.5 font-black text-ac-brown flex items-center gap-2">
@@ -928,8 +928,8 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
             )}
             <span>{row.name || 'Poche sans nom'}</span>
           </td>
-          <td className="p-3.5 font-black text-ac-brown">{(allocated ?? 0).toLocaleString('fr-FR')} 🔔</td>
-          <td className="p-3.5 font-black text-ac-green">{(current ?? 0).toLocaleString('fr-FR')} 🔔</td>
+          <td className="p-3.5 font-black text-ac-brown">{(allocated ?? 0).toLocaleString('fr-FR')} €</td>
+          <td className="p-3.5 font-black text-ac-green">{(current ?? 0).toLocaleString('fr-FR')} €</td>
           <td className="p-3.5 font-bold text-ac-brown-light text-[10px]">
             {row.renewalFrequency && row.renewalFrequency !== 'none' ? (
               <span className="capitalize">{row.renewalFrequency}</span>
@@ -951,7 +951,7 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
             {row.name || row.title || row.description || 'Transaction'}
           </td>
           <td className={`p-3.5 font-black ${isCredit ? 'text-ac-green' : 'text-ac-brown'}`}>
-            {isCredit ? '+' : '-'}{(row.amount ?? 0).toLocaleString('fr-FR')} 🔔
+            {isCredit ? '+' : '-'}{(row.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
           </td>
           <td className="p-3.5 font-bold">
             <div className="flex items-center gap-1 flex-wrap">
@@ -992,7 +992,7 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
       return (
         <>
           <td className="p-3.5 font-black text-ac-brown">{row.entityName || row.name || row.person || 'Entité'}</td>
-          <td className="p-3.5 font-black text-ac-brown">{(row.amount ?? 0).toLocaleString('fr-FR')} 🔔</td>
+          <td className="p-3.5 font-black text-ac-brown">{(row.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</td>
           <td className="p-3.5 font-bold text-ac-brown-light italic">{row.description || '—'}</td>
           <td className="p-3.5">
             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
@@ -1012,7 +1012,7 @@ function renderTableCells(row, tableId, getOwnerInfo, allTransactions = []) {
         <>
           <td className="p-3.5 font-black text-ac-brown">{row.debtorName || '—'}</td>
           <td className="p-3.5 font-bold text-ac-brown">{row.creditorName || '—'}</td>
-          <td className="p-3.5 font-black text-ac-brown">{(row.amount ?? 0).toLocaleString('fr-FR')} 🔔</td>
+          <td className="p-3.5 font-black text-ac-brown">{(row.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</td>
           <td className="p-3.5 font-bold text-ac-brown-light text-xs">{row.projectName || row.projectId || '—'}</td>
           <td className="p-3.5">
             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
@@ -1199,7 +1199,7 @@ function renderEditFormFields(tableId, data, setData) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant alloué (🔔)</label>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant alloué (en euros)</label>
               <input
                 type="number"
                 value={data.allocatedAmount || 0}
@@ -1209,7 +1209,7 @@ function renderEditFormFields(tableId, data, setData) {
               />
             </div>
             <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant restant (🔔)</label>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant restant (en euros)</label>
               <input
                 type="number"
                 value={data.currentAmount !== undefined ? data.currentAmount : data.allocatedAmount}
@@ -1283,7 +1283,7 @@ function renderEditFormFields(tableId, data, setData) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (🔔)</label>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (en euros)</label>
               <input
                 type="number"
                 step="any"
@@ -1394,7 +1394,7 @@ function renderEditFormFields(tableId, data, setData) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (🔔)</label>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (en euros)</label>
               <input
                 type="number"
                 value={data.amount || 0}
@@ -1467,7 +1467,7 @@ function renderEditFormFields(tableId, data, setData) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (🔔)</label>
+              <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (en euros)</label>
               <input
                 type="number"
                 value={data.amount || 0}

@@ -144,7 +144,7 @@ export default function EconomicCalendar() {
             <Calendar className="w-6 h-6 text-ac-sky animate-bounce" /> Le Calendrier Économique
           </h2>
           <p className="text-xs font-semibold text-ac-brown-light mt-0.5">
-            Visualise ton flux quotidien de clochettes.
+            Visualise ton flux quotidien en euros.
           </p>
         </div>
       </div>
@@ -250,7 +250,7 @@ export default function EconomicCalendar() {
                 {cell.isCurrentMonth && dayTxs.length > 0 && (
                   <div className="hidden md:block text-[8px] md:text-[10px] font-bold text-left mt-0.5 md:mt-1">
                     <div className="font-extrabold truncate">
-                      {netFlow > 0 ? `+${Math.round(netFlow)}` : Math.round(netFlow)} 🔔
+                      {netFlow > 0 ? `+${Math.round(netFlow)}` : Math.round(netFlow)} €
                     </div>
                   </div>
                 )}
@@ -304,7 +304,7 @@ export default function EconomicCalendar() {
                               </div>
 
                               <span className={`font-black whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                                {isIncome ? '+' : '-'}{(Number(tx.amount) || 0).toFixed(2)} 🔔
+                                {isIncome ? '+' : '-'}{(Number(tx.amount) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                               </span>
                             </div>
                           );
@@ -363,7 +363,7 @@ export default function EconomicCalendar() {
                       </div>
                     </div>
                     <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                      {isIncome ? '+' : '-'}{(Number(tx.amount) || 0).toFixed(2)} 🔔
+                      {isIncome ? '+' : '-'}{(Number(tx.amount) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                     </span>
                   </div>
                 );
@@ -425,7 +425,7 @@ export default function EconomicCalendar() {
                         </div>
                       </div>
                       <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                        {isIncome ? '+' : '-'}{Number(tx.amount).toFixed(2)} 🔔
+                        {isIncome ? '+' : '-'}{(Number(tx.amount) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                       </span>
                     </div>
                   );

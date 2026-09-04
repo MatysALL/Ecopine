@@ -85,7 +85,7 @@ export default function OnboardingModal() {
               Bonjour, nouvel habitant ! <Sparkles className="w-4 h-4 text-ac-gold fill-ac-gold" />
             </h3>
             <p className="text-xs font-bold leading-relaxed text-ac-brown-light">
-              "Oui, oui ! Bienvenue sur ton île budgétaire. Commençons par configurer ton carnet de clochettes pour que tu puisses suivre tes économies."
+              "Oui, oui ! Bienvenue sur ton île budgétaire. Commençons par configurer ton carnet de comptes pour que tu puisses suivre tes économies."
             </p>
             <div className="w-3.5 h-3.5 bg-ac-gold-light border-l-3 border-t-3 border-ac-brown absolute left-[-8.5px] top-10 transform -translate-y-1/2 -rotate-45 hidden md:block"></div>
           </div>

@@ -1,8 +1,8 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { useDb, getCustomCardStyle, resolveColorHex, isLightColor, getExecutionBadgeInfo, getActiveOrFavoriteAccount } from '../db';
 import { 
   Coins, ArrowRight, TrendingUp, TrendingDown, Sparkles, Shield, 
-  ChevronRight, Gift, Activity, Smile, Handshake
+  ChevronRight, Gift, Activity, Handshake
 } from 'lucide-react';
 
 export default function Dashboard({ 
@@ -23,66 +23,6 @@ export default function Dashboard({
     wishlist, pockets, debts, user 
   } = useDb();
 
-  // 6 Financial Advices for Tom Nook
-  const nookAdvices = [
-    "Économise tes clochettes aujourd'hui pour t'offrir la maison de tes rêves demain ! Oui, oui !",
-    "Un prêt à taux zéro, c'est une affaire en or ! Pense à placer tes clochettes régulièrement.",
-    "Pense à placer tes clochettes avant que le cours du navet ne chute !",
-    "Agrandir ta maison demande des sacrifices économiques constants...",
-    "Chaque projet de pont ou de rampe demande la participation de tous, mais surtout la tienne ! Oui, oui !",
-    "Gère bien tes comptes pour garder un solde toujours positif, oui oui !"
-  ];
-
-  // In-memory state for Tom Nook Easter Egg (no DB / localStorage persistence)
-  const [nookStep, setNookStep] = useState(0);
-  const [isSold, setIsSold] = useState(false);
-  const [isShaking, setIsShaking] = useState(false);
-  const [isNookCollapsed, setIsNookCollapsed] = useState(false);
-  const shakeTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      if (shakeTimeoutRef.current) clearTimeout(shakeTimeoutRef.current);
-    };
-  }, []);
-
-  // Reset function to clear Easter Egg state in RAM
-  const resetTomNookState = () => {
-    setNookStep(0);
-    setIsSold(false);
-  };
-
-  const handleBannerClick = () => {
-    if (isSold) return;
-
-    const nextStep = nookStep + 1;
-    setNookStep(nextStep);
-
-    // Trigger reactive shake animation feedback on click (duration: 250ms)
-    if (nextStep < 14) {
-      if (shakeTimeoutRef.current) clearTimeout(shakeTimeoutRef.current);
-      setIsShaking(false);
-      setTimeout(() => {
-        setIsShaking(true);
-        shakeTimeoutRef.current = setTimeout(() => {
-          setIsShaking(false);
-        }, 250);
-      }, 10);
-    }
-
-    // ÉTAPE 5 : Le Panneau VENDU (dernier clic après l'étape 13) - purement en mémoire
-    if (nextStep >= 14) {
-      setIsSold(true);
-    }
-  };
-
-  const handleToggleCollapse = () => {
-    if (!isNookCollapsed) {
-      // Reset Easter Egg state on collapse/reopen
-      resetTomNookState();
-    }
-    setIsNookCollapsed(!isNookCollapsed);
-  };
 
   // Loading state
   if (!accountsData) {
@@ -122,7 +62,12 @@ export default function Dashboard({
   const otherAccounts = accountsData.filter(a => a.id !== favoriteId).slice(0, 4);
 
   // Compute total balance across all accounts
-  const totalBalance = accountsData.reduce((sum, a) => sum + a.balance, 0);
+  const accounts = accountsData;
+  const totalBalance = accounts?.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0) || 0;
+  const formattedTotal = totalBalance.toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 
   // Filter pockets for favorite account, sort by order, slice to 2 max
   const favPockets = useMemo(() => {
@@ -142,115 +87,28 @@ export default function Dashboard({
     });
   }, [debts]);
 
-  // Card background and text color calculation based on annoyance state
-  const getCardStyle = () => {
-    if (isSold) return "bg-white border-2 border-ac-brown/60 text-ac-brown";
-    if (nookStep === 13) return "bg-black text-white border-2 border-black";
-    if (nookStep >= 10) return "bg-black/60 text-white border-2 border-ac-brown/80 backdrop-blur-xs";
-    if (nookStep >= 7) return "bg-black/20 text-ac-brown border-2 border-ac-brown/60 backdrop-blur-xs";
-    return "bg-white border-2 border-ac-brown/60 text-ac-brown";
-  };
-
   return (
     <div className="space-y-6 md:space-y-8 select-none pb-20 md:pb-0 p-1 md:p-0">
-      {/* 1. Bulle de bienvenue Tom Nook */}
-      <div 
-        className={`bg-ac-green-light border-3 border-ac-brown rounded-3xl relative overflow-hidden transition-all duration-200 shadow-ac-sm p-4 ${
-          isNookCollapsed ? 'pb-3' : 'pb-6'
-        }`}
-      >
-        <div className="flex justify-between items-center w-full select-none">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-ac-brown shrink-0 bg-white transition-transform ${
-              isShaking ? 'animate-shake-once' : ''
-            }`}>
-              <img src="/tom-nook.jpg" alt="Tom Nook" className="w-full h-full object-cover object-center block" />
-            </div>
-            <div>
-              <h3 className="font-black text-xs text-ac-brown flex items-center gap-1">
-                Tom Nook 
-                <Sparkles className="w-3.5 h-3.5 text-ac-gold fill-ac-gold animate-pulse" />
-              </h3>
-              {isNookCollapsed && (
-                <p className="text-[10px] text-ac-brown-light font-bold truncate max-w-[180px] sm:max-w-md">
-                  {isSold ? '🔴 VENDU ! Ce terrain est réservé !' : (
-                    <>
-                      {nookStep === 0 && `Bonjour, ${username || 'Îlien'} ! Oui, oui !`}
-                      {nookStep >= 1 && nookStep <= 6 && nookAdvices[nookStep - 1]}
-                      {nookStep >= 7 && nookStep <= 9 && `Je n’ai plus de conseil à te donner`}
-                      {nookStep >= 10 && nookStep <= 12 && `je n’ai vraiment plus de conseil, maintenant arrête`}
-                      {nookStep === 13 && `un dernier conseil alors, ne me demande plus rien !`}
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
+      {/* 1. Bulle de bienvenue Waif */}
+      <div className="bg-ac-green-light border-3 border-ac-brown rounded-3xl relative overflow-hidden shadow-ac-sm p-4 sm:p-5">
+        {/* En-tête Waif */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-slate-900 overflow-hidden bg-slate-100 flex-shrink-0">
+            <img
+              src="/waif.jpg"
+              alt="Waif"
+              className="w-full h-full object-cover"
+            />
           </div>
-          <button 
-            onClick={handleToggleCollapse}
-            className="text-[9px] font-black uppercase text-ac-brown bg-white hover:bg-ac-cream border-2 border-ac-brown px-2 py-0.5 rounded-lg shadow-ac-xs hover:translate-y-[1px] cursor-pointer transition-colors"
-          >
-            {isNookCollapsed ? 'Ouvrir 🐾' : 'Réduire'}
-          </button>
+          <span className="font-bold text-slate-800 text-base">Waif</span>
         </div>
 
-        {!isNookCollapsed && (
-          <div 
-            onClick={handleBannerClick}
-            className={`mt-4 flex flex-col md:flex-row gap-4 items-center md:items-start w-full transition-all duration-200 transform ${
-              isSold ? 'cursor-default' : 'cursor-pointer'
-            } ${
-              isShaking 
-                ? 'animate-shake-once' 
-                : !isSold ? 'hover:scale-[1.005]' : ''
-            }`}
-          >
-            <div className="flex-1 space-y-4 w-full relative">
-              <div className={`rounded-2xl p-4 shadow-ac-xs relative min-h-[75px] flex flex-col justify-center transition-colors duration-300 ${getCardStyle()}`}>
-                {!isSold && (
-                  <div className={`absolute -top-3 right-3 border-2 border-ac-brown rounded-full px-2 py-0.5 text-[8px] font-black text-white flex items-center gap-1 shadow-xs ${
-                    nookStep === 13 ? 'bg-red-600 animate-bounce' :
-                    nookStep >= 10 ? 'bg-orange-600' :
-                    nookStep >= 7 ? 'bg-gray-800' : 'bg-ac-gold animate-pulse'
-                  }`}>
-                    <Smile className="w-2.5 h-2.5" />
-                    {nookStep === 0 && 'Info'}
-                    {nookStep >= 1 && nookStep <= 6 && `Conseil ${nookStep}/6`}
-                    {nookStep >= 7 && nookStep <= 9 && `0 conseil`}
-                    {nookStep >= 10 && nookStep <= 12 && `Lassitude`}
-                    {nookStep === 13 && `Crise !`}
-                  </div>
-                )}
-                
-                <p className="text-xs font-bold leading-relaxed mt-1">
-                  {isSold && `"Ce terrain est désormais réservé / VENDU ! Merci pour tes clochettes !"`}
-                  {!isSold && (
-                    <>
-                      {nookStep === 0 && `"Oui, oui ! Ravi de te revoir. Actuellement, ton île possède un total combiné de ${(totalBalance ?? 0).toLocaleString('fr-FR')} 🔔. Prends soin de tes économies !"`}
-                      {nookStep >= 1 && nookStep <= 6 && `"${nookAdvices[nookStep - 1]}"`}
-                      {nookStep >= 7 && nookStep <= 9 && `"Je n’ai plus de conseil à te donner"`}
-                      {nookStep >= 10 && nookStep <= 12 && `"je n’ai vraiment plus de conseil, maintenant arrête"`}
-                      {nookStep === 13 && `"un dernier conseil alors, ne me demande plus rien !"`}
-                    </>
-                  )}
-                </p>
-
-                {/* Statut final "VENDU" badge style Animal Crossing */}
-                {isSold && (
-                  <div className="absolute inset-0 bg-[#FFFDF9]/85 backdrop-blur-xs flex items-center justify-center rounded-2xl z-20 border-3 border-dashed border-ac-red select-none">
-                    <div className="bg-[#D9534F] text-white border-3 border-ac-brown px-6 py-2.5 rounded-2xl shadow-ac-md transform -rotate-6 flex items-center gap-2.5 animate-bounce-in">
-                      <span className="text-2xl">🚩</span>
-                      <div className="text-center">
-                        <span className="text-2xl font-black uppercase tracking-wider block leading-none">VENDU</span>
-                        <span className="text-[9px] font-extrabold uppercase tracking-widest text-white/90">Nook Inc.</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Message de bienvenue */}
+        <div className="mt-3 p-4 bg-white/90 border-2 border-slate-900/10 rounded-2xl shadow-sm">
+          <p className="text-slate-800 font-medium text-sm sm:text-base leading-relaxed">
+            « Bienvenue sur Ecopine, l'App de gestion d'argent High-Tech ! Ton solde total des comptes est de {formattedTotal} €. »
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -301,7 +159,7 @@ export default function Dashboard({
                 <span className={`text-4xl font-black tracking-tight ${isFavLight ? 'text-slate-900' : 'text-white'}`}>
                   {(favoriteAccountDetails.account.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
                 </span>
-                <span className={`text-lg font-black ${isFavLight ? 'text-slate-700' : 'text-white/90'}`}>🔔</span>
+                <span className={`text-lg font-black ${isFavLight ? 'text-slate-700' : 'text-white/90'}`}>€</span>
 
                 {/* 30 day variation badge */}
                 <span className={`ml-4 text-xs font-black px-2 py-1 rounded-lg border flex items-center gap-0.5 ${
@@ -324,11 +182,11 @@ export default function Dashboard({
                   <div className="flex items-center gap-1.5 min-w-0">
                     <Sparkles className="w-3.5 h-3.5 text-ac-gold shrink-0 fill-ac-gold" />
                     <span className="truncate">
-                      Solde disponible (indicatif) : <strong className={favoriteAccountDetails.account.visibleBalance < 0 ? 'text-ac-red' : (isFavLight ? 'text-emerald-700' : 'text-emerald-300')}>{(favoriteAccountDetails.account.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔</strong>
+                      Solde disponible (indicatif) : <strong className={favoriteAccountDetails.account.visibleBalance < 0 ? 'text-ac-red' : (isFavLight ? 'text-emerald-700' : 'text-emerald-300')}>{(favoriteAccountDetails.account.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</strong>
                     </span>
                   </div>
                   <span className={`text-[9px] font-extrabold shrink-0 ${isFavLight ? 'text-slate-500' : 'text-white/70'}`}>
-                    ({((favoriteAccountDetails.account.balance ?? 0) - (favoriteAccountDetails.account.visibleBalance ?? 0)).toLocaleString('fr-FR')} 🔔 en poches)
+                    ({((favoriteAccountDetails.account.balance ?? 0) - (favoriteAccountDetails.account.visibleBalance ?? 0)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € en poches)
                   </span>
                 </div>
               )}
@@ -372,7 +230,7 @@ export default function Dashboard({
                               </span>
                             </div>
                             <span className="text-[9px] font-black text-white/85 whitespace-nowrap">
-                              {(Math.round(current) ?? 0).toLocaleString('fr-FR')} / {(allocated ?? 0).toLocaleString('fr-FR')} 🔔
+                              {(Math.round(current) ?? 0).toLocaleString('fr-FR')} / {(allocated ?? 0).toLocaleString('fr-FR')} €
                             </span>
                           </div>
 
@@ -425,7 +283,7 @@ export default function Dashboard({
                               ? (isFavLight ? 'text-emerald-700' : 'text-emerald-300') 
                               : (isFavLight ? 'text-slate-900' : 'text-white')
                           }`}>
-                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR')} 🔔
+                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                           </span>
                         </div>
                       );
@@ -443,7 +301,7 @@ export default function Dashboard({
             <div className="ac-card bg-white p-6 border-ac-brown text-center py-12">
               <span className="text-2xl">⭐</span>
               <p className="font-extrabold text-ac-brown mt-2">Aucun compte bancaire enregistré.</p>
-              <p className="text-xs text-ac-brown-light mt-1">Crée ton premier compte dans l'onglet Comptes pour commencer à suivre tes clochettes ! 🍃</p>
+              <p className="text-xs text-ac-brown-light mt-1">Crée ton premier compte dans l'onglet Comptes pour commencer à suivre tes euros ! 🍃</p>
             </div>
           )}
 
@@ -488,11 +346,11 @@ export default function Dashboard({
                       </div>
                       <div className="text-right flex flex-col items-end">
                         <span className={`font-black text-sm block ${isProj ? 'text-white' : (isAccLight ? 'text-slate-900' : 'text-white')}`}>
-                          {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 🔔
+                          {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                         </span>
                         {acc.balance !== acc.visibleBalance && (
                           <span className={`text-[8px] font-extrabold block ${acc.visibleBalance < 0 ? 'text-amber-400' : (isProj ? 'text-slate-400' : (isAccLight ? 'text-slate-600' : 'text-white/75'))}`}>
-                            Dispo : {(acc.visibleBalance ?? 0).toLocaleString('fr-FR')} 🔔
+                            Dispo : {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                           </span>
                         )}
                       </div>
@@ -601,7 +459,7 @@ export default function Dashboard({
                           </div>
                           <div className="text-right ml-3 shrink-0">
                             <span className="font-black text-xs text-ac-brown bg-white border border-ac-brown/25 px-2 py-0.5 rounded-full inline-block shadow-ac-xs">
-                              {(amountVal ?? 0).toLocaleString('fr-FR')} 🔔
+                              {(amountVal ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                             </span>
                           </div>
                         </div>
@@ -626,7 +484,7 @@ export default function Dashboard({
                 <div className="text-center py-6 text-ac-brown-light text-xs font-bold">Chargement...</div>
               ) : globalLatestTransactions.length === 0 ? (
                 <div className="text-center py-8 bg-ac-cream rounded-3xl border border-dashed border-ac-brown/20 text-ac-brown-light text-xs font-semibold">
-                  Aucune clochette dépensée ou gagnée ici pour le moment ! C'est le début d'une belle aventure financière. 🍃
+                  Aucun euro dépensé ou gagné ici pour le moment ! C'est le début d'une belle aventure financière. 🍃
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -668,7 +526,7 @@ export default function Dashboard({
 
                         <div className="text-right whitespace-nowrap shrink-0">
                           <span className={`font-black text-xs ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR')} 🔔
+                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                           </span>
                         </div>
                       </div>

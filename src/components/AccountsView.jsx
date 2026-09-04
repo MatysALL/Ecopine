@@ -972,7 +972,7 @@ export default function AccountsView({
                   }`}>
                     <span className={`text-[9px] font-black uppercase block ${activeAccount.projectId ? 'text-slate-400' : (isDetailLight ? 'text-slate-600 font-bold' : 'text-white/80')}`}>Solde Réel Principal</span>
                     <span className={`text-2xl font-black ${isDetailLight ? 'text-slate-900' : 'text-white'}`}>
-                      {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                      {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                     </span>
                   </div>
                   
@@ -986,7 +986,7 @@ export default function AccountsView({
                         Solde Disponible (indicatif) <Sparkles className="w-3 h-3 fill-ac-gold" />
                       </span>
                       <span className={`text-xl font-black ${activeAccount.visibleBalance < 0 ? 'text-amber-500' : (activeAccount.projectId ? 'text-ac-gold' : (isDetailLight ? 'text-slate-900' : 'text-white'))}`}>
-                        {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                        {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                       </span>
                     </div>
                   )}
@@ -1096,7 +1096,7 @@ export default function AccountsView({
                               <span className="text-[10px] font-bold text-ac-brown-light">{formattedDate}</span>
                             </div>
                             <span className={`font-black ${tx.type === 'credit' ? 'text-ac-green' : 'text-ac-brown'}`}>
-                              {tx.type === 'credit' ? '+' : '-'}{(Number(tx.amount) || 0).toFixed(2)} 🔔
+                              {tx.type === 'credit' ? '+' : '-'}{(Number(tx.amount) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                             </span>
                           </div>
                         );
@@ -1139,7 +1139,7 @@ export default function AccountsView({
               <div className="text-center py-6 text-ac-brown-light">Recalcul des transactions...</div>
             ) : transactions.length === 0 ? (
               <div className="text-center py-8 bg-ac-cream rounded-3xl border border-dashed border-ac-brown/20 text-ac-brown-light text-sm font-semibold">
-                Aucune clochette dépensée ou gagnée ici pour le moment ! Utilise le bouton ci-dessus pour ajouter ta première transaction. 🍃
+                Aucun euro dépensé ou gagné ici pour le moment ! Utilise le bouton ci-dessus pour ajouter ta première transaction. 🍃
               </div>
             ) : (
               <>
@@ -1188,7 +1188,7 @@ export default function AccountsView({
                             </td>
                             <td className="py-3.5 text-right font-black text-sm">
                               <span className={isIncome ? 'text-ac-green' : 'text-ac-brown'}>
-                                {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                                {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                               </span>
                             </td>
                             <td className="py-3.5 text-center">
@@ -1244,7 +1244,7 @@ export default function AccountsView({
                             </h4>
                           </div>
                           <span className={`font-black text-sm whitespace-nowrap ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR')} 🔔
+                            {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                           </span>
                         </div>
 
@@ -1408,7 +1408,7 @@ export default function AccountsView({
                           <div className={`mt-4 pt-3 border-t flex justify-between items-baseline ${isCardLight ? 'border-slate-900/15' : 'border-white/20'}`}>
                             <span className={`text-[10px] font-black uppercase tracking-wide ${isCardLight ? 'text-slate-600 font-bold' : 'text-white/80'}`}>Solde Réel</span>
                             <span className={`font-black text-base ${isCardLight ? 'text-slate-900' : 'text-white'}`}>
-                              {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                              {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                             </span>
                           </div>
 
@@ -1416,7 +1416,7 @@ export default function AccountsView({
                             <div className={`text-[9px] font-extrabold flex justify-between items-center mt-1 ${isCardLight ? 'text-slate-600' : 'text-white/80'}`}>
                               <span>Solde disponible :</span>
                               <span className={acc.visibleBalance < 0 ? 'text-amber-500 font-black' : (isCardLight ? 'text-slate-900 font-black' : 'text-white/90 font-black')}>
-                                {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                                {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                               </span>
                             </div>
                           )}
@@ -1488,7 +1488,7 @@ export default function AccountsView({
                           <div className="mt-4 pt-3 border-t border-slate-700 flex justify-between items-baseline">
                             <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">Solde Réel</span>
                             <span className="font-black text-base text-white">
-                              {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                              {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                             </span>
                           </div>
 
@@ -1496,7 +1496,7 @@ export default function AccountsView({
                             <div className="text-[9px] font-extrabold flex justify-between items-center mt-1 text-slate-400">
                               <span>Solde disponible :</span>
                               <span className={acc.visibleBalance < 0 ? 'text-amber-300 font-black' : 'text-ac-gold font-black'}>
-                                {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                                {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                               </span>
                             </div>
                           )}
@@ -1545,7 +1545,7 @@ export default function AccountsView({
                   <option value="">-- Sélectionner le compte à débiter --</option>
                   {accounts?.map(acc => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR')} 🔔 dispo)
+                      {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € dispo)
                     </option>
                   ))}
                 </select>
@@ -1562,7 +1562,7 @@ export default function AccountsView({
                   <option value="">-- Sélectionner le compte à créditer --</option>
                   {accounts?.map(acc => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR')} 🔔 dispo)
+                      {acc.name} ({(acc.visibleBalance ?? acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € dispo)
                     </option>
                   ))}
                 </select>
@@ -1570,7 +1570,7 @@ export default function AccountsView({
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1">
-                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant *</label>
+                  <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (en euros) *</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -1582,7 +1582,7 @@ export default function AccountsView({
                       className="w-full h-12 bg-ac-cream border-2 border-ac-brown rounded-2xl pl-7 pr-3 text-sm font-bold text-ac-brown focus:outline-none focus:bg-white"
                       required
                     />
-                    <span className="absolute left-2.5 top-3.5 text-xs font-black">🔔</span>
+                    <span className="absolute left-2.5 top-3.5 text-xs font-black">€</span>
                   </div>
                 </div>
 

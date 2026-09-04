@@ -797,7 +797,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                 <PiggyBank className="w-5 h-5 text-ac-gold" />
               </div>
               <span className="text-2xl font-black text-ac-brown mt-3">
-                {totalAccountBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                {totalAccountBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
               </span>
             </div>
 
@@ -897,14 +897,14 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                   <div className="text-left sm:text-right bg-slate-800/90 border border-slate-700 rounded-2xl px-5 py-2.5">
                     <span className="text-[10px] font-black text-slate-400 uppercase block">Solde Réel Principal</span>
                     <span className="text-2xl font-black text-white">
-                      {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                      {(activeAccount.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                     </span>
                   </div>
                   {activeAccount.balance !== activeAccount.visibleBalance && (
                     <div className="text-left sm:text-right bg-slate-800/60 border border-slate-700/80 rounded-2xl px-5 py-1.5">
                       <span className="text-[9px] font-black text-slate-400 uppercase block">Solde Disponible (indicatif)</span>
                       <span className={`text-base font-black ${activeAccount.visibleBalance < 0 ? 'text-amber-400' : 'text-ac-gold'}`}>
-                        {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                        {(activeAccount.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                       </span>
                     </div>
                   )}
@@ -953,7 +953,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                           </div>
                           <div className="flex items-center gap-3">
                             <span className={`font-black text-sm ${isIncome ? 'text-ac-green' : 'text-ac-brown'}`}>
-                              {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                              {isIncome ? '+' : '-'}{(tx.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                             </span>
                             {canEdit && (
                               <div className="flex gap-1">
@@ -1058,7 +1058,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                       <div className="mt-5 pt-3 border-t border-slate-700 flex justify-between items-baseline">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-wide">Solde Réel</span>
                         <span className="font-black text-lg text-white">
-                          {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                          {(acc.balance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                         </span>
                       </div>
 
@@ -1066,7 +1066,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                         <div className="text-[9px] font-extrabold flex justify-between items-center mt-1 text-slate-400">
                           <span>Solde disponible :</span>
                           <span className={acc.visibleBalance < 0 ? 'text-amber-400 font-black' : 'text-ac-gold font-black'}>
-                            {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                            {(acc.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                           </span>
                         </div>
                       )}
@@ -1243,7 +1243,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                           </span>
                         </div>
                         <span className="font-black text-base text-ac-brown">
-                          {(d.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} 🔔
+                          {(d.amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                         </span>
                       </div>
 
@@ -1617,7 +1617,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                 >
                   <option value="">-- Choisir un compte --</option>
                   {projectAccounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name} ({(a.visibleBalance ?? 0).toLocaleString('fr-FR')} 🔔 dispo)</option>
+                    <option key={a.id} value={a.id}>{a.name} ({(a.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € dispo)</option>
                   ))}
                 </select>
               </div>
@@ -1822,7 +1822,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                 >
                   <option value="">-- Choisir le compte à débiter --</option>
                   {projectAccounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name} ({(a.visibleBalance ?? 0).toLocaleString('fr-FR')} 🔔)</option>
+                    <option key={a.id} value={a.id}>{a.name} ({(a.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)</option>
                   ))}
                 </select>
               </div>
@@ -1837,13 +1837,13 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                 >
                   <option value="">-- Choisir le compte à créditer --</option>
                   {projectAccounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name} ({(a.visibleBalance ?? 0).toLocaleString('fr-FR')} 🔔)</option>
+                    <option key={a.id} value={a.id}>{a.name} ({(a.visibleBalance ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant *</label>
+                <label className="block text-xs font-black uppercase text-ac-brown-light mb-1">Montant (en euros) *</label>
                 <input
                   type="number"
                   step="0.01"
