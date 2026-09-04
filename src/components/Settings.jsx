@@ -266,20 +266,21 @@ export default function Settings() {
             </div>
 
             {/* Grille des avatars disponibles */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-7 gap-3 mt-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 max-w-lg mt-3">
               {AVAILABLE_AVATARS.map((avatar) => {
                 const isSelected = photoURL === avatar.src || (!photoURL && avatar.src === '/utilisateur.png');
                 const isUnlocked = unlockedAvatars?.includes(avatar.id) || unlockedAvatars?.includes(avatar.src) || avatar.id === 'utilisateur';
+                const isLocked = !isUnlocked;
 
                 return (
                   <button
                     key={avatar.id}
                     type="button"
-                    disabled={!isUnlocked}
+                    disabled={isLocked}
                     onClick={() => handleSelectAvatar(avatar)}
                     title={isUnlocked ? avatar.name : `${avatar.name} (Verrouillé)`}
                     className={`relative group flex flex-col items-center justify-center p-2.5 rounded-2xl transition-all duration-200 ${
-                      !isUnlocked 
+                      isLocked 
                         ? 'opacity-40 grayscale cursor-not-allowed border-2 border-dashed border-ac-brown/30 bg-ac-cream-dark/20' 
                         : isSelected
                           ? 'bg-ac-green/15 ring-3 ring-ac-green shadow-md scale-105 border-2 border-ac-green cursor-pointer'
@@ -287,32 +288,24 @@ export default function Settings() {
                     }`}
                   >
                     {/* Image de l'avatar */}
-                    <div className={`relative w-13 h-13 rounded-full overflow-hidden border-2 transition-colors shadow-inner ${
-                      !isUnlocked 
-                        ? 'border-ac-brown/20'
-                        : isSelected 
-                          ? 'border-ac-green' 
-                          : 'border-ac-brown/30 group-hover:border-ac-green'
-                    }`}>
+                    <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center p-2 overflow-hidden">
                       <img
                         src={avatar.src}
                         alt={avatar.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain select-none pointer-events-none"
                         onError={(e) => { e.currentTarget.src = '/utilisateur.png'; }}
                       />
+                      {isLocked && (
+                        <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] flex items-center justify-center">
+                          <Lock className="w-4 h-4 text-slate-400 absolute top-1 right-1" />
+                        </div>
+                      )}
                     </div>
 
                     {/* Label de l'avatar */}
-                    <span className="mt-1.5 text-[11px] font-bold text-ac-brown text-center truncate max-w-full">
+                    <span className="text-xs font-medium text-slate-700 mt-1 text-center">
                       {avatar.name}
                     </span>
-
-                    {/* Badge cadenas si verrouillé */}
-                    {!isUnlocked && (
-                      <span className="absolute top-1 right-1 w-4 h-4 bg-ac-brown/70 text-white rounded-full flex items-center justify-center text-[9px] shadow">
-                        <Lock className="w-2.5 h-2.5" />
-                      </span>
-                    )}
 
                     {/* Badge de sélection active */}
                     {isSelected && (
