@@ -5,6 +5,7 @@ import {
   ChevronRight, Gift, Activity, Handshake
 } from 'lucide-react';
 import { triggerAnimalEncounter } from '../context/EncounterContext';
+import TotemBadge from './TotemBadge';
 
 export default function Dashboard({ 
   onViewAccountDetails, 
@@ -102,7 +103,9 @@ export default function Dashboard({
       {/* 1. Bulle de bienvenue Waif */}
       <div className="bg-ac-green-light border-3 border-ac-brown rounded-3xl relative overflow-hidden shadow-ac-sm p-4 sm:p-5">
         {/* En-tête Waif */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <TotemBadge totemId="chouette" />
+          <TotemBadge totemId="corbeau" />
           <div 
             onClick={handleWaifClick}
             className="w-10 h-10 rounded-full border-2 border-slate-900 overflow-hidden bg-slate-100 flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"

@@ -13,13 +13,16 @@ import AdminView from './components/AdminView';
 import SocialView from './components/SocialView';
 import ProjectsView from './components/ProjectsView';
 import { TutorialBanner, TutorialSpotlight, TutorialCelebrationModal } from './components/TutorialComponents';
-import { PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users, Folder } from 'lucide-react';
+import { PiggyBank, Calendar, Handshake, Gift, Plus, Settings as SettingsIcon, Users, Folder, Info, Sparkles } from 'lucide-react';
 import TransactionModal from './components/TransactionModal';
 import { APP_THEMES } from './config/themes';
 import EncounterModal from './components/EncounterModal';
+import TotemDialogueModal from './components/TotemDialogueModal';
+import { useEncounter } from './context/EncounterContext';
 
 export default function App() {
   const { isLoading, user, username, accounts, userMeta, activeTheme, isAdmin, tutorialProgress, pendingRequestsCount } = useDb();
+  const { totemToast } = useEncounter();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   
@@ -386,6 +389,25 @@ export default function App() {
 
       {/* Pop-up de rencontre animalière globale */}
       <EncounterModal />
+
+      {/* Modale de quêtes et dialogues de Totems */}
+      <TotemDialogueModal />
+
+      {/* Notifications Toasts Totem */}
+      {totemToast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 font-black text-xs sm:text-sm animate-bounce-in select-none border-2 ${
+          totemToast.type === 'celebration'
+            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 border-emerald-300 shadow-emerald-900/30'
+            : 'bg-slate-900/90 backdrop-blur-md text-white border-white/20 shadow-black/40'
+        }`}>
+          {totemToast.type === 'celebration' ? (
+            <Sparkles className="w-4 h-4 text-slate-950 animate-spin" />
+          ) : (
+            <Info className="w-4 h-4 text-emerald-400" />
+          )}
+          <span>{totemToast.message}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   ChevronRight, Sparkles, X, PiggyBank, Gift, Handshake, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import ProjectDetailView from './ProjectDetailView';
+import TotemBadge from './TotemBadge';
 
 export default function ProjectsView() {
   const { projects = [], user, accounts = [], wishlist = [], projectDebts = [] } = useDb();
@@ -120,12 +121,15 @@ export default function ProjectsView() {
             Créez des espaces partagés avec vos amis (comptes, souhaits et dettes collectives dédiés).
           </p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-2xl border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-2 hover:translate-y-[1px] cursor-pointer self-start sm:self-auto transition-all"
-        >
-          <Plus className="w-4 h-4" /> Nouveau Projet
-        </button>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <TotemBadge totemId="loup" />
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-ac-green text-white font-extrabold text-sm px-4 py-3 rounded-2xl border-2 border-ac-brown shadow-ac-sm flex items-center justify-center gap-2 hover:translate-y-[1px] cursor-pointer transition-all"
+          >
+            <Plus className="w-4 h-4" /> Nouveau Projet
+          </button>
+        </div>
       </div>
 
       {/* Projects Grid / Empty State */}

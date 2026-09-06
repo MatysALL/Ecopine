@@ -15,6 +15,7 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import { triggerAnimalEncounter } from './utils/encounter';
+import { DEFAULT_TOTEMS } from './utils/totems';
 
 /**
  * Period calculations helpers
@@ -875,7 +876,8 @@ export const db = {
         'theme_preference': 'themePreference',
         'unlocked_themes': 'unlockedThemes',
         'unlocked_avatars': 'unlockedAvatars',
-        'tutorial_progress': 'tutorialProgress'
+        'tutorial_progress': 'tutorialProgress',
+        'totems': 'totems'
       };
       const field = fieldMap[key];
       if (field) {
@@ -892,6 +894,17 @@ export const db = {
           await setDoc(ref, payload, { merge: true });
         }
       }
+    },
+  },
+  totems: {
+    update: async (totemId, updates) => {
+      if (!auth.currentUser) return;
+      const ref = doc(firestoreDb, 'users_meta', auth.currentUser.uid);
+      await setDoc(ref, {
+        totems: {
+          [totemId]: updates
+        }
+      }, { merge: true });
     },
     get: async (key) => {
       if (!auth.currentUser) return null;
@@ -2382,6 +2395,23 @@ export const DbProvider = ({ children }) => {
         if (!data.unlockedAvatars || !Array.isArray(data.unlockedAvatars)) {
           updates.unlockedAvatars = ['utilisateur'];
         }
+        if (!data.totems || typeof data.totems !== 'object') {
+          updates.totems = DEFAULT_TOTEMS;
+        } else {
+          let missingTotemKey = false;
+          const merged = { ...DEFAULT_TOTEMS };
+          for (const k of Object.keys(DEFAULT_TOTEMS)) {
+            if (!data.totems[k]) {
+              missingTotemKey = true;
+              merged[k] = DEFAULT_TOTEMS[k];
+            } else {
+              merged[k] = { ...DEFAULT_TOTEMS[k], ...data.totems[k] };
+            }
+          }
+          if (missingTotemKey) {
+            updates.totems = merged;
+          }
+        }
         if (currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' && data.role !== 'admin') {
           updates.role = 'admin';
         } else if (!data.role) {
@@ -2404,6 +2434,7 @@ export const DbProvider = ({ children }) => {
           themePreference: 'default',
           unlockedThemes: ['default'],
           unlockedAvatars: ['utilisateur'],
+          totems: DEFAULT_TOTEMS,
           favoriteAccountId: null,
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
@@ -2859,6 +2890,34 @@ export const DbProvider = ({ children }) => {
     getActiveTheme,
     unlockedThemes: usersMetaDoc?.unlockedThemes || ['default'],
     unlockedAvatars: usersMetaDoc?.unlockedAvatars || ['utilisateur'],
+    totems: usersMetaDoc?.totems || DEFAULT_TOTEMS,
+    updateTotem: async (totemId, partialUpdates) => {
+      if (!currentUser?.uid) return;
+      const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
+      const currentTotem = usersMetaDoc?.totems?.[totemId] || DEFAULT_TOTEMS[totemId] || {};
+      const mergedTotem = { ...currentTotem, ...partialUpdates };
+      await setDoc(metaRef, {
+        totems: {
+          [totemId]: mergedTotem
+        }
+      }, { merge: true });
+    },
+    unlockTotemReward: async (totemId, themeId) => {
+      if (!currentUser?.uid) return;
+      const metaRef = doc(firestoreDb, 'users_meta', currentUser.uid);
+      const currentTotem = usersMetaDoc?.totems?.[totemId] || DEFAULT_TOTEMS[totemId] || {};
+      const mergedTotem = { ...currentTotem, completed: true, badgeUnlocked: true };
+      const payload = {
+        totems: {
+          [totemId]: mergedTotem
+        },
+        unlockedAvatars: arrayUnion(totemId)
+      };
+      if (themeId) {
+        payload.unlockedThemes = arrayUnion(themeId);
+      }
+      await setDoc(metaRef, payload, { merge: true });
+    },
     pendingRequestsCount,
     adminResetUser,
     adminDeleteUser,

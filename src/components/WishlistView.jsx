@@ -6,6 +6,7 @@ import {
   Plus, Edit2, Trash2, Gift, Coins, Sparkles, X
 } from 'lucide-react';
 import { triggerAnimalEncounter } from '../context/EncounterContext';
+import TotemBadge from './TotemBadge';
 
 export default function WishlistView() {
   const { wishlist: wishes, accountsData: accounts, user, projects = [] } = useDb();
@@ -251,19 +252,22 @@ export default function WishlistView() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            if (formOpen) {
-              resetForm();
-            } else {
-              setEditingWish(null);
-              setFormOpen(true);
-            }
-          }}
-          className="bg-ac-green text-white font-extrabold text-xs px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer self-start md:self-auto"
-        >
-          <Plus className="w-4 h-4" /> {formOpen ? 'Masquer le formulaire' : 'Nouveau Souhait'}
-        </button>
+        <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <TotemBadge totemId="renard" />
+          <button
+            onClick={() => {
+              if (formOpen) {
+                resetForm();
+              } else {
+                setEditingWish(null);
+                setFormOpen(true);
+              }
+            }}
+            className="bg-ac-green text-white font-extrabold text-xs px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> {formOpen ? 'Masquer le formulaire' : 'Nouveau Souhait'}
+          </button>
+        </div>
       </div>
 
       {/* Toggleable Wish Form */}

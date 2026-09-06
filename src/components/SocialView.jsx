@@ -14,7 +14,9 @@ export default function SocialView() {
     acceptedFriends = [], 
     friendships = [], 
     allUsersMeta = [], 
-    redlist = [] 
+    redlist = [],
+    totems,
+    updateTotem
   } = useDb();
 
   // Invite by email state
@@ -118,12 +120,32 @@ export default function SocialView() {
   // Handlers for friendship actions
   const handleSendInviteByEmail = async (e) => {
     if (e) e.preventDefault();
-    const cleanEmail = emailInput.trim().toLowerCase();
-
-    if (!cleanEmail) {
+    const rawInput = emailInput.trim();
+    if (!rawInput) {
       showToast("Veuillez saisir une adresse e-mail.", true);
       return;
     }
+
+    // Exception Nordlys pour le Totem Loup
+    if (rawInput.toLowerCase() === 'nordlys') {
+      setEmailInput('');
+      const loupState = totems?.loup;
+      if (!loupState?.requestedOnce) {
+        if (typeof updateTotem === 'function') {
+          await updateTotem('loup', { requestedOnce: true });
+        }
+        showToast("Demande envoyée dans la toundra.", false);
+        return;
+      } else {
+        if (typeof updateTotem === 'function') {
+          await updateTotem('loup', { redlisted: true });
+        }
+        showToast("Impossible d'envoyer la demande : tu figures sur la liste rouge de cet utilisateur.", true);
+        return;
+      }
+    }
+
+    const cleanEmail = rawInput.toLowerCase();
 
     if (cleanEmail === (user?.email || '').toLowerCase()) {
       showToast("Tu ne peux pas t'envoyer une demande d'ami à toi-même !", true);

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { APP_THEMES, AVAILABLE_AVATARS } from '../config/themes';
 import { triggerAnimalEncounter } from '../context/EncounterContext';
+import TotemBadge from './TotemBadge';
 
 export { AVAILABLE_AVATARS, APP_THEMES };
 
@@ -23,7 +24,9 @@ export default function Settings() {
     unlockedThemes,
     unlockedAvatars,
     resetMyAccount,
-    deleteMyAccount
+    deleteMyAccount,
+    totems,
+    updateTotem
   } = useDb();
 
   // Danger zone state
@@ -55,8 +58,18 @@ export default function Settings() {
     if (!isUnlocked) return;
     if (!user?.uid || photoURL === avatar.src) return;
 
+    const previousAvatar = photoURL;
     // Mise à jour optimiste du state local
     setPhotoURL(avatar.src);
+
+    // Détection 1 Panda : Changer d'avatar de profil, puis rééquiper immédiatement l'avatar par défaut utilisateur.png
+    const isReturningToDefault = (avatar.id === 'utilisateur' || avatar.src === '/utilisateur.png');
+    const wasOtherAvatar = (previousAvatar && previousAvatar !== '/utilisateur.png');
+    if (isReturningToDefault && wasOtherAvatar) {
+      if (totems?.panda?.step >= 1 && !totems?.panda?.avatarToggled && typeof updateTotem === 'function') {
+        updateTotem('panda', { avatarToggled: true }).catch(err => console.error(err));
+      }
+    }
 
     try {
       await db.user_meta.put({ key: 'photoURL', value: avatar.src });
@@ -193,6 +206,9 @@ export default function Settings() {
           <p className="text-xs font-semibold text-ac-brown-light mt-0.5">
             Gère ton profil d'habitant, tes thèmes pastel et le cycle de vie de tes données.
           </p>
+        </div>
+        <div className="flex items-center gap-2 self-end md:self-center">
+          <TotemBadge totemId="panda" />
         </div>
       </div>
 

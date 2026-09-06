@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useDb, expandRecurringTransactions, getExecutionBadgeInfo } from '../db';
+import { useEncounter } from '../context/EncounterContext';
 import { 
   ChevronLeft, ChevronRight, Calendar, 
   Coins, Leaf, ArrowUpRight, ArrowDownRight, EyeOff, Sparkles, Smile, X
@@ -18,6 +19,7 @@ export default function EconomicCalendar() {
   const month = currentDate.getMonth();
 
   const { accounts, transactions: allTransactions } = useDb();
+  const { totems, handleCorbeauCalendarClick } = useEncounter();
 
   // Initialize selected accounts dictionary
   React.useEffect(() => {
@@ -231,6 +233,19 @@ export default function EconomicCalendar() {
                   <span className={`text-[10px] md:text-xs font-black ${isToday || isSelected ? 'text-ac-green font-extrabold text-xs md:text-sm' : 'text-ac-brown'}`}>
                     {cell.day}
                   </span>
+                  {cell.dateStr === '2026-06-10' && totems?.corbeau?.badgeUnlocked && !totems?.corbeau?.completed && totems?.corbeau?.step >= 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCorbeauCalendarClick();
+                      }}
+                      className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white border-2 border-slate-900 shadow-md flex items-center justify-center hover:scale-125 transition-transform z-10 animate-bounce cursor-pointer"
+                      title="Totem Corbeau - Repère temporel"
+                    >
+                      <img src="/corbeau.png" alt="Corbeau" className="w-4 h-4 object-contain" />
+                    </button>
+                  )}
                   {isToday && (
                     <span className="hidden md:inline text-[7px] md:text-[8px] font-black bg-ac-green text-white px-1 py-0.2 rounded-full">Auj.</span>
                   )}

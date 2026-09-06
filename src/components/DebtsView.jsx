@@ -3,9 +3,10 @@ import { db, useDb } from '../db';
 import { collection, doc, writeBatch } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 import { Plus, Trash2, Handshake, X, Coins, Sparkles, Edit2, AlertCircle, CheckCircle, Users, User, Lock } from 'lucide-react';
+import TotemBadge from './TotemBadge';
 
 export default function DebtsView() {
-  const { debts = [], accountsData: accounts = [], user, acceptedFriends = [], username } = useDb();
+  const { debts = [], accountsData: accounts = [], user, acceptedFriends = [], username, totems, updateTotem } = useDb();
 
   // Toast state
   const [toast, setToast] = useState(null); // { type: 'success' | 'error', message: string }
@@ -257,6 +258,9 @@ export default function DebtsView() {
     if (window.confirm("Es-tu sûr de vouloir effacer cette dette de ton registre ?")) {
       try {
         await db.debts.delete(id);
+        if (totems?.chat?.step >= 1 && !totems?.chat?.debtDeleted && typeof updateTotem === 'function') {
+          updateTotem('chat', { debtDeleted: true }).catch(err => console.error(err));
+        }
         setToast({ type: 'success', message: "Dette supprimée du registre." });
       } catch (err) {
         console.error(err);
@@ -347,18 +351,21 @@ export default function DebtsView() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            if (formOpen) {
-              resetForm();
-            } else {
-              setFormOpen(true);
-            }
-          }}
-          className="bg-ac-green text-white font-extrabold text-xs px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer self-start md:self-auto"
-        >
-          <Plus className="w-4 h-4" /> {formOpen ? 'Masquer le formulaire' : 'Nouvelle Dette / Créance'}
-        </button>
+        <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <TotemBadge totemId="chat" />
+          <button
+            onClick={() => {
+              if (formOpen) {
+                resetForm();
+              } else {
+                setFormOpen(true);
+              }
+            }}
+            className="bg-ac-green text-white font-extrabold text-xs px-4 py-3 rounded-full border-2 border-ac-brown shadow-ac-sm flex items-center gap-1.5 hover:translate-y-[1px] cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> {formOpen ? 'Masquer le formulaire' : 'Nouvelle Dette / Créance'}
+          </button>
+        </div>
       </div>
 
       {/* Debt Creation Form */}

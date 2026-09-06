@@ -2,19 +2,18 @@ import React from 'react';
 import { useEncounter } from '../context/EncounterContext';
 import { X, Sparkles } from 'lucide-react';
 
-export default function EncounterModal({ activeEncounter: propEncounter, onClose: propClose }) {
-  const { activeEncounter: contextEncounter, setActiveEncounter } = useEncounter();
-  
-  const activeEncounter = propEncounter !== undefined ? propEncounter : contextEncounter;
-  const handleClose = () => {
-    if (propClose) {
-      propClose();
-    } else {
-      setActiveEncounter(null);
-    }
-  };
+export default function EncounterModal() {
+  const { activeEncounter, confirmDiscovery, setActiveEncounter } = useEncounter();
 
   if (!activeEncounter) return null;
+
+  const handleConfirm = () => {
+    confirmDiscovery(activeEncounter.id);
+  };
+
+  const handleClose = () => {
+    setActiveEncounter(null);
+  };
 
   return (
     <div 
@@ -66,16 +65,16 @@ export default function EncounterModal({ activeEncounter: propEncounter, onClose
 
         {/* Ambient narrative caption */}
         <p className="text-xs sm:text-sm font-semibold text-emerald-100/75 max-w-xs mx-auto mb-7 leading-relaxed">
-          Une nouvelle présence bienveillante a rejoint ton île budgétaire.
+          Un nouveau Totem a rejoint ta ville.
         </p>
 
-        {/* Temporary Close Button */}
+        {/* Bouton D'accord */}
         <button
           type="button"
-          onClick={handleClose}
+          onClick={handleConfirm}
           className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-black text-sm tracking-wide shadow-lg shadow-emerald-950/40 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer border border-emerald-200/40"
         >
-          Fermer
+          D'accord
         </button>
       </div>
     </div>
