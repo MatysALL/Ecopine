@@ -45,7 +45,7 @@ export default function Settings() {
       const photoMeta = userMeta.find(m => m.key === 'photoURL');
       const themeMeta = userMeta.find(m => m.key === 'theme_preference');
       setUsername(nameMeta?.value || '');
-      setPhotoURL(photoMeta?.value || user?.photoURL || '/utilisateur.png');
+      setPhotoURL(photoMeta?.value || '/utilisateur.png');
       setThemePreference(themeMeta?.value || 'default');
     }
   }, [userMeta, user]);

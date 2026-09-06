@@ -856,7 +856,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
               {projectMemberList.map(m => (
                 <div key={m.uid} className="flex items-center gap-3 p-3 bg-ac-cream/40 border-2 border-ac-brown/15 rounded-2xl">
                   <div className="w-10 h-10 rounded-full border-2 border-ac-brown overflow-hidden bg-ac-green text-white font-black text-xs flex items-center justify-center shrink-0">
-                    <img src={m.photoURL} alt={m.name} className="w-full h-full object-cover" />
+                    <img src={m.photoURL || '/utilisateur.png'} alt={m.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="font-extrabold text-sm text-ac-brown truncate block">
@@ -1325,7 +1325,7 @@ export default function ProjectDetailView({ project, selectedProject, onBack }) 
                 <div key={m.uid} className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3.5">
                     <div className="w-12 h-12 rounded-full border-2 border-ac-brown overflow-hidden bg-ac-green text-white font-black text-sm flex items-center justify-center shrink-0 shadow-ac-xs">
-                      <img src={m.photoURL} alt={m.name} className="w-full h-full object-cover" />
+                      <img src={m.photoURL || '/utilisateur.png'} alt={m.name} className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">

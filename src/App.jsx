@@ -210,7 +210,7 @@ export default function App() {
     return <AuthView />;
   }
 
-  const photoURL = userMeta?.find(m => m.key === 'photoURL')?.value || user?.photoURL;
+  const photoURL = userMeta?.find(m => m.key === 'photoURL')?.value || '/utilisateur.png';
 
   const getInitial = (name = '') => {
     if (!name) return '🍃';

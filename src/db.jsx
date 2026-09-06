@@ -870,6 +870,8 @@ export const db = {
         'username': 'username',
         'favorite_account_id': 'favoriteAccountId',
         'photoURL': 'photoURL',
+        'avatar': 'avatar',
+        'theme': 'theme',
         'theme_preference': 'themePreference',
         'unlocked_themes': 'unlockedThemes',
         'unlocked_avatars': 'unlockedAvatars',
@@ -877,10 +879,17 @@ export const db = {
       };
       const field = fieldMap[key];
       if (field) {
+        const payload = { [field]: value };
+        if (field === 'photoURL') {
+          payload.avatar = value ? value.replace(/^\//, '').replace(/\.(png|jpg|jpeg|svg)$/i, '') : 'utilisateur';
+        }
+        if (field === 'themePreference') {
+          payload.theme = value || 'default';
+        }
         if (db._activeBatch) {
-          db._activeBatch.set(ref, { [field]: value }, { merge: true });
+          db._activeBatch.set(ref, payload, { merge: true });
         } else {
-          await setDoc(ref, { [field]: value }, { merge: true });
+          await setDoc(ref, payload, { merge: true });
         }
       }
     },
@@ -891,7 +900,9 @@ export const db = {
         const data = docSnap.data();
         if (key === 'username') return { key: 'username', value: data.username };
         if (key === 'favorite_account_id') return { key: 'favorite_account_id', value: data.favoriteAccountId };
-        if (key === 'photoURL') return { key: 'photoURL', value: data.photoURL };
+        if (key === 'photoURL') return { key: 'photoURL', value: data.photoURL || '/utilisateur.png' };
+        if (key === 'avatar') return { key: 'avatar', value: data.avatar || 'utilisateur' };
+        if (key === 'theme') return { key: 'theme', value: data.theme || 'default' };
         if (key === 'theme_preference') return { key: 'theme_preference', value: data.themePreference || 'default' };
         if (key === 'unlocked_themes') return { key: 'unlocked_themes', value: data.unlockedThemes || ['default'] };
         if (key === 'unlocked_avatars') return { key: 'unlocked_avatars', value: data.unlockedAvatars || ['utilisateur'] };
@@ -915,8 +926,16 @@ export const db = {
       list.forEach(m => {
         if (m.key === 'username') fields.username = m.value;
         if (m.key === 'favorite_account_id') fields.favoriteAccountId = m.value;
-        if (m.key === 'photoURL') fields.photoURL = m.value;
-        if (m.key === 'theme_preference') fields.themePreference = m.value;
+        if (m.key === 'photoURL') {
+          fields.photoURL = m.value || '/utilisateur.png';
+          fields.avatar = m.value ? m.value.replace(/^\//, '').replace(/\.(png|jpg|jpeg|svg)$/i, '') : 'utilisateur';
+        }
+        if (m.key === 'avatar') fields.avatar = m.value || 'utilisateur';
+        if (m.key === 'theme') fields.theme = m.value || 'default';
+        if (m.key === 'theme_preference') {
+          fields.themePreference = m.value || 'default';
+          fields.theme = m.value || 'default';
+        }
         if (m.key === 'unlocked_themes') fields.unlockedThemes = m.value;
         if (m.key === 'unlocked_avatars') fields.unlockedAvatars = m.value;
         if (m.key === 'tutorial_progress') fields.tutorialProgress = m.value;
@@ -1719,7 +1738,7 @@ export const db = {
       const currentUid = auth.currentUser.uid;
       const metaDoc = await getDoc(doc(firestoreDb, 'users_meta', currentUid));
       const myUsername = metaDoc.exists() ? (metaDoc.data().username || auth.currentUser.displayName || 'Habitant') : 'Habitant';
-      const myPhotoURL = metaDoc.exists() ? (metaDoc.data().photoURL || auth.currentUser.photoURL || '/utilisateur.png') : '/utilisateur.png';
+      const myPhotoURL = metaDoc.exists() ? (metaDoc.data().photoURL || '/utilisateur.png') : '/utilisateur.png';
 
       const projectDoc = {
         name: (name || 'Nouveau Projet').trim(),
@@ -2116,11 +2135,13 @@ export const syncUserMeta = async (currentUser) => {
         email: currentUser.email ? currentUser.email.toLowerCase() : '',
         displayName: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
         username: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
-        photoURL: '/utilisateur.png',
+        photoURL: "/utilisateur.png",       // Avatar par défaut imposé
+        avatar: "utilisateur",              // Identifiant d'avatar
+        theme: "default",                   // Thème par défaut
+        themePreference: "default",
         role: currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
-        themePreference: 'default',
-        unlockedThemes: ['default'],
-        unlockedAvatars: ['utilisateur'],
+        unlockedAvatars: ["utilisateur"],   // Liste des avatars débloqués
+        unlockedThemes: ["default"],        // Liste des thèmes débloqués
         favoriteAccountId: null,
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
@@ -2143,8 +2164,14 @@ export const syncUserMeta = async (currentUser) => {
         displayName: currentUser.displayName || data.displayName || data.username || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
         username: data.username || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
       };
-      if (!data.photoURL || data.photoURL.includes('pfp-') || data.photoURL === '/pfp-ac.jpg') {
+      if (!data.photoURL || data.photoURL.includes('pfp-') || data.photoURL === '/pfp-ac.jpg' || data.photoURL.includes('googleusercontent.com') || data.photoURL.includes('lh3.google')) {
         updates.photoURL = '/utilisateur.png';
+      }
+      if (!data.avatar) {
+        updates.avatar = 'utilisateur';
+      }
+      if (!data.theme) {
+        updates.theme = 'default';
       }
       if (!data.unlockedThemes || !Array.isArray(data.unlockedThemes)) {
         updates.unlockedThemes = ['default'];
@@ -2261,6 +2288,8 @@ export const DbProvider = ({ children }) => {
       username: firstname.trim(),
       displayName: firstname.trim(),
       photoURL: '/utilisateur.png',
+      avatar: 'utilisateur',
+      theme: 'default',
       role: email.trim().toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
       themePreference: 'default',
       unlockedThemes: ['default'],
@@ -2338,8 +2367,14 @@ export const DbProvider = ({ children }) => {
         if (!data.email && currentUser.email) {
           updates.email = currentUser.email.toLowerCase();
         }
-        if (!data.photoURL || data.photoURL.includes('pfp-') || data.photoURL === '/pfp-ac.jpg') {
+        if (!data.photoURL || data.photoURL.includes('pfp-') || data.photoURL === '/pfp-ac.jpg' || data.photoURL.includes('googleusercontent.com') || data.photoURL.includes('lh3.google')) {
           updates.photoURL = '/utilisateur.png';
+        }
+        if (!data.avatar) {
+          updates.avatar = 'utilisateur';
+        }
+        if (!data.theme) {
+          updates.theme = 'default';
         }
         if (!data.unlockedThemes || !Array.isArray(data.unlockedThemes)) {
           updates.unlockedThemes = ['default'];
@@ -2361,13 +2396,17 @@ export const DbProvider = ({ children }) => {
           uid: currentUser.uid,
           email: currentUser.email ? currentUser.email.toLowerCase() : '',
           username: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
+          displayName: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Habitant'),
           photoURL: '/utilisateur.png',
+          avatar: 'utilisateur',
           role: currentUser.email?.toLowerCase() === 'matysallanet@gmail.com' ? 'admin' : 'member',
+          theme: 'default',
           themePreference: 'default',
           unlockedThemes: ['default'],
           unlockedAvatars: ['utilisateur'],
           favoriteAccountId: null,
           createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
           tutorialProgress: {
             isCompleted: false,
             steps: { accounts: false, calendar: false, debts: false, wishlist: false, home: false, settings: false }
@@ -2645,9 +2684,9 @@ export const DbProvider = ({ children }) => {
       if (usersMetaDoc.favoriteAccountId !== undefined) {
         list.push({ key: 'favorite_account_id', value: usersMetaDoc.favoriteAccountId });
       }
-      if (usersMetaDoc.photoURL !== undefined) {
-        list.push({ key: 'photoURL', value: usersMetaDoc.photoURL });
-      }
+      list.push({ key: 'photoURL', value: usersMetaDoc.photoURL || '/utilisateur.png' });
+      list.push({ key: 'avatar', value: usersMetaDoc.avatar || 'utilisateur' });
+      list.push({ key: 'theme', value: usersMetaDoc.theme || usersMetaDoc.themePreference || 'default' });
       if (usersMetaDoc.themePreference !== undefined) {
         list.push({ key: 'theme_preference', value: usersMetaDoc.themePreference });
       }
