@@ -2466,34 +2466,54 @@ export const DbProvider = ({ children }) => {
         setList(list);
       };
 
-      const handleSnapshot = (snapshot) => {
-        snapshot.docs.forEach(d => {
-          docsMap[d.id] = { id: d.id, ...d.data() };
-        });
-        snapshot.docChanges().forEach(change => {
-          if (change.type === 'removed') {
-            delete docsMap[change.doc.id];
-          } else if (change.type === 'added' && colName === 'debts') {
-            const data = change.doc.data();
-            // Détection si nous devons de l'argent à un ami (debtorId === currentUserId ou userId === currentUserId et type à payer)
-            const isDebtor = data.debtorId === currentUser.uid || (
-              data.userId === currentUser.uid &&
-              ['to_pay', 'je_dois', 'i_owe', 'debt'].includes((data.type || '').toLowerCase())
-            );
-            // Créée par un tiers
-            const isCreatedByThirdParty = (
-              (data.creatorId && data.creatorId !== currentUser.uid) ||
-              (data.associatedFriendId && data.associatedFriendId !== currentUser.uid) ||
-              data.isMirror === true ||
-              (typeof data.description === 'string' && data.description.includes('[Miroir]'))
-            );
+      const createSnapshotHandler = (queryKey) => {
+        let isFirstForQuery = true;
+        return (snapshot) => {
+          snapshot.docs.forEach(d => {
+            docsMap[d.id] = { id: d.id, ...d.data() };
+          });
 
-            if (isDebtor && isCreatedByThirdParty) {
-              triggerAnimalEncounter("chat");
-            }
+          // Ignorer le snapshot initial de chargement pour éviter de traiter les dettes existantes comme un nouvel événement
+          if (isFirstForQuery) {
+            isFirstForQuery = false;
+            notify();
+            return;
           }
-        });
-        notify();
+
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'removed') {
+              delete docsMap[change.doc.id];
+            } else if (change.type === 'added' && colName === 'debts') {
+              // Ne rien déclencher si le chat est déjà connu ou déjà débloqué
+              if (
+                usersMetaDoc?.totems?.chat?.badgeUnlocked ||
+                usersMetaDoc?.totems?.chat?.completed ||
+                usersMetaDoc?.unlockedAvatars?.includes('chat')
+              ) {
+                return;
+              }
+
+              const data = change.doc.data();
+              // Détection si nous devons de l'argent à un ami (debtorId === currentUserId ou userId === currentUserId et type à payer)
+              const isDebtor = data.debtorId === currentUser.uid || (
+                data.userId === currentUser.uid &&
+                ['to_pay', 'je_dois', 'i_owe', 'debt'].includes((data.type || '').toLowerCase())
+              );
+              // Créée par un tiers
+              const isCreatedByThirdParty = (
+                (data.creatorId && data.creatorId !== currentUser.uid) ||
+                (data.associatedFriendId && data.associatedFriendId !== currentUser.uid) ||
+                data.isMirror === true ||
+                (typeof data.description === 'string' && data.description.includes('[Miroir]'))
+              );
+
+              if (isDebtor && isCreatedByThirdParty) {
+                triggerAnimalEncounter("chat");
+              }
+            }
+          });
+          notify();
+        };
       };
 
       const qUserId = query(collection(firestoreDb, colName), where('userId', '==', currentUser.uid));
@@ -2502,10 +2522,10 @@ export const DbProvider = ({ children }) => {
       const qAllowed = query(collection(firestoreDb, colName), where('allowedUsers', 'array-contains', currentUser.uid));
 
       const unsubs = [
-        onSnapshot(qUserId, handleSnapshot, err => console.error(`[${colName}] qUserId error:`, err)),
-        onSnapshot(qCreatorId, handleSnapshot, err => console.error(`[${colName}] qCreatorId error:`, err)),
-        onSnapshot(qOwnerId, handleSnapshot, err => console.error(`[${colName}] qOwnerId error:`, err)),
-        onSnapshot(qAllowed, handleSnapshot, err => console.error(`[${colName}] qAllowed error:`, err)),
+        onSnapshot(qUserId, createSnapshotHandler('userId'), err => console.error(`[${colName}] qUserId error:`, err)),
+        onSnapshot(qCreatorId, createSnapshotHandler('creatorId'), err => console.error(`[${colName}] qCreatorId error:`, err)),
+        onSnapshot(qOwnerId, createSnapshotHandler('ownerId'), err => console.error(`[${colName}] qOwnerId error:`, err)),
+        onSnapshot(qAllowed, createSnapshotHandler('allowedUsers'), err => console.error(`[${colName}] qAllowed error:`, err)),
       ];
 
       return () => unsubs.forEach(unsub => unsub());

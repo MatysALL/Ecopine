@@ -16,6 +16,7 @@ export const EncounterProvider = ({ children }) => {
     user,
     username,
     userMeta,
+    usersMetaDoc,
     unlockedAvatars,
     unlockedThemes,
     totems,
@@ -33,15 +34,31 @@ export const EncounterProvider = ({ children }) => {
   }, []);
 
   const handleTriggerAnimalEncounter = useCallback((animalId) => {
-    const currentTotem = totems?.[animalId];
-    if (currentTotem?.badgeUnlocked || currentTotem?.completed) {
+    // Si l'utilisateur ou ses métadonnées ne sont pas encore chargés, on arrête pour éviter toute race condition
+    const meta = usersMetaDoc || (userMeta && Array.isArray(userMeta) ? null : userMeta);
+    if (!meta && !totems) return;
+
+    const unlockedAv = Array.isArray(usersMetaDoc?.unlockedAvatars)
+      ? usersMetaDoc.unlockedAvatars
+      : (Array.isArray(unlockedAvatars)
+        ? unlockedAvatars
+        : (Array.isArray(userMeta)
+          ? (userMeta.find(m => m.key === 'unlocked_avatars')?.value || [])
+          : []));
+
+    const isAvatarUnlocked = unlockedAv.includes(animalId) || unlockedAv.includes(`/${animalId}.png`);
+    const isBadgeUnlocked = (totems?.[animalId]?.badgeUnlocked === true) || (usersMetaDoc?.totems?.[animalId]?.badgeUnlocked === true);
+    const isCompleted = (totems?.[animalId]?.completed === true) || (usersMetaDoc?.totems?.[animalId]?.completed === true);
+
+    // Si le badge est déjà débloqué ou la quête finie, ne JAMAIS réafficher la pop-up
+    if (isAvatarUnlocked || isBadgeUnlocked || isCompleted) {
       return;
     }
 
     if (ANIMALS_MAP[animalId]) {
       setActiveEncounter(ANIMALS_MAP[animalId]);
     }
-  }, [totems]);
+  }, [usersMetaDoc, userMeta, unlockedAvatars, totems]);
 
   useEffect(() => {
     const unregister = registerEncounterTrigger(handleTriggerAnimalEncounter);

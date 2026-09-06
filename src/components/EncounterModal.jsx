@@ -1,14 +1,42 @@
 import React from 'react';
 import { useEncounter } from '../context/EncounterContext';
+import { useDb } from '../db';
+import { db as firestoreDb } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { X, Sparkles } from 'lucide-react';
 
 export default function EncounterModal() {
   const { activeEncounter, confirmDiscovery, setActiveEncounter } = useEncounter();
+  const { user } = useDb();
 
   if (!activeEncounter) return null;
 
-  const handleConfirm = () => {
-    confirmDiscovery(activeEncounter.id);
+  const handleConfirmEncounter = async () => {
+    if (!activeEncounter || !user) return;
+    const animalId = activeEncounter.id;
+
+    try {
+      const metaRef = doc(firestoreDb, "users_meta", user.uid);
+      await setDoc(metaRef, {
+        totems: {
+          [animalId]: {
+            badgeUnlocked: true,
+            step: 0,
+            completed: false
+          }
+        }
+      }, { merge: true });
+
+      if (typeof confirmDiscovery === 'function') {
+        confirmDiscovery(animalId);
+      }
+
+      // Fermeture de la modale
+      setActiveEncounter(null);
+    } catch (error) {
+      console.error("[ENCOUNTER] Erreur lors de la validation du badge :", error);
+      setActiveEncounter(null);
+    }
   };
 
   const handleClose = () => {
@@ -71,7 +99,7 @@ export default function EncounterModal() {
         {/* Bouton D'accord */}
         <button
           type="button"
-          onClick={handleConfirm}
+          onClick={handleConfirmEncounter}
           className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-black text-sm tracking-wide shadow-lg shadow-emerald-950/40 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer border border-emerald-200/40"
         >
           D'accord
