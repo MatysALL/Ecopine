@@ -2,7 +2,7 @@ import React from 'react';
 import { useEncounter } from '../context/EncounterContext';
 import { TOTEM_CONFIG } from '../utils/totems';
 
-export default function TotemBadge({ totemId, className = '' }) {
+export default function TotemBadge({ totemId, className = '', onClick: customOnClick }) {
   const { totems, handleBadgeClick } = useEncounter();
   const totemState = totems?.[totemId];
 
@@ -22,7 +22,11 @@ export default function TotemBadge({ totemId, className = '' }) {
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        handleBadgeClick(totemId);
+        if (typeof customOnClick === 'function') {
+          customOnClick(e);
+        } else {
+          handleBadgeClick(totemId);
+        }
       }}
       className={`relative w-9 h-9 rounded-full border-2 border-slate-900 bg-white shadow-sm flex items-center justify-center overflow-hidden hover:scale-110 active:scale-95 transition-transform cursor-pointer flex-shrink-0 select-none ${className}`}
       title={`Totem ${config.name}`}

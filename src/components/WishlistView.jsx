@@ -5,11 +5,12 @@ import { db as firestoreDb } from '../firebase';
 import { 
   Plus, Edit2, Trash2, Gift, Coins, Sparkles, X
 } from 'lucide-react';
-import { triggerAnimalEncounter } from '../context/EncounterContext';
+import { triggerAnimalEncounter, useEncounter } from '../context/EncounterContext';
 import TotemBadge from './TotemBadge';
 
 export default function WishlistView() {
-  const { wishlist: wishes, accountsData: accounts, user, projects = [] } = useDb();
+  const { wishlist: wishes, accountsData: accounts, user, projects = [], userMeta, usersMetaDoc } = useDb();
+  const { setActiveTotemDialogue, totems } = useEncounter();
 
   // UI state
   const [formOpen, setFormOpen] = useState(false);
@@ -66,6 +67,78 @@ export default function WishlistView() {
     setDraggedItemIndex(index);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleFoxClick = (e) => {
+    if (e) e.stopPropagation();
+
+    // Récupérer les souhaits actuellement affichés dans le catalogue
+    const currentWishes = (sortedWishes && sortedWishes.length > 0) ? sortedWishes : (localWishes && localWishes.length > 0 ? localWishes : (wishes || []));
+
+    const foxTotem = totems?.renard || usersMetaDoc?.totems?.renard || userMeta?.totems?.renard;
+    console.log("[FOX QUEST] Totem state:", foxTotem);
+    console.log("[FOX QUEST] Wishes list:", currentWishes);
+
+    // 1. Minimum 6 souhaits
+    const hasMinSix = currentWishes.length >= 6;
+
+    // 2. Chaque souhait a une description
+    const allHaveDescription = currentWishes.length >= 6 && currentWishes.every(w => {
+      const desc = (w.description || w.desc || "").trim();
+      return desc.length > 0;
+    });
+
+    // 3. Vérifier que la liste affichée est bien triée de A à Z
+    const titles = currentWishes.map(w => (w.title || w.name || "").trim().toLowerCase());
+    const isAlphabetical = titles.length >= 6 && titles.every((t, i) => i === 0 || t.localeCompare(titles[i - 1]) >= 0);
+
+    console.log("[FOX QUEST] Checks:", { hasMinSix, allHaveDescription, isAlphabetical, titles });
+
+    // Si on est à l'étape 0 (pas encore cliqué sur 'Allons-y !') : ouvrir le dialogue initial
+    if (!foxTotem?.step || foxTotem.step === 0) {
+      setActiveTotemDialogue({ totemId: 'renard', phase: 'greeting' });
+      return;
+    }
+
+    // Si le totem est déjà complété, ne rien ouvrir
+    if (foxTotem?.completed) {
+      return;
+    }
+
+    // Si l'étape 2 (projets) est déjà en cours
+    if (foxTotem?.projectWishesDone) {
+      let hasProjectAlpha = false;
+      if (projects && projects.length > 0) {
+        for (const p of projects) {
+          const projWishes = (wishes || [])
+            .filter(w => w.projectId === p.id && !w.isCompleted)
+            .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+          const pHasMinSix = projWishes.length >= 6;
+          const pAllHaveDesc = pHasMinSix && projWishes.every(w => (w.description || w.desc || "").trim().length > 0);
+          const pTitles = projWishes.map(w => (w.title || w.name || "").trim().toLowerCase());
+          const pIsAlpha = pTitles.length >= 6 && pTitles.every((t, i) => i === 0 || t.localeCompare(pTitles[i - 1]) >= 0);
+          if (pHasMinSix && pAllHaveDesc && pIsAlpha) {
+            hasProjectAlpha = true;
+            break;
+          }
+        }
+      }
+      if (hasProjectAlpha) {
+        setActiveTotemDialogue({ totemId: 'renard', phase: 'renard_step2_done' });
+      } else {
+        setActiveTotemDialogue({ totemId: 'renard', phase: 'riddle_step2' });
+      }
+      return;
+    }
+
+    // Si l'étape 1 est active et que les conditions sont réunies :
+    if (hasMinSix && allHaveDescription && isAlphabetical) {
+      // Valider la première partie et afficher la réplique demandant la même chose dans un projet
+      setActiveTotemDialogue({ totemId: 'renard', phase: 'renard_step1_done' });
+    } else {
+      // Rappel de l'énigme
+      setActiveTotemDialogue({ totemId: 'renard', phase: 'riddle_step1' });
+    }
   };
 
   const handleDragEnter = (e, targetIndex) => {
@@ -253,7 +326,7 @@ export default function WishlistView() {
         </div>
 
         <div className="flex items-center gap-2.5 self-start md:self-auto">
-          <TotemBadge totemId="renard" />
+          <TotemBadge totemId="renard" onClick={handleFoxClick} />
           <button
             onClick={() => {
               if (formOpen) {

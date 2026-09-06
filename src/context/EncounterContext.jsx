@@ -139,8 +139,10 @@ export const EncounterProvider = ({ children }) => {
       });
     } else if (totemId === 'renard') {
       if (!totemState.projectWishesDone) {
-        // Detection 1: Check personal wishes
-        const personalWishes = (wishlist || []).filter(w => !w.projectId && !w.isCompleted);
+        // Detection 1: Check personal wishes sorted by order
+        const personalWishes = (wishlist || [])
+          .filter(w => !w.projectId && !w.isCompleted)
+          .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
         const isAlphabetical = checkAlphabeticalWishes(personalWishes);
         if (isAlphabetical) {
           setActiveTotemDialogue({
@@ -158,7 +160,9 @@ export const EncounterProvider = ({ children }) => {
         let hasProjectAlpha = false;
         if (projects && projects.length > 0) {
           for (const p of projects) {
-            const projWishes = (wishlist || []).filter(w => w.projectId === p.id && !w.isCompleted);
+            const projWishes = (wishlist || [])
+              .filter(w => w.projectId === p.id && !w.isCompleted)
+              .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
             if (checkAlphabeticalWishes(projWishes)) {
               hasProjectAlpha = true;
               break;

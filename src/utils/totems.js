@@ -71,25 +71,25 @@ export const TOTEM_CONFIG = {
  * and sorted in alphabetical order by their title/name.
  */
 export const checkAlphabeticalWishes = (wishesList) => {
-  if (!Array.isArray(wishesList)) return false;
-
-  // Filter wishes that have a non-empty description
-  const describedWishes = wishesList.filter(w => {
-    const desc = (w.description || w.desc || '').trim();
-    const title = (w.name || w.title || '').trim();
-    return desc.length > 0 && title.length > 0;
-  });
-
-  if (describedWishes.length < 6) return false;
-
-  // Check if they are ordered alphabetically from A to Z
-  for (let i = 1; i < describedWishes.length; i++) {
-    const prevTitle = (describedWishes[i - 1].name || describedWishes[i - 1].title || '').trim();
-    const currTitle = (describedWishes[i].name || describedWishes[i].title || '').trim();
-    if (currTitle.localeCompare(prevTitle, 'fr', { sensitivity: 'base' }) < 0) {
-      return false;
-    }
+  if (!Array.isArray(wishesList) || wishesList.length < 6) {
+    console.log("[FOX QUEST checkAlphabeticalWishes] Not enough wishes:", wishesList?.length);
+    return false;
   }
 
-  return true;
+  // 1. Minimum 6 souhaits
+  const hasMinSix = wishesList.length >= 6;
+
+  // 2. Chaque souhait a une description
+  const allHaveDescription = wishesList.every(w => {
+    const desc = (w.description || w.desc || '').trim();
+    return desc.length > 0;
+  });
+
+  // 3. Vérifier que la liste affichée est bien triée de A à Z
+  const titles = wishesList.map(w => (w.title || w.name || '').trim().toLowerCase());
+  const isAlphabetical = titles.every((t, i) => i === 0 || t.localeCompare(titles[i - 1]) >= 0);
+
+  console.log("[FOX QUEST checkAlphabeticalWishes]:", { hasMinSix, allHaveDescription, isAlphabetical, titles });
+
+  return hasMinSix && allHaveDescription && isAlphabetical;
 };
