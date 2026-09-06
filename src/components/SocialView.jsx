@@ -120,14 +120,14 @@ export default function SocialView() {
   // Handlers for friendship actions
   const handleSendInviteByEmail = async (e) => {
     if (e) e.preventDefault();
-    const rawInput = emailInput.trim();
-    if (!rawInput) {
+    const queryStr = emailInput.trim();
+    if (!queryStr) {
       showToast("Veuillez saisir une adresse e-mail.", true);
       return;
     }
 
-    // Exception Nordlys pour le Totem Loup
-    if (rawInput.toLowerCase() === 'nordlys') {
+    // Cas d'exception pour la quête du Loup (Nordlys)
+    if (queryStr.toLowerCase() === 'nordlys') {
       setEmailInput('');
       const loupState = totems?.loup;
       if (!loupState?.requestedOnce) {
@@ -145,7 +145,14 @@ export default function SocialView() {
       }
     }
 
-    const cleanEmail = rawInput.toLowerCase();
+    // Validation d'e-mail classique via Regex pour les vrais utilisateurs
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(queryStr)) {
+      showToast("Veuillez saisir une adresse e-mail valide.", true);
+      return;
+    }
+
+    const cleanEmail = queryStr.toLowerCase();
 
     if (cleanEmail === (user?.email || '').toLowerCase()) {
       showToast("Tu ne peux pas t'envoyer une demande d'ami à toi-même !", true);
@@ -473,10 +480,11 @@ export default function SocialView() {
             </p>
 
             {/* Email invitation form */}
-            <form onSubmit={handleSendInviteByEmail} className="space-y-3">
+            <form onSubmit={handleSendInviteByEmail} noValidate className="space-y-3">
               <div className="relative">
                 <input
-                  type="email"
+                  type="text"
+                  inputMode="email"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
                   placeholder="Adresse e-mail exacte de l'ami..."
